@@ -18,9 +18,10 @@ import { AngleBoardColumnHeaders, AngleBoardRowHeader } from './angle-board-head
  * @param {number[][]} props.grid
  * @param {number} props.cellSize
  * @param {Set<string>} props.selection - selected "row,col" keys
- * @param {Set<string>} [props.highlightCells] - search-result "row,col" keys
- * @param {Set<string>} [props.highlightActive] - subset of those for the one
- *   result being emphasised
+ * @param {Map<string, { colors: string[], activeColor: string|null }>} [props.highlightCells] -
+ *   search-result "row,col" keys to their colour data
+ * @param {string} [props.highlightActiveText] - digit colour for a cell
+ *   solid-filled with its active path colour
  * @param {Set<number>} props.rowHighlights
  * @param {Set<number>} props.colHighlights
  * @param {boolean} props.editable
@@ -28,23 +29,12 @@ import { AngleBoardColumnHeaders, AngleBoardRowHeader } from './angle-board-head
  *   editing state, required in editable mode
  */
 
-/**
- * Which non-selection highlight layer a cell sits in, or none.
- * The active result wins over the general match colour where they overlap;
- * selection still beats both, inside the cell itself.
- */
-function cellHighlight(cells, active, key) {
-  if (active?.has(key)) return 'active';
-  if (cells?.has(key)) return 'match';
-  return null;
-}
-
 export function AngleBoardGrid({
   grid,
   cellSize,
   selection,
   highlightCells,
-  highlightActive,
+  highlightActiveText,
   rowHighlights,
   colHighlights,
   editable = false,
@@ -89,11 +79,8 @@ export function AngleBoardGrid({
                 key={`${rowIndex},${colIndex}`}
                 value={value}
                 isSelected={selection.has(`${rowIndex},${colIndex}`)}
-                highlight={cellHighlight(
-                  highlightCells,
-                  highlightActive,
-                  `${rowIndex},${colIndex}`
-                )}
+                search={highlightCells?.get(`${rowIndex},${colIndex}`) ?? null}
+                searchActiveText={highlightActiveText}
                 cellSize={cellSize}
               />
             )

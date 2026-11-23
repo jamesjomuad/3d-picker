@@ -22,6 +22,9 @@ const MAX_ROWS = 100;
  * @param {string} props.combination - the digits that were searched for
  * @param {Array<{ digits: string, path: Array<{row: number, column: number}> }>} props.results
  * @param {number} props.activeIndex - which result the board is emphasising
+ * @param {string[]} props.colors - the palette colour of each result, in
+ *   result order (see `@/utils/search-highlight-utils`); drawn as a dot beside
+ *   the row so the list and the board agree on which path is which
  * @param {(index: number) => void} props.onSelectResult
  * @param {Object} [props.style] - Additional card styles
  */
@@ -29,6 +32,7 @@ export function CombinationSearchResults({
   combination,
   results,
   activeIndex,
+  colors,
   onSelectResult,
   style,
 }) {
@@ -64,21 +68,17 @@ export function CombinationSearchResults({
 
           {results.slice(0, MAX_ROWS).map((result, index) => {
             const isActive = index === activeIndex;
+            const color = colors[index];
 
             return (
               <View
                 key={`${result.path.map((cell) => `${cell.row},${cell.column}`).join('-')}`}
-                style={[
-                  styles.row,
-                  isActive && {
-                    backgroundColor: theme.backgroundSelected,
-                    borderColor: theme.primary,
-                  },
-                ]}>
+                style={[styles.row, isActive && { borderColor: color }]}>
+                <View style={[styles.swatch, { backgroundColor: color }]} />
                 <ThemedText
                   onPress={() => onSelectResult(index)}
                   accessibilityRole="button"
-                  accessibilityLabel={`Show path ${index + 1} of ${results.length} on the board`}
+                  accessibilityLabel={`Show path ${index + 1} of ${results.length} on the board, colour ${color}`}
                   style={[
                     styles.rowText,
                     isActive && { color: theme.text, fontWeight: '700' },
@@ -117,11 +117,19 @@ const styles = StyleSheet.create({
     gap: Spacing.half,
   },
   row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
     borderRadius: BorderRadius.sm,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'transparent',
     paddingHorizontal: Spacing.two,
     paddingVertical: Spacing.one,
+  },
+  swatch: {
+    width: 10,
+    height: 10,
+    borderRadius: BorderRadius.full,
   },
   rowText: {
     fontFamily: Fonts.mono,

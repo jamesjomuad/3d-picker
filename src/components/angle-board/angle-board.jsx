@@ -12,8 +12,8 @@ import { getDragHighlights, getSelectedRowsAndCols } from '@/utils/selection';
 /** Identity-stable stand-in so a board with no owner selection stays memo-safe. */
 const NO_SELECTION = new Set();
 
-/** Identity-stable stand-ins for a board with no search highlights. */
-const NO_HIGHLIGHTS = { cells: NO_SELECTION, active: NO_SELECTION };
+/** Identity-stable stand-in for a board with no search highlights. */
+const NO_HIGHLIGHTS = { cells: new Map() };
 
 /**
  * Angle Board — the digit grid with spreadsheet-style selection.
@@ -46,11 +46,13 @@ const NO_HIGHLIGHTS = { cells: NO_SELECTION, active: NO_SELECTION };
  * @param {boolean} [props.editable]
  * @param {(changes: Object<string, number>) => void} [props.onCellChange] -
  *   digits to write, as "row,col" -> digit, from a typed edit or a fill
- * @param {{ cells: Set<string>, active: Set<string> }} [props.highlights] -
- *   a non-selection highlight layer, "row,col" keys: `cells` marks every cell
- *   a search result passes through, `active` emphasises the one result the
- *   owner is showing. Selection always wins, so a highlighted cell that is
- *   also selected simply looks selected.
+ * @param {{ cells: Map<string, { colors: string[], activeColor: string|null }>, activeText?: string }} [props.highlights] -
+ *   a non-selection highlight layer keyed by "row,col": `cells` maps every
+ *   search-result cell to the colours of the paths crossing it (several when
+ *   paths overlap), with `activeColor` set when the emphasised result passes
+ *   through. `activeText` is the digit colour for solid-filled active cells.
+ *   Selection always wins, so a highlighted cell that is also selected simply
+ *   looks selected.
  * @param {Object} [props.style] - extra style for the outer wrapper
  */
 export function AngleBoard({
@@ -111,7 +113,7 @@ export function AngleBoard({
           cellSize={cellSize}
           selection={cells}
           highlightCells={marks.cells}
-          highlightActive={marks.active}
+          highlightActiveText={marks.activeText}
           rowHighlights={headerMarks.rows}
           colHighlights={headerMarks.cols}
           editable={editable}

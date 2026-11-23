@@ -7,12 +7,14 @@ import { CombinationSearchResults } from '@/components/search/combination-search
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useScreenInsets } from '@/hooks/use-screen-insets';
 import { useTheme } from '@/hooks/use-theme';
 import { useAngleBoardStore } from '@/store/angleBoardStore';
 import { useLibraryStore } from '@/store/libraryStore';
-import { getPathCellKeys, parseCombination, searchCombinations } from '@/utils/combination-search';
+import { parseCombination, searchCombinations } from '@/utils/combination-search';
+import { assignResultColors, buildSearchHighlights } from '@/utils/search-highlight-utils';
 
 /**
  * Picker — the Angle Board at full size, with the selection summary under it.
@@ -23,7 +25,8 @@ import { getPathCellKeys, parseCombination, searchCombinations } from '@/utils/c
  *
  * Combination search lives here as plain screen state: what is typed, what has
  * settled into a query, which result is being shown. None of it belongs in a
- * store — nothing else reads it, and the board only ever receives derived Sets.
+ * store — nothing else reads it, and the board only ever receives derived,
+ * coloured cell data from `@/utils/search-highlight-utils`.
  */
 export default function PickerScreen() {
   const theme = useTheme();
@@ -64,15 +67,19 @@ export default function PickerScreen() {
     [board, query, isValidQuery]
   );
 
-  // Two cell sets for the board: every path it found, and the one row the user
-  // is reading. `undefined` while nothing matched keeps the board prop-free.
-  const highlights = useMemo(() => {
-    if (results.length === 0) return undefined;
-    return {
-      cells: new Set(results.flatMap((result) => getPathCellKeys(result.path))),
-      active: new Set(getPathCellKeys(results[activeIndex]?.path ?? [])),
-    };
-  }, [results, activeIndex]);
+  // One palette colour per result, assigned by order, recoloured when the
+  // system theme flips so board and list keep agreeing.
+  const scheme = useColorScheme();
+  const mode = scheme === 'dark' ? 'dark' : 'light';
+  const resultColors = useMemo(() => assignResultColors(results.length, mode), [results.length, mode]);
+
+  // The board's colour layer: every crossed cell knows the colours of the
+  // paths through it, the emphasised result's cells are solid-filled.
+  // Null while nothing matched keeps the board prop-free.
+  const highlights = useMemo(
+    () => buildSearchHighlights(results, activeIndex, mode),
+    [results, activeIndex, mode]
+  );
 
   const handleSearchSubmit = useCallback(() => {
     setQuery(draft);
@@ -133,6 +140,7 @@ export default function PickerScreen() {
             combination={query}
             results={results}
             activeIndex={activeIndex}
+            colors={resultColors}
             onSelectResult={setActiveIndex}
             style={styles.resultsCard}
           />
