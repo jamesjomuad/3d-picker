@@ -7,6 +7,7 @@ import { CombinationSearchResults } from '@/components/search/combination-search
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
+import { FunPick } from '@/features/angle-board/fun-pick/FunPick';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useScreenInsets } from '@/hooks/use-screen-insets';
@@ -171,6 +172,10 @@ export default function PickerScreen() {
             style={query !== '' && isValidQuery ? undefined : styles.selectionCard}
           />
         )}
+
+        {/* Fun Pick stays mounted even with an empty selection so it can
+            explain why generating would produce nothing. */}
+        <FunPick grid={board.grid} selection={selection} style={styles.funPick} />
       </View>
     </ScrollView>
   );
@@ -202,6 +207,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.three,
   },
   selectionCard: {
+    marginTop: Spacing.three,
+  },
+  funPick: {
     marginTop: Spacing.three,
   },
 });
