@@ -204,3 +204,43 @@ export function getSelectedRowsAndCols(selectedCells) {
 
   return { rows, cols };
 }
+
+/**
+ * Bounding box of a selection set.
+ *
+ * @param {Set<string>} selectedCells - "row,col" keys
+ * @returns {{ minRow: number, minCol: number, maxRow: number, maxCol: number, count: number } | null}
+ *   null when nothing is selected
+ */
+export function getSelectionBounds(selectedCells) {
+  if (!selectedCells || selectedCells.size === 0) return null;
+
+  let minRow = Infinity;
+  let minCol = Infinity;
+  let maxRow = -Infinity;
+  let maxCol = -Infinity;
+
+  for (const key of selectedCells) {
+    const [row, col] = key.split(',').map(Number);
+    minRow = Math.min(minRow, row);
+    minCol = Math.min(minCol, col);
+    maxRow = Math.max(maxRow, row);
+    maxCol = Math.max(maxCol, col);
+  }
+
+  return { minRow, minCol, maxRow, maxCol, count: selectedCells.size };
+}
+
+/**
+ * Does the selection cover every cell of its own bounding box?
+ *
+ * @param {Set<string>} selectedCells
+ * @returns {boolean} false for an empty or irregular selection
+ */
+export function isSolidRectangle(selectedCells) {
+  const bounds = getSelectionBounds(selectedCells);
+  if (!bounds) return false;
+
+  const area = (bounds.maxRow - bounds.minRow + 1) * (bounds.maxCol - bounds.minCol + 1);
+  return bounds.count === area;
+}

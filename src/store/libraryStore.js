@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 import { loadLibrary, saveLibrary } from '@/services/board-storage';
 import { createBoard } from '@/utils/board-factory';
-import { validateBoard } from '@/utils/board-validation';
+import { isValidDigit, validateBoard } from '@/utils/board-validation';
 
 /**
  * Board library store
@@ -134,29 +134,43 @@ export const useLibraryStore = create((set, get) => ({
   },
 
   /**
-   * Updates a single cell in a board's grid
+   * Writes several cells of a board in one step, the way a drag-fill does.
+   *
+   * Takes the same map the board reports: "row,col" -> digit. The board is
+   * copied, versioned and persisted once for the whole map, so filling a block
+   * is one write, not one per cell.
+   *
    * @param {string} boardId
-   * @param {number} row
-   * @param {number} col
-   * @param {number} value
+   * @param {Object<string, number>} changes
    * @returns {{ success: boolean, error?: string }}
    */
-  updateCell: (boardId, row, col, value) => {
-    if (!Number.isInteger(value) || value < 0 || value > 9) {
-      return { success: false, error: 'Cell value must be an integer 0-9' };
+  applyCells: (boardId, changes) => {
+    const entries = Object.entries(changes ?? {});
+    if (entries.length === 0) return { success: true };
+
+    for (const [, value] of entries) {
+      if (!isValidDigit(value)) {
+        return { success: false, error: 'Cell value must be an integer 0-9' };
+      }
     }
 
     set((state) => ({
       boards: state.boards.map((b) => {
         if (b.id !== boardId) return b;
         const newGrid = b.grid.map((r) => [...r]);
-        newGrid[row][col] = value;
+        for (const [key, value] of entries) {
+          const [row, col] = key.split(',').map(Number);
+          newGrid[row][col] = value;
+        }
         return { ...b, grid: newGrid, updatedAt: new Date().toISOString() };
       }),
     }));
     get()._persist();
     return { success: true };
   },
+
+  updateCell: (boardId, row, col, value) =>
+    get().applyCells(boardId, { [`${row},${col}`]: value }),
 
   /**
    * Toggles a board's favorite status
@@ -241,5 +255,62 @@ export const useLibraryStore = create((set, get) => ({
       return boards.filter((b) => b.isFavorite);
     }
     return boards;
+  },
+
+  /**
+   * Replaces cells across a board with persistence-first semantics.
+   *
+   * Unlike `applyCells` (which updates state optimistically), this copies the
+   * grid, applies the changes, validates the result, persists the whole library
+   * and only then commits the in-memory update. If the save fails, the state
+   * is left untouched — UI and storage stay consistent.
+   *
+   * @param {string} boardId
+   * @param {Object<string, number>} changes - "row,col" -> digit
+   * @returns {Promise<{ success: boolean, error?: string }>}
+   */
+  replaceCells: async (boardId, changes) => {
+    const entries = Object.entries(changes ?? {});
+    if (entries.length === 0) return { success: true };
+
+    for (const [, value] of entries) {
+      if (!isValidDigit(value)) {
+        return { success: false, error: 'Cell value must be an integer 0-9' };
+      }
+    }
+
+    const source = get().boards.find((b) => b.id === boardId);
+    if (!source) return { success: false, error: 'Board not found' };
+
+    // Apply changes to a copy
+    const newGrid = source.grid.map((row) => [...row]);
+    for (const [key, value] of entries) {
+      const [row, col] = key.split(',').map(Number);
+      newGrid[row][col] = value;
+    }
+
+    // Validate the resulting grid before saving
+    const validation = validateBoard({ name: 'test', grid: newGrid });
+    if (!validation.valid) {
+      return { success: false, error: validation.error };
+    }
+
+    const updatedBoard = { ...source, grid: newGrid, updatedAt: new Date().toISOString() };
+    const newBoards = get().boards.map((b) => (b.id === boardId ? updatedBoard : b));
+
+    // Persist first — only update state when it succeeds
+    try {
+      await saveLibrary({
+        version: 1,
+        activeBoardId: get().activeBoardId,
+        boards: newBoards,
+      });
+    } catch (error) {
+      console.error('Failed to save board:', error);
+      return { success: false, error: 'Failed to save changes' };
+    }
+
+    set({ boards: newBoards });
+    return { success: true };
   },
 }));

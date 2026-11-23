@@ -14,24 +14,21 @@ const COPY_FEEDBACK_MS = 1600;
 /**
  * Selected cells card
  *
- * Shows the digits, coordinates and range for the current Angle Board
- * selection. Selection state is passed in from the Picker screen so the store
- * is not subscribed twice; the component never modifies the selection.
+ * Shows the digits, coordinates and range for an Angle Board selection. It takes
+ * the same `grid` + `selection` pair the board takes, so it sits beside the board
+ * in any screen and never reads a store or modifies the selection itself.
  *
  * @param {Object} props
- * @param {{ name?: string, grid: number[][] }} props.board - Angle Board
- * @param {Set<string>} props.selectedCells - Store selection set ("row,col")
+ * @param {number[][]} props.grid - the board's digits, read row-major
+ * @param {Set<string>} props.selection - selected "row,col" keys
  * @param {Object} [props.style] - Additional card styles
  */
-export function SelectedCellsCard({ board, selectedCells, style }) {
+export function SelectedCellsCard({ grid, selection, style }) {
   const theme = useTheme();
   const [copyStatus, setCopyStatus] = useState('idle');
   const resetTimer = useRef(null);
 
-  const summary = useMemo(
-    () => getSelectionSummary(board?.grid, selectedCells),
-    [board?.grid, selectedCells]
-  );
+  const summary = useMemo(() => getSelectionSummary(grid, selection), [grid, selection]);
 
   useEffect(
     () => () => {

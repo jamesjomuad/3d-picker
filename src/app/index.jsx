@@ -1,38 +1,40 @@
-import { useCallback, useEffect } from 'react';
+import { useEffect } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { SelectedCellsCard } from '@/components/angle-board/SelectedCellsCard';
-import { AngleBoardGrid } from '@/components/board/angle-board-grid';
+import { AngleBoard, SelectedCellsCard } from '@/components/angle-board';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { useScreenInsets } from '@/hooks/use-screen-insets';
 import { useTheme } from '@/hooks/use-theme';
-import { useBoardStore } from '@/store/boardStore';
+import { useAngleBoardStore } from '@/store/angleBoardStore';
 import { useLibraryStore } from '@/store/libraryStore';
 
+/**
+ * Picker — the Angle Board at full size, with the selection summary under it.
+ *
+ * The screen owns no board logic. It picks which board to show (the library's
+ * active board), holds the selection in the store so the board and the card read
+ * one source of truth, and passes both down.
+ */
 export default function PickerScreen() {
   const theme = useTheme();
   const { contentPadding, contentWidth } = useScreenInsets();
-  const selectedCells = useBoardStore((state) => state.selectedCells);
-  const clearSelection = useBoardStore((state) => state.clearSelection);
 
-  // Library store - subscribe to the specific values that affect rendering
-  const isLoaded = useLibraryStore((s) => s.isLoaded);
-  const loadLibrary = useLibraryStore((s) => s.loadLibrary);
-  const board = useLibraryStore((s) => {
-    return s.boards.find((b) => b.id === s.activeBoardId) || s.boards[0] || null;
+  const selection = useAngleBoardStore((state) => state.selectedCells);
+  const setSelection = useAngleBoardStore((state) => state.setSelection);
+  const clearSelection = useAngleBoardStore((state) => state.clearSelection);
+
+  const isLoaded = useLibraryStore((state) => state.isLoaded);
+  const loadLibrary = useLibraryStore((state) => state.loadLibrary);
+  const board = useLibraryStore((state) => {
+    return state.boards.find((b) => b.id === state.activeBoardId) || state.boards[0] || null;
   });
 
   useEffect(() => {
     loadLibrary();
   }, [loadLibrary]);
 
-  const handleClear = useCallback(() => {
-    clearSelection();
-  }, [clearSelection]);
-
-  // Loading state
   if (!isLoaded || !board) {
     return (
       <ScrollView
@@ -45,8 +47,6 @@ export default function PickerScreen() {
     );
   }
 
-  const selectionCount = selectedCells.size;
-
   return (
     <ScrollView
       style={[styles.scrollView, { backgroundColor: theme.background }]}
@@ -57,23 +57,14 @@ export default function PickerScreen() {
           <ThemedText themeColor="textSecondary" style={styles.subtitleText}>
             Tap or drag to select cells
           </ThemedText>
-          {selectionCount > 0 && (
-            <ThemedText themeColor="textSecondary" style={styles.countText}>
-              {selectionCount} cell{selectionCount === 1 ? '' : 's'} selected
-            </ThemedText>
-          )}
         </ThemedView>
 
-        <AngleBoardGrid board={board} />
+        <AngleBoard grid={board.grid} selection={selection} onSelectionChange={setSelection} />
 
-        <SelectedCellsCard
-          board={board}
-          selectedCells={selectedCells}
-          style={styles.selectionCard}
-        />
+        <SelectedCellsCard grid={board.grid} selection={selection} style={styles.selectionCard} />
 
-        {selectionCount > 0 && (
-          <ThemedText type="linkPrimary" style={styles.clearButton} onPress={handleClear}>
+        {selection.size > 0 && (
+          <ThemedText type="linkPrimary" style={styles.clearButton} onPress={clearSelection}>
             Clear selection
           </ThemedText>
         )}
@@ -99,10 +90,6 @@ const styles = StyleSheet.create({
   },
   subtitleText: {
     fontSize: 14,
-  },
-  countText: {
-    fontSize: 14,
-    marginTop: Spacing.half,
   },
   selectionCard: {
     marginTop: Spacing.three,

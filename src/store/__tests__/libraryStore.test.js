@@ -204,6 +204,57 @@ describe('updateGrid and updateCell', () => {
   });
 });
 
+describe('applyCells', () => {
+  let boardId;
+
+  beforeEach(async () => {
+    await useLibraryStore.getState().loadLibrary();
+    const board = useLibraryStore.getState().createBoard();
+    boardId = board.id;
+  });
+
+  const board = () => useLibraryStore.getState().boards.find((b) => b.id === boardId);
+
+  it('writes every cell of the map', () => {
+    const result = useLibraryStore.getState().applyCells(boardId, { '0,0': 4, '2,3': 9 });
+    expect(result.success).toBe(true);
+
+    expect(board().grid[0][0]).toBe(4);
+    expect(board().grid[2][3]).toBe(9);
+  });
+
+  it('replaces the board once for a whole fill', () => {
+    const before = board();
+    useLibraryStore.getState().applyCells(boardId, { '0,0': 1, '0,1': 2, '0,2': 3 });
+    const after = board();
+
+    expect(after).not.toBe(before);
+    // The previous board object is untouched, so nothing shares a row array.
+    expect(before.grid[0][0]).toBe(0);
+    expect(after.updatedAt >= before.updatedAt).toBe(true);
+  });
+
+  it('refuses a map holding a non-digit without writing anything', () => {
+    const result = useLibraryStore.getState().applyCells(boardId, { '0,0': 1, '0,1': 12 });
+    expect(result.success).toBe(false);
+    expect(result.error).toBeTruthy();
+
+    expect(board().grid[0][0]).toBe(0);
+    expect(board().grid[0][1]).toBe(0);
+  });
+
+  it('leaves the board alone for an empty map', () => {
+    const before = board();
+    expect(useLibraryStore.getState().applyCells(boardId, {}).success).toBe(true);
+    expect(board()).toBe(before);
+  });
+
+  it('is what updateCell does for one cell', () => {
+    useLibraryStore.getState().updateCell(boardId, 5, 5, 8);
+    expect(board().grid[5][5]).toBe(8);
+  });
+});
+
 describe('toggleFavorite', () => {
   let boardId;
 
@@ -365,5 +416,82 @@ describe('persistence', () => {
     expect(reloaded.name).toBe('Persisted Board');
     expect(reloaded.grid[0][0]).toBe(7);
     expect(reloaded.isFavorite).toBe(true);
+  });
+});
+
+describe('replaceCells', () => {
+  let boardId;
+
+  beforeEach(async () => {
+    await useLibraryStore.getState().loadLibrary();
+    const board = useLibraryStore.getState().createBoard({ name: 'Replace Test' });
+    boardId = board.id;
+    // Set up a known grid: row 0 = [1,2,3,0,0,0,0,0,0,0], rest = zeros
+    const grid = Array.from({ length: 10 }, () => Array(10).fill(0));
+    grid[0][0] = 1;
+    grid[0][1] = 2;
+    grid[0][2] = 3;
+    useLibraryStore.getState().updateGrid(boardId, grid);
+  });
+
+  it('replaces one occurrence and persists', async () => {
+    const result = await useLibraryStore.getState().replaceCells(boardId, { '0,0': 9 });
+    expect(result.success).toBe(true);
+
+    const board = useLibraryStore.getState().boards.find((b) => b.id === boardId);
+    expect(board.grid[0][0]).toBe(9);
+    expect(board.grid[0][1]).toBe(2); // unchanged
+    expect(mockStoredLibrary).toBeTruthy();
+  });
+
+  it('replaces multiple occurrences in one call', async () => {
+    const result = await useLibraryStore.getState().replaceCells(boardId, {
+      '0,0': 5,
+      '0,1': 5,
+      '0,2': 5,
+    });
+    expect(result.success).toBe(true);
+
+    const board = useLibraryStore.getState().boards.find((b) => b.id === boardId);
+    expect(board.grid[0][0]).toBe(5);
+    expect(board.grid[0][1]).toBe(5);
+    expect(board.grid[0][2]).toBe(5);
+  });
+
+  it('does not update state when persistence fails', async () => {
+    // Capture the grid before the failed replace
+    const boardBefore = useLibraryStore.getState().boards.find((b) => b.id === boardId);
+    const gridBefore = boardBefore.grid.map((r) => [...r]);
+
+    // Make saveLibrary throw
+    const { saveLibrary } = require('@/services/board-storage');
+    saveLibrary.mockRejectedValueOnce(new Error('Disk full'));
+
+    const result = await useLibraryStore.getState().replaceCells(boardId, { '0,0': 9 });
+    expect(result.success).toBe(false);
+    expect(result.error).toBeTruthy();
+
+    // State must be unchanged
+    const boardAfter = useLibraryStore.getState().boards.find((b) => b.id === boardId);
+    expect(boardAfter.grid).toEqual(gridBefore);
+  });
+
+  it('rejects invalid cell values', async () => {
+    const result = await useLibraryStore.getState().replaceCells(boardId, { '0,0': 15 });
+    expect(result.success).toBe(false);
+  });
+
+  it('returns success for empty changes without persisting', async () => {
+    const { saveLibrary } = require('@/services/board-storage');
+    saveLibrary.mockClear();
+
+    const result = await useLibraryStore.getState().replaceCells(boardId, {});
+    expect(result.success).toBe(true);
+    expect(saveLibrary).not.toHaveBeenCalled();
+  });
+
+  it('returns failure for a non-existent board', async () => {
+    const result = await useLibraryStore.getState().replaceCells('no-such-board', { '0,0': 5 });
+    expect(result.success).toBe(false);
   });
 });

@@ -1,5 +1,9 @@
 import boardData from '@/data/angle-board.json';
-import { useBoardStore } from '@/store/boardStore';
+import {
+  calculateColSelection,
+  calculateRectSelection,
+  calculateRowSelection,
+} from '@/utils/selection';
 import { getSelectedCellEntries, getSelectionSummary } from '@/utils/selection-summary';
 
 const grid = boardData.grid;
@@ -9,9 +13,13 @@ const TOTAL_COLS = grid[0].length;
 const keysFor = (pairs) => new Set(pairs.map(([row, col]) => `${row},${col}`));
 const summaryFor = (selectedCells, options) => getSelectionSummary(grid, selectedCells, options);
 
-beforeEach(() => {
-  useBoardStore.setState({ selectedCells: new Set() });
-});
+// Selections come from the engine, exactly as the board produces them.
+const rect = (startRow, startCol, endRow, endCol) =>
+  calculateRectSelection(startRow, startCol, endRow, endCol, TOTAL_ROWS, TOTAL_COLS);
+const rows = (startRow, endRow) =>
+  calculateRowSelection(startRow, endRow, TOTAL_ROWS, TOTAL_COLS);
+const cols = (startCol, endCol) =>
+  calculateColSelection(startCol, endCol, TOTAL_ROWS, TOTAL_COLS);
 
 describe('empty selection', () => {
   it('reports an empty summary', () => {
@@ -34,8 +42,7 @@ describe('empty selection', () => {
 
 describe('single cell selection', () => {
   it('derives value, coordinate, range and type', () => {
-    useBoardStore.getState().selectCell(0, 1);
-    const summary = summaryFor(useBoardStore.getState().selectedCells);
+    const summary = summaryFor(rect(0, 1, 0, 1));
 
     expect(summary.hasSelection).toBe(true);
     expect(summary.count).toBe(1);
@@ -60,8 +67,7 @@ describe('single cell selection', () => {
 
 describe('rectangular selection', () => {
   it('matches the documented example: 6,0,3,8 in A1:D1', () => {
-    useBoardStore.getState().selectRect(0, 0, 0, 3, TOTAL_ROWS, TOTAL_COLS);
-    const summary = summaryFor(useBoardStore.getState().selectedCells);
+    const summary = summaryFor(rect(0, 0, 0, 3));
 
     expect(summary.type).toBe('rect');
     expect(summary.typeLabel).toBe('Rectangular range');
@@ -73,8 +79,7 @@ describe('rectangular selection', () => {
   });
 
   it('reads a multi-row rectangle in row-major order', () => {
-    useBoardStore.getState().selectRect(0, 0, 1, 2, TOTAL_ROWS, TOTAL_COLS);
-    const summary = summaryFor(useBoardStore.getState().selectedCells);
+    const summary = summaryFor(rect(0, 0, 1, 2));
 
     expect(summary.count).toBe(6);
     expect(summary.digits).toEqual([...grid[0].slice(0, 3), ...grid[1].slice(0, 3)]);
@@ -82,8 +87,7 @@ describe('rectangular selection', () => {
   });
 
   it('returns the same range when dragged up-left', () => {
-    useBoardStore.getState().selectRect(3, 3, 1, 1, TOTAL_ROWS, TOTAL_COLS);
-    const summary = summaryFor(useBoardStore.getState().selectedCells);
+    const summary = summaryFor(rect(3, 3, 1, 1));
 
     expect(summary.type).toBe('rect');
     expect(summary.count).toBe(9);
@@ -95,8 +99,7 @@ describe('rectangular selection', () => {
 
 describe('row selection', () => {
   it('classifies and labels multiple whole rows', () => {
-    useBoardStore.getState().selectRows(2, 3, TOTAL_ROWS, TOTAL_COLS);
-    const summary = summaryFor(useBoardStore.getState().selectedCells);
+    const summary = summaryFor(rows(2, 3));
 
     expect(summary.type).toBe('row');
     expect(summary.typeLabel).toBe('Entire rows');
@@ -107,8 +110,7 @@ describe('row selection', () => {
   });
 
   it('uses the singular label for one row', () => {
-    useBoardStore.getState().selectRows(4, 4, TOTAL_ROWS, TOTAL_COLS);
-    const summary = summaryFor(useBoardStore.getState().selectedCells);
+    const summary = summaryFor(rows(4, 4));
 
     expect(summary.type).toBe('row');
     expect(summary.typeLabel).toBe('Entire row');
@@ -119,8 +121,7 @@ describe('row selection', () => {
 
 describe('column selection', () => {
   it('classifies and labels whole columns', () => {
-    useBoardStore.getState().selectCols(1, 2, TOTAL_ROWS, TOTAL_COLS);
-    const summary = summaryFor(useBoardStore.getState().selectedCells);
+    const summary = summaryFor(cols(1, 2));
 
     expect(summary.type).toBe('col');
     expect(summary.typeLabel).toBe('Entire columns');
@@ -131,8 +132,7 @@ describe('column selection', () => {
   });
 
   it('uses the singular label for one column', () => {
-    useBoardStore.getState().selectCols(5, 5, TOTAL_ROWS, TOTAL_COLS);
-    const summary = summaryFor(useBoardStore.getState().selectedCells);
+    const summary = summaryFor(cols(5, 5));
 
     expect(summary.type).toBe('col');
     expect(summary.typeLabel).toBe('Entire column');
@@ -159,8 +159,7 @@ describe('ordering', () => {
 
 describe('large selections', () => {
   it('collapses the coordinate list but keeps every digit', () => {
-    useBoardStore.getState().selectRect(0, 0, 9, 9, TOTAL_ROWS, TOTAL_COLS);
-    const summary = summaryFor(useBoardStore.getState().selectedCells);
+    const summary = summaryFor(rect(0, 0, 9, 9));
 
     expect(summary.count).toBe(TOTAL_ROWS * TOTAL_COLS);
     expect(summary.type).toBe('rect');
@@ -191,23 +190,12 @@ describe('large selections', () => {
   });
 });
 
-describe('live store integration', () => {
-  it('reflects each selection change immediately', () => {
-    const store = useBoardStore.getState;
-
-    store().selectCell(0, 1);
-    expect(summaryFor(store().selectedCells).digitsText).toBe('0');
-
-    store().selectRect(0, 0, 0, 3, TOTAL_ROWS, TOTAL_COLS);
-    expect(summaryFor(store().selectedCells).digitsText).toBe('6,0,3,8');
-
-    store().selectRows(2, 3, TOTAL_ROWS, TOTAL_COLS);
-    expect(summaryFor(store().selectedCells).count).toBe(20);
-
-    store().selectCols(6, 8, TOTAL_ROWS, TOTAL_COLS);
-    expect(summaryFor(store().selectedCells).type).toBe('col');
-
-    store().clearSelection();
-    expect(summaryFor(store().selectedCells).hasSelection).toBe(false);
+describe('engine to summary', () => {
+  it('reports each selection shape the board can commit', () => {
+    expect(summaryFor(rect(0, 1, 0, 1)).digitsText).toBe('0');
+    expect(summaryFor(rect(0, 0, 0, 3)).digitsText).toBe('6,0,3,8');
+    expect(summaryFor(rows(2, 3)).count).toBe(20);
+    expect(summaryFor(cols(6, 8)).type).toBe('col');
+    expect(summaryFor(new Set()).hasSelection).toBe(false);
   });
 });

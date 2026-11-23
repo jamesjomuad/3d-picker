@@ -22,7 +22,7 @@ module.exports = defineConfig([
     },
   },
   {
-    files: ['**/__tests__/**/*.js', '**/*.test.js'],
+    files: ['**/__tests__/**/*.{js,jsx}', '**/*.test.{js,jsx}'],
     languageOptions: {
       globals: {
         describe: 'readonly',
@@ -33,6 +33,7 @@ module.exports = defineConfig([
         afterEach: 'readonly',
         beforeAll: 'readonly',
         afterAll: 'readonly',
+        global: 'readonly',
       },
     },
   },

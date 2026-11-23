@@ -9,8 +9,9 @@ import {
   View,
 } from 'react-native';
 
-import { BoardCard } from '@/components/board/board-card';
-import { EditableBoardGrid } from '@/components/board/editable-board-grid';
+import { AngleBoard } from '@/components/angle-board';
+import { ReplaceTool } from '@/components/angle-board/replace-tool';
+import { BoardCard } from '@/components/library/board-card';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
@@ -36,7 +37,8 @@ export default function BoardsScreen() {
   const loadLibrary = useLibraryStore((s) => s.loadLibrary);
   const createBoard = useLibraryStore((s) => s.createBoard);
   const renameBoard = useLibraryStore((s) => s.renameBoard);
-  const updateCell = useLibraryStore((s) => s.updateCell);
+  const applyCells = useLibraryStore((s) => s.applyCells);
+  const replaceCells = useLibraryStore((s) => s.replaceCells);
   const toggleFavorite = useLibraryStore((s) => s.toggleFavorite);
   const duplicateBoard = useLibraryStore((s) => s.duplicateBoard);
   const deleteBoard = useLibraryStore((s) => s.deleteBoard);
@@ -48,7 +50,9 @@ export default function BoardsScreen() {
   const [renameDialog, setRenameDialog] = useState(null); // { id, name }
   const [renameValue, setRenameValue] = useState('');
   const [deleteDialog, setDeleteDialog] = useState(null); // { id, name }
-  const [editModal, setEditModal] = useState(null); // board object
+  const [editingBoardId, setEditingBoardId] = useState(null); // board open in the edit sheet
+  const [editSelection, setEditSelection] = useState(null); // block to fill from
+  const [showReplaceTool, setShowReplaceTool] = useState(false);
 
   useEffect(() => {
     loadLibrary();
@@ -59,13 +63,35 @@ export default function BoardsScreen() {
     [getFilteredBoards, filter]
   );
 
+  // The board itself, read from the store on every render: `applyCells` replaces
+  // the board object, so a snapshot taken when the sheet opened would show the
+  // digits as they were before the last edit.
+  const editingBoard = useMemo(
+    () => boards.find((b) => b.id === editingBoardId) ?? null,
+    [boards, editingBoardId]
+  );
+
+  // The sheet carries its own fill pattern, so it starts clean each time: a
+  // leftover selection from the last board would fill this one with those digits.
+  const openEditSheet = useCallback((boardId) => {
+    setEditSelection(null);
+    setShowReplaceTool(false);
+    setEditingBoardId(boardId);
+  }, []);
+
+  const closeEditSheet = useCallback(() => {
+    setEditSelection(null);
+    setShowReplaceTool(false);
+    setEditingBoardId(null);
+  }, []);
+
   // Actions
   const handleCreate = useCallback(() => {
     const boardCount = boards.length + 1;
     const newBoard = createBoard({ name: `Board ${String(boardCount).padStart(3, '0')}` });
     // Jump to edit the new board immediately
-    setEditModal(newBoard);
-  }, [boards.length, createBoard]);
+    openEditSheet(newBoard.id);
+  }, [boards.length, createBoard, openEditSheet]);
 
   const handleOpen = useCallback(
     (boardId) => {
@@ -77,9 +103,9 @@ export default function BoardsScreen() {
 
   const handleEdit = useCallback(
     (board) => {
-      setEditModal(board);
+      openEditSheet(board.id);
     },
-    []
+    [openEditSheet]
   );
 
   const handleRename = useCallback(
@@ -128,13 +154,26 @@ export default function BoardsScreen() {
     [toggleFavorite]
   );
 
-  // Edit modal cell change handler
+  // Edit sheet: digits to write, in the map the board reports (one cell from a
+  // field, a whole block from a fill), stored in one step.
   const handleCellChange = useCallback(
-    (row, col, value) => {
-      if (!editModal) return;
-      updateCell(editModal.id, row, col, value);
+    (changes) => {
+      if (!editingBoardId) return;
+      applyCells(editingBoardId, changes);
     },
-    [editModal, updateCell]
+    [editingBoardId, applyCells]
+  );
+
+  // Replace tool: writes every matching cell via replaceCells (persist-first)
+  const handleReplaceAll = useCallback(
+    async ({ count, changes }) => {
+      if (!editingBoardId || count === 0) return;
+      const result = await replaceCells(editingBoardId, changes);
+      if (!result.success) {
+        Alert.alert('Replace Failed', result.error || 'Could not save the changes.');
+      }
+    },
+    [editingBoardId, replaceCells]
   );
 
   // Loading state
@@ -243,12 +282,12 @@ export default function BoardsScreen() {
         onConfirm={handleDeleteConfirm}
       />
 
-      {/* Edit modal */}
+      {/* Edit sheet: the same board, in editable mode */}
       <Modal
-        visible={!!editModal}
+        visible={!!editingBoard}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setEditModal(null)}>
+        onRequestClose={closeEditSheet}>
         <ScrollView
           style={[styles.editModal, { backgroundColor: theme.background }]}
           contentContainerStyle={[styles.editModalContent, contentPadding]}>
@@ -258,19 +297,39 @@ export default function BoardsScreen() {
               <ThemedText
                 themeColor="textSecondary"
                 style={styles.subtitleText}>
-                {editModal?.name}
+                {editingBoard?.name}
               </ThemedText>
             </View>
 
-            {editModal && (
-              <EditableBoardGrid
-                grid={editModal.grid}
+            <View style={styles.editToolbar}>
+              <Button
+                variant={showReplaceTool ? 'secondary' : 'outline'}
+                size="sm"
+                onPress={() => setShowReplaceTool((prev) => !prev)}>
+                {showReplaceTool ? '✕ Close Replace' : 'Replace'}
+              </Button>
+            </View>
+
+            {showReplaceTool && editingBoard && (
+              <ReplaceTool
+                grid={editingBoard.grid}
+                onReplaceAll={handleReplaceAll}
+                onClose={() => setShowReplaceTool(false)}
+              />
+            )}
+
+            {editingBoard && (
+              <AngleBoard
+                grid={editingBoard.grid}
+                selection={editSelection}
+                onSelectionChange={setEditSelection}
+                editable
                 onCellChange={handleCellChange}
               />
             )}
 
             <View style={styles.editActions}>
-              <Button variant="primary" onPress={() => setEditModal(null)}>
+              <Button variant="primary" onPress={closeEditSheet}>
                 Done
               </Button>
             </View>
@@ -371,6 +430,10 @@ const styles = StyleSheet.create({
   },
   editHeader: {
     gap: Spacing.half,
+  },
+  editToolbar: {
+    flexDirection: 'row',
+    gap: Spacing.two,
   },
   editActions: {
     marginTop: Spacing.three,

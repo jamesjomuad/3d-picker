@@ -95,7 +95,8 @@ src/
 │   ├── index.jsx         # Home / Angle Board screen
 │   └── ...               # Additional routes
 ├── components/           # Reusable UI components
-│   ├── board/            # Angle Board–specific components (grid, cell, etc.)
+│   ├── angle-board/      # Angle Board family (board, grid, cells, headers, card, hooks)
+│   ├── library/          # Board library components (board card, preview)
 │   └── ui/               # Generic UI primitives (Button, Text, etc.)
 ├── store/                # Zustand stores
 ├── data/                 # Static data files (angle-board.json)
@@ -109,7 +110,7 @@ src/
 
 - **Screens (`src/app/`):** Route definitions and screen composition. Import components and hooks; contain minimal logic.
 - **Components (`src/components/`):** Reusable, self-contained UI elements. Accept data via props; do not access stores directly unless they are clearly "connected" container components.
-- **State (`src/store/`):** Zustand stores for shared application state. One store per domain (e.g., `boardStore.js`, `selectionStore.js`). Keep stores focused.
+- **State (`src/store/`):** Zustand stores for shared application state. One store per domain (`angleBoardStore.js` for selection, `libraryStore.js` for saved boards). Keep stores focused: selection logic lives in `src/utils/selection.js`, not in the store.
 - **Data (`data/`):** Static JSON data files.
 - **Services (`src/services/`):** Data loading, parsing, and transformation logic.
 - **Utils (`src/utils/`):** Pure functions — validation, formatting, math. No side effects.
