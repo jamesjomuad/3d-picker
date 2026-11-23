@@ -1,11 +1,6 @@
 import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
+import { LayoutAnimation, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -14,12 +9,19 @@ import { useTheme } from '@/hooks/use-theme';
 
 const ANIMATION_DURATION_MS = 220;
 
+const toggleAnimation = {
+  duration: ANIMATION_DURATION_MS,
+  create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+  update: { type: LayoutAnimation.Types.easeInEaseOut },
+};
+
 /**
  * Foldable card container
  *
- * A Card-styled surface whose whole header toggles a smooth expand/collapse
- * of the content. Same header/body conventions as `Card` (backgroundElement
- * fill, hairline border, spacing tokens).
+ * A Card-styled surface whose whole header toggles the content open and shut.
+ * The fold is driven by LayoutAnimation around a mount/unmount of the content
+ * — the New Architecture runs it on the UI thread on both platforms, so no
+ * measurement or shared values are involved.
  *
  * @param {Object} props
  * @param {React.ReactNode} props.children - Collapsible card content
@@ -41,25 +43,11 @@ export function FoldableCard({
 }) {
   const theme = useTheme();
   const [expanded, setExpanded] = useState(defaultExpanded);
-  const [contentHeight, setContentHeight] = useState(0);
-
-  const progress = useSharedValue(defaultExpanded ? 1 : 0);
 
   const handleToggle = () => {
-    const next = !expanded;
-    setExpanded(next);
-    progress.value = withTiming(next ? 1 : 0, { duration: ANIMATION_DURATION_MS });
+    LayoutAnimation.configureNext(toggleAnimation);
+    setExpanded((value) => !value);
   };
-
-  const contentStyle = useAnimatedStyle(() => {
-    // Fully expanded: fall back to natural layout so measured height never lags.
-    if (progress.value >= 1) return { height: undefined, opacity: 1 };
-    return { height: contentHeight * progress.value, opacity: progress.value };
-  });
-
-  const chevronStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${90 - 180 * progress.value}deg` }],
-  }));
 
   return (
     <ThemedView
@@ -89,21 +77,21 @@ export function FoldableCard({
           ) : null}
         </View>
         {trailing ? trailing : null}
-        <Animated.View style={chevronStyle}>
+        <View style={{ transform: [{ rotate: expanded ? '-90deg' : '90deg' }] }}>
           <SymbolView
             name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
             size={14}
             weight="bold"
             tintColor={theme.text}
           />
-        </Animated.View>
+        </View>
       </Pressable>
 
-      <Animated.View style={contentStyle}>
-        <View style={styles.content} onLayout={(e) => setContentHeight(e.nativeEvent.layout.height)}>
+      {expanded && (
+        <View style={styles.content}>
           {children}
         </View>
-      </Animated.View>
+      )}
     </ThemedView>
   );
 }

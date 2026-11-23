@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { FoldableCard } from '@/components/ui/foldable-card';
 import { BorderRadius, Fonts, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getSelectionSummary } from '@/utils/selection-summary';
@@ -55,25 +55,23 @@ export function SelectedCellsCard({ grid, selection, onClear, style }) {
   const copyLabel = copyStatus === 'copied' ? 'Copied' : copyStatus === 'error' ? 'Failed' : 'Copy';
 
   return (
-    <Card
+    <FoldableCard
       style={style}
-      header={
-        <View style={styles.headerRow}>
-          <ThemedText type="smallBold">Selected Cells</ThemedText>
-          <View style={styles.headerActions}>
-            <Button
-              size="sm"
-              variant="outline"
-              onPress={handleCopy}
-              disabled={!summary.hasSelection}>
-              {copyLabel}
+      title="Selected Cells"
+      trailing={
+        <View style={styles.headerActions} pointerEvents="box-none">
+          <Button
+            size="sm"
+            variant="outline"
+            onPress={handleCopy}
+            disabled={!summary.hasSelection}>
+            {copyLabel}
+          </Button>
+          {onClear && (
+            <Button size="sm" variant="outline" onPress={onClear}>
+              Clear
             </Button>
-            {onClear && (
-              <Button size="sm" variant="outline" onPress={onClear}>
-                Clear
-              </Button>
-            )}
-          </View>
+          )}
         </View>
       }>
       {summary.hasSelection ? (
@@ -110,17 +108,11 @@ export function SelectedCellsCard({ grid, selection, onClear, style }) {
           Tap or drag on the board to select cells.
         </ThemedText>
       )}
-    </Card>
+    </FoldableCard>
   );
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.two,
-  },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',

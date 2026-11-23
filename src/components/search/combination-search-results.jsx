@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Card } from '@/components/ui/card';
+import { FoldableCard } from '@/components/ui/foldable-card';
 import { BorderRadius, Fonts, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getPathReference } from '@/utils/cell-reference';
@@ -42,15 +42,13 @@ export function CombinationSearchResults({ groups, colors, activeIndex, onSelect
   const total = groups.reduce((sum, group) => sum + group.results.length, 0);
 
   return (
-    <Card
+    <FoldableCard
       style={style}
-      header={
-        <View style={styles.headerRow}>
-          <ThemedText type="smallBold">Combination Search</ThemedText>
-          <ThemedText themeColor="textSecondary" style={styles.count}>
-            {total}
-          </ThemedText>
-        </View>
+      title="Combination Search"
+      trailing={
+        <ThemedText themeColor="textSecondary" style={styles.count}>
+          {total}
+        </ThemedText>
       }>
       <View style={styles.body}>
         {sections.map(({ combination, results, groupIndex, offset }) => {
@@ -107,17 +105,11 @@ export function CombinationSearchResults({ groups, colors, activeIndex, onSelect
           );
         })}
       </View>
-    </Card>
+    </FoldableCard>
   );
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.two,
-  },
   count: {
     fontVariant: ['tabular-nums'],
   },
