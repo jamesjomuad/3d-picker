@@ -65,7 +65,7 @@ export default function CollectionScreen() {
         <ThemedView style={styles.headerContainer}>
           <View style={styles.headerTop}>
             <View style={styles.headerTitle}>
-              <ThemedText type="subtitle">Selection Basket</ThemedText>
+              <ThemedText type="subtitle">Collection</ThemedText>
               <ThemedText themeColor="textSecondary" style={styles.countText}>
                 {entries.length} {entries.length === 1 ? 'pick' : 'picks'} saved
               </ThemedText>
