@@ -17,18 +17,14 @@ export default function PickerScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const selectedCells = useBoardStore((state) => state.selectedCells);
-  const toggleCell = useBoardStore((state) => state.toggleCell);
   const clearSelection = useBoardStore((state) => state.clearSelection);
 
   const contentWidth = Math.min(width - Spacing.three * 2, MaxContentWidth);
   const paddingBottom = insets.bottom + BottomTabInset + Spacing.three;
 
-  const handleCellPress = useCallback(
-    (rowIndex, colIndex) => {
-      toggleCell(rowIndex, colIndex);
-    },
-    [toggleCell]
-  );
+  const handleClear = useCallback(() => {
+    clearSelection();
+  }, [clearSelection]);
 
   const selectionCount = selectedCells.size;
 
@@ -45,7 +41,7 @@ export default function PickerScreen() {
         <ThemedView style={styles.headerContainer}>
           <ThemedText type="subtitle">{board.name}</ThemedText>
           <ThemedText themeColor="textSecondary" style={styles.subtitleText}>
-            Tap cells to select them
+            Tap or drag to select cells
           </ThemedText>
           {selectionCount > 0 && (
             <ThemedText themeColor="textSecondary" style={styles.countText}>
@@ -54,17 +50,10 @@ export default function PickerScreen() {
           )}
         </ThemedView>
 
-        <AngleBoardGrid
-          board={board}
-          selectedCells={selectedCells}
-          onCellPress={handleCellPress}
-        />
+        <AngleBoardGrid board={board} />
 
         {selectionCount > 0 && (
-          <ThemedText
-            type="linkPrimary"
-            style={styles.clearButton}
-            onPress={clearSelection}>
+          <ThemedText type="linkPrimary" style={styles.clearButton} onPress={handleClear}>
             Clear selection
           </ThemedText>
         )}

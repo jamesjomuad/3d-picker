@@ -1,5 +1,11 @@
 import { create } from 'zustand';
 
+import {
+  calculateColSelection,
+  calculateRectSelection,
+  calculateRowSelection,
+} from '@/utils/selection';
+
 /**
  * Board selection store
  * Manages cell selection state for the Angle Board
@@ -12,25 +18,6 @@ export const useBoardStore = create((set, get) => ({
   selectedCells: new Set(),
 
   /**
-   * Toggle a cell's selection state
-   * @param {number} row
-   * @param {number} col
-   */
-  toggleCell: (row, col) => {
-    const key = `${row},${col}`;
-    const current = get().selectedCells;
-    const next = new Set(current);
-
-    if (next.has(key)) {
-      next.delete(key);
-    } else {
-      next.add(key);
-    }
-
-    set({ selectedCells: next });
-  },
-
-  /**
    * Select a single cell, deselecting all others
    * @param {number} row
    * @param {number} col
@@ -38,6 +25,44 @@ export const useBoardStore = create((set, get) => ({
   selectCell: (row, col) => {
     const key = `${row},${col}`;
     set({ selectedCells: new Set([key]) });
+  },
+
+  /**
+   * Select a rectangular range of cells, replacing current selection
+   * @param {number} startRow
+   * @param {number} startCol
+   * @param {number} endRow
+   * @param {number} endCol
+   * @param {number} totalRows
+   * @param {number} totalCols
+   */
+  selectRect: (startRow, startCol, endRow, endCol, totalRows, totalCols) => {
+    const cells = calculateRectSelection(startRow, startCol, endRow, endCol, totalRows, totalCols);
+    set({ selectedCells: cells });
+  },
+
+  /**
+   * Select a range of rows (all columns), replacing current selection
+   * @param {number} startRow
+   * @param {number} endRow
+   * @param {number} totalRows
+   * @param {number} totalCols
+   */
+  selectRows: (startRow, endRow, totalRows, totalCols) => {
+    const cells = calculateRowSelection(startRow, endRow, totalRows, totalCols);
+    set({ selectedCells: cells });
+  },
+
+  /**
+   * Select a range of columns (all rows), replacing current selection
+   * @param {number} startCol
+   * @param {number} endCol
+   * @param {number} totalRows
+   * @param {number} totalCols
+   */
+  selectCols: (startCol, endCol, totalRows, totalCols) => {
+    const cells = calculateColSelection(startCol, endCol, totalRows, totalCols);
+    set({ selectedCells: cells });
   },
 
   /**
