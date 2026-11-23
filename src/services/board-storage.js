@@ -11,6 +11,9 @@ import { createBoard } from '@/utils/board-factory';
 
 const STORAGE_KEY = 'board-library-v1';
 const LEGACY_BOARD_KEY = 'board-library-legacy-migrated';
+const SEED_BOARD_NAME = 'Angle Board 001';
+/** ID the migration gives the board taken from the static seed file. */
+const SEED_BOARD_ID = 'board-001';
 
 /**
  * @typedef {Object} Board
@@ -30,11 +33,61 @@ const LEGACY_BOARD_KEY = 'board-library-legacy-migrated';
  */
 
 /**
- * Creates the default library structure with one board from legacy data
+ * Reads the seed board from the bundled static JSON
+ * @returns {Board|null} a library board built from the seed file, or null
+ *   when the file is missing or fails validation
+ */
+function readSeedBoard() {
+  try {
+    const seedData = require('@/data/angle-board.json');
+    const validation = validateBoard(seedData);
+
+    if (!validation.valid) {
+      console.warn('Seed board validation failed:', validation.error);
+      return null;
+    }
+
+    const now = new Date().toISOString();
+    return {
+      id: SEED_BOARD_ID,
+      name: seedData.name,
+      isFavorite: false,
+      grid: seedData.grid.map((row) => [...row]),
+      createdAt: now,
+      updatedAt: now,
+    };
+  } catch (error) {
+    console.warn('Seed board load failed:', error);
+    return null;
+  }
+}
+
+/**
+ * True when a library is exactly one all-zero board carrying the seed name —
+ * the shape left behind when the first run saved the zero-filled fallback in
+ * place of the migrated seed. A real user board may legitimately contain
+ * zeros, but a board that is only zeros under this exact name is the
+ * fallback, and the bundled seed file should win.
+ * @param {BoardLibrary} library
+ * @returns {boolean}
+ */
+function isZeroSeedFallback(library) {
+  if (!library || library.version !== 1 || !Array.isArray(library.boards)) return false;
+  if (library.boards.length !== 1) return false;
+
+  const board = library.boards[0];
+  if (!board || board.name !== SEED_BOARD_NAME || !Array.isArray(board.grid)) return false;
+
+  return board.grid.every((row) => Array.isArray(row) && row.every((value) => value === 0));
+}
+
+/**
+ * Creates the default library structure: the seed board when the static
+ * file is readable, an empty board only as a last resort
  * @returns {BoardLibrary}
  */
 function createDefaultLibrary() {
-  const board = createBoard({ name: 'Angle Board 001' });
+  const board = readSeedBoard() ?? createBoard({ name: SEED_BOARD_NAME });
   return {
     version: 1,
     activeBoardId: board.id,
@@ -43,49 +96,30 @@ function createDefaultLibrary() {
 }
 
 /**
- * Attempts to load the legacy static board and migrate it
- * @returns {BoardLibrary | null}
+ * Builds a library from the legacy static board
+ *
+ * There is deliberately no "already migrated" short-circuit here: this only
+ * runs when storage holds no usable library, and re-reading the seed file is
+ * the correct recovery whenever that happens (for example after a first run
+ * that set the flag but never persisted the board).
+ * @returns {Promise<BoardLibrary | null>}
  */
 async function migrateLegacyBoard() {
+  const seed = readSeedBoard();
+  if (!seed) return null;
+
+  // Keep the marker for storage inspectors; loading no longer depends on it.
   try {
-    // Check if we've already migrated
-    const alreadyMigrated = await AsyncStorage.getItem(LEGACY_BOARD_KEY);
-    if (alreadyMigrated) return null;
-
-    // Load the static board data
-    const legacyData = require('@/data/angle-board.json');
-    const validation = validateBoard(legacyData);
-
-    if (!validation.valid) {
-      console.warn('Legacy board validation failed:', validation.error);
-      return null;
-    }
-
-    // Create a board from the legacy data
-    const now = new Date().toISOString();
-    const migratedBoard = {
-      id: 'board-001',
-      name: legacyData.name,
-      isFavorite: false,
-      grid: legacyData.grid.map((row) => [...row]),
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    const library = {
-      version: 1,
-      activeBoardId: migratedBoard.id,
-      boards: [migratedBoard],
-    };
-
-    // Mark as migrated so we don't run this again
     await AsyncStorage.setItem(LEGACY_BOARD_KEY, 'true');
-
-    return library;
-  } catch (error) {
-    console.warn('Legacy migration failed:', error);
-    return null;
+  } catch {
+    // Marker is best-effort — the library contents are the real record.
   }
+
+  return {
+    version: 1,
+    activeBoardId: seed.id,
+    boards: [seed],
+  };
 }
 
 /**
@@ -100,6 +134,17 @@ export async function loadLibrary() {
     if (stored) {
       const parsed = JSON.parse(stored);
       if (parsed && parsed.version === 1 && Array.isArray(parsed.boards)) {
+        if (isZeroSeedFallback(parsed)) {
+          // A past first run persisted the all-zero fallback in place of the
+          // seed board (the old migration flag could short-circuit between the
+          // flag write and the save). Restore the seed digits once; after
+          // this the board carries real content and is never touched again.
+          const restored = await migrateLegacyBoard();
+          if (restored) {
+            await saveLibrary(restored);
+            return restored;
+          }
+        }
         return parsed;
       }
     }
