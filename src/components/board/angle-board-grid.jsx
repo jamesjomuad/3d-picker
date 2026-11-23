@@ -68,6 +68,11 @@ export function AngleBoardGrid({ board }) {
   /* eslint-disable react-hooks/refs */
   const panResponder = useRef(
     PanResponder.create({
+      // Capture phase: claim touches BEFORE ScrollView can intercept
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
+
+      // Bubble phase fallback
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
 
@@ -156,6 +161,7 @@ export function AngleBoardGrid({ board }) {
         });
       },
 
+      // Prevent ScrollView from terminating our gesture
       onPanResponderTerminationRequest: () => false,
     })
   ).current;
