@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { SelectedCellsCard } from '@/components/angle-board/SelectedCellsCard';
 import { AngleBoardGrid } from '@/components/board/angle-board-grid';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -52,6 +53,12 @@ export default function PickerScreen() {
 
         <AngleBoardGrid board={board} />
 
+        <SelectedCellsCard
+          board={board}
+          selectedCells={selectedCells}
+          style={styles.selectionCard}
+        />
+
         {selectionCount > 0 && (
           <ThemedText type="linkPrimary" style={styles.clearButton} onPress={handleClear}>
             Clear selection
@@ -84,6 +91,9 @@ const styles = StyleSheet.create({
   countText: {
     fontSize: 14,
     marginTop: Spacing.half,
+  },
+  selectionCard: {
+    marginTop: Spacing.three,
   },
   clearButton: {
     marginTop: Spacing.three,
