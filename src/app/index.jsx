@@ -35,11 +35,6 @@ export default function PickerScreen() {
           <ThemedText themeColor="textSecondary" style={styles.subtitleText}>
             Tap or drag to select cells
           </ThemedText>
-          {selectionCount > 0 && (
-            <ThemedText themeColor="textSecondary" style={styles.countText}>
-              {selectionCount} cell{selectionCount === 1 ? '' : 's'} selected
-            </ThemedText>
-          )}
         </ThemedView>
 
         <AngleBoardGrid board={board} />
@@ -77,10 +72,6 @@ const styles = StyleSheet.create({
   },
   subtitleText: {
     fontSize: 14,
-  },
-  countText: {
-    fontSize: 14,
-    marginTop: Spacing.half,
   },
   selectionCard: {
     marginTop: Spacing.three,

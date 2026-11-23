@@ -14,7 +14,7 @@ const COPY_FEEDBACK_MS = 1600;
 /**
  * Selected cells card
  *
- * Shows the digits, coordinates, range and count for the current Angle Board
+ * Shows the digits, coordinates and range for the current Angle Board
  * selection. Selection state is passed in from the Picker screen so the store
  * is not subscribed twice; the component never modifies the selection.
  *
@@ -96,7 +96,7 @@ export function SelectedCellsCard({ board, selectedCells, style }) {
               </ThemedText>
             )}
             <ThemedText themeColor="textSecondary" style={styles.metaText}>
-              {summary.count} cell{summary.count === 1 ? '' : 's'} selected · {summary.typeLabel}
+              {summary.typeLabel}
             </ThemedText>
           </View>
         </View>
