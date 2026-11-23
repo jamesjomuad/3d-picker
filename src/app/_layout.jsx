@@ -4,10 +4,12 @@ import { useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import AppTabs from '@/components/app-tabs';
+import { useImmersiveFullscreen } from '@/hooks/use-immersive-fullscreen';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function TabLayout() {
+  useImmersiveFullscreen();
   const colorScheme = useColorScheme();
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
