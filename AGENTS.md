@@ -97,6 +97,7 @@ src/
 ├── components/           # Reusable UI components
 │   ├── angle-board/      # Angle Board family (board, grid, cells, headers, card, hooks)
 │   ├── library/          # Board library components (board card, preview)
+│   ├── search/           # Combination search UI (search bar, results card)
 │   └── ui/               # Generic UI primitives (Button, Text, etc.)
 ├── store/                # Zustand stores
 ├── data/                 # Static data files (angle-board.json)
@@ -400,3 +401,32 @@ The Picker tab should be the default landing screen.
 - Do not modify Expo Router configuration without a clear requirement.
 
 Before changing navigation, inspect the existing generated Expo template and preserve its working configuration.
+
+## Task Scope and Verification
+
+Keep implementation and verification proportional to the task size.
+
+### Small Tasks (UI changes, simple features, minor fixes)
+
+- Inspect only relevant files.
+- Reuse existing implementation.
+- Do not refactor unrelated code.
+- Do not create tests for every minor UI change.
+- Do not run the entire test suite.
+- Run only the relevant lint or targeted check when necessary.
+- Perform a quick manual Android verification when the UI is affected.
+- If verification is unnecessary or unavailable, state that clearly.
+
+### Major Tasks (database, architecture, complex business logic)
+
+- Add or update relevant automated tests.
+- Run affected test suites.
+- Verify data integrity and regressions.
+
+### Important
+
+- Never spend excessive time creating test infrastructure for a small task.
+- Never fix unrelated test failures.
+- Do not repeatedly run the same checks without a reason.
+- Stop once the requested functionality is implemented and adequately verified.
+- Report only the checks actually performed.

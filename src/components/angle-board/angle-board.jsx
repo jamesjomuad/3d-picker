@@ -12,6 +12,9 @@ import { getDragHighlights, getSelectedRowsAndCols } from '@/utils/selection';
 /** Identity-stable stand-in so a board with no owner selection stays memo-safe. */
 const NO_SELECTION = new Set();
 
+/** Identity-stable stand-ins for a board with no search highlights. */
+const NO_HIGHLIGHTS = { cells: NO_SELECTION, active: NO_SELECTION };
+
 /**
  * Angle Board — the digit grid with spreadsheet-style selection.
  *
@@ -43,6 +46,11 @@ const NO_SELECTION = new Set();
  * @param {boolean} [props.editable]
  * @param {(changes: Object<string, number>) => void} [props.onCellChange] -
  *   digits to write, as "row,col" -> digit, from a typed edit or a fill
+ * @param {{ cells: Set<string>, active: Set<string> }} [props.highlights] -
+ *   a non-selection highlight layer, "row,col" keys: `cells` marks every cell
+ *   a search result passes through, `active` emphasises the one result the
+ *   owner is showing. Selection always wins, so a highlighted cell that is
+ *   also selected simply looks selected.
  * @param {Object} [props.style] - extra style for the outer wrapper
  */
 export function AngleBoard({
@@ -51,6 +59,7 @@ export function AngleBoard({
   onSelectionChange,
   editable = false,
   onCellChange,
+  highlights,
   style,
 }) {
   const editing = useAngleBoardEditing({ grid, onCellChange });
@@ -81,11 +90,12 @@ export function AngleBoard({
   const totalRows = grid.length;
   const totalCols = grid[0]?.length ?? 0;
   const cells = selection ?? NO_SELECTION;
+  const marks = highlights ?? NO_HIGHLIGHTS;
 
   // Which rows and columns the headers should mark: the drag in progress wins
   // while it lasts, then the committed selection keeps its own rows and columns
   // lit. Both come from the selection engine, never from the view tree.
-  const highlights = useMemo(() => {
+  const headerMarks = useMemo(() => {
     if (dragState) return getDragHighlights(dragState, totalRows, totalCols);
     return getSelectedRowsAndCols(cells);
   }, [dragState, totalRows, totalCols, cells]);
@@ -100,8 +110,10 @@ export function AngleBoard({
           grid={grid}
           cellSize={cellSize}
           selection={cells}
-          rowHighlights={highlights.rows}
-          colHighlights={highlights.cols}
+          highlightCells={marks.cells}
+          highlightActive={marks.active}
+          rowHighlights={headerMarks.rows}
+          colHighlights={headerMarks.cols}
           editable={editable}
           editing={editing}
         />

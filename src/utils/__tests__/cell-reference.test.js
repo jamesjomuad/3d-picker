@@ -1,6 +1,7 @@
 import {
   getCellReference,
   getColumnLetter,
+  getPathReference,
   getRangeReference,
 } from '@/utils/cell-reference';
 
@@ -57,5 +58,29 @@ describe('getRangeReference', () => {
   it('anchors on the top-left corner regardless of drag direction', () => {
     expect(getRangeReference(3, 3, 1, 1)).toBe(getRangeReference(1, 1, 3, 3));
     expect(getRangeReference(0, 3, 0, 0)).toBe('A1:D1');
+  });
+});
+
+describe('getPathReference', () => {
+  it('joins the cells of a path with arrows', () => {
+    expect(
+      getPathReference([
+        { row: 0, column: 0 },
+        { row: 1, column: 1 },
+        { row: 2, column: 2 },
+      ])
+    ).toBe('A1 → B2 → C3');
+  });
+
+  it('is a single reference for a one-cell path', () => {
+    expect(getPathReference([{ row: 3, column: 4 }])).toBe('E4');
+  });
+
+  it('accepts either column key spelling', () => {
+    expect(getPathReference([{ row: 0, col: 1 }])).toBe('B1');
+  });
+
+  it('is empty for no cells', () => {
+    expect(getPathReference([])).toBe('');
   });
 });

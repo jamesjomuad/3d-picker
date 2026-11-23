@@ -63,3 +63,17 @@ export function getRangeReference(startRow, startCol, endRow, endCol) {
 
   return from === to ? from : `${from}:${to}`;
 }
+
+/**
+ * Ordered path of cell references joined for display, e.g.
+ * `[{row:0,column:0},{row:1,column:1}]` -> "A1 → B2".
+ *
+ * Reads `column` (the combination-search result shape) and falls back to
+ * `col` (the board's internal shape), so either path can be displayed.
+ *
+ * @param {Array<{ row: number, column?: number, col?: number }>} path
+ * @returns {string}
+ */
+export function getPathReference(path) {
+  return path.map((cell) => getCellReference(cell.row, cell.column ?? cell.col)).join(' → ');
+}

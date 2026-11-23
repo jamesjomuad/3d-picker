@@ -12,13 +12,27 @@ import { useTheme } from '@/hooks/use-theme';
  * @param {Object} props
  * @param {number} props.value - The digit value (0-9)
  * @param {boolean} props.isSelected - Whether the cell is selected
+ * @param {'match'|'active'|null} [props.highlight] - search-result layer:
+ *   'match' marks a cell some result passes through, 'active' the cell of the
+ *   result being emphasised. Selection wins over both.
  * @param {number} props.cellSize - Size of the cell in pixels
  */
-export const AngleBoardCell = memo(function AngleBoardCell({ value, isSelected = false, cellSize }) {
+export const AngleBoardCell = memo(function AngleBoardCell({
+  value,
+  isSelected = false,
+  highlight = null,
+  cellSize,
+}) {
   const theme = useTheme();
 
-  const backgroundColor = isSelected ? theme.backgroundSelected : theme.backgroundElement;
-  const textColor = isSelected ? theme.text : theme.textSecondary;
+  let backgroundColor = isSelected ? theme.backgroundSelected : theme.backgroundElement;
+  let textColor = isSelected ? theme.text : theme.textSecondary;
+  if (!isSelected && highlight === 'match') {
+    backgroundColor = theme.primary + '30';
+  } else if (!isSelected && highlight === 'active') {
+    backgroundColor = theme.primary;
+    textColor = theme.primaryText;
+  }
 
   return (
     <View
