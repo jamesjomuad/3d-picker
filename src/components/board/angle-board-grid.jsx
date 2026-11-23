@@ -4,12 +4,14 @@ import { PanResponder, StyleSheet, Text, View } from 'react-native';
 import { AngleBoardCell } from './angle-board-cell';
 
 import { useTheme } from '@/hooks/use-theme';
-import { getDragHighlights, getSelectedRowsAndCols, getTouchZone, touchToCell } from '@/utils/selection';
+import { getDragHighlights, getSelectedRowsAndCols, touchToCell, touchToDragState } from '@/utils/selection';
 import { useBoardStore } from '@/store/boardStore';
 
 const HEADER_WIDTH = 28;
 const HEADER_HEIGHT = 24;
 const DEFAULT_CELL_SIZE = 35;
+const MIN_CELL_SIZE = 24;
+const MAX_CELL_SIZE = 50;
 
 /**
  * Angle Board grid component with drag selection
@@ -40,6 +42,9 @@ export function AngleBoardGrid({ board }) {
   const cellSizeRef = useRef(DEFAULT_CELL_SIZE);
 
   const [dragState, setDragState] = useState(null);
+  // Mirror of dragState, readable synchronously inside gesture callbacks.
+  // The PanResponder is created once, so it cannot close over state.
+  const dragStateRef = useRef(null);
 
   // Track committed selection's row/col highlights
   const committedHighlights = useMemo(
@@ -58,73 +63,96 @@ export function AngleBoardGrid({ board }) {
   const activeColHighlights = dragState ? dragHighlights.cols : committedHighlights.cols;
 
   // PanResponder for drag selection.
-  // Created once via useRef so the gesture handler is stable across renders.
-  // The callbacks close over stable values:
-  //   - totalRows/totalCols are derived from static board data (never change)
-  //   - Zustand store actions (selectCell, selectRect, etc.) are stable references
-  //   - cellSizeRef holds the current cell size, accessed only inside gesture callbacks
-  // The React 19 lint rule flags ref access patterns that are safe here
-  // (refs are only read inside gesture callbacks, never during render).
+  //
+  // COORDINATE CONTRACT — do not remove the `pointerEvents="none"` props from
+  // the container's children below.
+  // React Native reports `locationX`/`locationY` relative to the deepest view
+  // that was touched, NOT relative to the view that owns the responder
+  // (BaseTouch.cpp on Fabric, RCTTouchHandler on iOS, TouchesHelper on Android).
+  // Without the pointerEvents props, the touched view is a single cell, so
+  // locationX/Y arrive as ~0..cellSize, `x - HEADER_WIDTH` underflows, and
+  // touchToCell() returns null: no selection can ever start. Marking every
+  // child `pointerEvents="none"` makes the container itself the touch target,
+  // which is what puts locationX/Y back into container space.
+  //
+  // The PanResponder is created once and only reads refs plus stable store
+  // actions, so it can never hold a stale closure.
   /* eslint-disable react-hooks/refs */
   const panResponder = useRef(
-    PanResponder.create({
-      // Capture phase: claim touches BEFORE ScrollView can intercept
-      onStartShouldSetPanResponderCapture: () => true,
-      onMoveShouldSetPanResponderCapture: () => true,
+    (() => {
+      const updateDrag = (next) => {
+        dragStateRef.current = next;
+        setDragState(next);
+      };
 
-      // Bubble phase fallback
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
+      // Commit on release/terminate. Reads the gesture from the ref instead of
+      // inside a setState updater: updaters run during render, and calling a
+      // store action from there updates subscribers mid-render.
+      const finishDrag = () => {
+        const drag = dragStateRef.current;
+        updateDrag(null);
+        if (!drag) return;
 
-      onPanResponderGrant: (evt) => {
-        const { locationX, locationY } = evt.nativeEvent;
-        const zone = getTouchZone(locationX, locationY, HEADER_WIDTH, HEADER_HEIGHT);
+        const { startRow, startCol, endRow, endCol, mode } = drag;
 
-        if (zone === 'corner') return;
+        if (mode === 'row') {
+          selectRows(startRow, endRow, totalRows, totalCols);
+        } else if (mode === 'col') {
+          selectCols(startCol, endCol, totalRows, totalCols);
+        } else if (startRow === endRow && startCol === endCol) {
+          selectCell(startRow, startCol);
+        } else {
+          selectRect(startRow, startCol, endRow, endCol, totalRows, totalCols);
+        }
+      };
 
-        const cs = cellSizeRef.current;
-        const cell = touchToCell(
-          locationX,
-          locationY,
-          HEADER_WIDTH,
-          HEADER_HEIGHT,
-          cs,
-          totalRows,
-          totalCols
-        );
-        if (!cell) return;
+      return PanResponder.create({
+        // Capture phase: claim touches BEFORE ScrollView can intercept
+        onStartShouldSetPanResponderCapture: () => true,
+        onMoveShouldSetPanResponderCapture: () => true,
 
-        clearSelection();
+        // Bubble phase fallback
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
 
-        setDragState({
-          startRow: cell.row,
-          startCol: cell.col,
-          endRow: cell.row,
-          endCol: cell.col,
-          mode: zone,
-        });
-      },
+        onPanResponderGrant: (evt) => {
+          const { locationX, locationY } = evt.nativeEvent;
+          const drag = touchToDragState(
+            locationX,
+            locationY,
+            HEADER_WIDTH,
+            HEADER_HEIGHT,
+            cellSizeRef.current,
+            totalRows,
+            totalCols
+          );
+          if (!drag) return;
 
-      onPanResponderMove: (evt) => {
-        const { locationX, locationY } = evt.nativeEvent;
+          clearSelection();
+          updateDrag(drag);
+        },
 
-        setDragState((prev) => {
-          if (!prev) return prev;
+        onPanResponderMove: (evt) => {
+          const drag = dragStateRef.current;
+          if (!drag) return;
 
+          const { locationX, locationY } = evt.nativeEvent;
           const cs = cellSizeRef.current;
 
-          if (prev.mode === 'row') {
+          if (drag.mode === 'row') {
             const gridY = locationY - HEADER_HEIGHT;
-            if (gridY < 0) return prev;
+            if (gridY < 0) return;
             const row = Math.max(0, Math.min(totalRows - 1, Math.floor(gridY / cs)));
-            return { ...prev, endRow: row };
+            updateDrag({ ...drag, endRow: row });
+            return;
           }
 
-          if (prev.mode === 'col') {
+          if (drag.mode === 'col') {
             const gridX = locationX - HEADER_WIDTH;
-            if (gridX < 0) return prev;
+            if (gridX < 0) return;
             const col = Math.max(0, Math.min(totalCols - 1, Math.floor(gridX / cs)));
-            return { ...prev, endCol: col };
+            updateDrag({ ...drag, endCol: col });
+            return;
           }
 
           const cell = touchToCell(
@@ -136,44 +164,34 @@ export function AngleBoardGrid({ board }) {
             totalRows,
             totalCols
           );
-          if (!cell) return prev;
-          return { ...prev, endRow: cell.row, endCol: cell.col };
-        });
-      },
+          if (!cell) return;
+          updateDrag({ ...drag, endRow: cell.row, endCol: cell.col });
+        },
 
-      onPanResponderRelease: () => {
-        setDragState((prev) => {
-          if (!prev) return prev;
+        onPanResponderRelease: () => finishDrag(),
 
-          const { startRow, startCol, endRow, endCol, mode } = prev;
+        // A forced termination (parent navigator, native modal) must not leave
+        // the gesture stuck in a half-finished state.
+        onPanResponderTerminate: () => finishDrag(),
 
-          if (mode === 'row') {
-            selectRows(startRow, endRow, totalRows, totalCols);
-          } else if (mode === 'col') {
-            selectCols(startCol, endCol, totalRows, totalCols);
-          } else if (startRow === endRow && startCol === endCol) {
-            selectCell(startRow, startCol);
-          } else {
-            selectRect(startRow, startCol, endRow, endCol, totalRows, totalCols);
-          }
-
-          return null;
-        });
-      },
-
-      // Prevent ScrollView from terminating our gesture
-      onPanResponderTerminationRequest: () => false,
-    })
+        // Prevent ScrollView from terminating our gesture
+        onPanResponderTerminationRequest: () => false,
+      });
+    })()
   ).current;
   /* eslint-enable react-hooks/refs */
 
+  // Measures the available width (the wrapper stretches to the screen's
+  // content width) so the board always fits instead of overflowing on narrow
+  // devices. The container itself is only as wide as its children, so
+  // measuring it would just report the size we already chose.
   const handleLayout = useCallback(
     (e) => {
       const { width } = e.nativeEvent.layout;
       const available = width - HEADER_WIDTH;
       if (available <= 0) return;
       const calculated = Math.floor(available / totalCols);
-      const size = Math.max(24, Math.min(calculated, 50));
+      const size = Math.max(MIN_CELL_SIZE, Math.min(calculated, MAX_CELL_SIZE));
       setCellSize(size);
       cellSizeRef.current = size;
     },
@@ -222,79 +240,107 @@ export function AngleBoardGrid({ board }) {
   const headerHighlightText = theme.text;
 
   return (
-    <View
-      style={[styles.container, { borderColor: theme.textSecondary + '20' }]}
-      onLayout={handleLayout}
-      // eslint-disable-next-line react-hooks/refs
-      {...panResponder.panHandlers}>
-      {/* Column headers */}
-      <View style={[styles.headerRow, { height: HEADER_HEIGHT }]}>
-        <View
-          style={[
-            styles.cornerCell,
-            { width: HEADER_WIDTH, height: HEADER_HEIGHT, backgroundColor: headerBg },
-          ]}
-        />
-        {Array.from({ length: totalCols }, (_, colIndex) => {
-          const isHighlighted = activeColHighlights.has(colIndex);
+    <View style={styles.wrapper} onLayout={handleLayout}>
+      <View
+        style={styles.container}
+        // eslint-disable-next-line react-hooks/refs
+        {...panResponder.panHandlers}>
+        {/* Column headers. pointerEvents="none" keeps the touch target on the
+            container so locationX/Y stay container-relative (see above). */}
+        <View style={[styles.headerRow, { height: HEADER_HEIGHT }]} pointerEvents="none">
+          <View
+            style={[
+              styles.cornerCell,
+              { width: HEADER_WIDTH, height: HEADER_HEIGHT, backgroundColor: headerBg },
+            ]}
+          />
+          {Array.from({ length: totalCols }, (_, colIndex) => {
+            const isHighlighted = activeColHighlights.has(colIndex);
+            return (
+              <View
+                key={`col-${colIndex}`}
+                style={[
+                  styles.headerCell,
+                  {
+                    width: cellSize,
+                    height: HEADER_HEIGHT,
+                    backgroundColor: isHighlighted ? headerHighlightBg : headerBg,
+                  },
+                ]}>
+                <Text
+                  style={[
+                    styles.headerText,
+                    { color: isHighlighted ? headerHighlightText : headerText },
+                  ]}>
+                  {colIndex}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+
+        {/* Grid rows with row headers — also pointerEvents="none" */}
+        {board.grid.map((row, rowIndex) => {
+          const isRowHighlighted = activeRowHighlights.has(rowIndex);
           return (
-            <View
-              key={`col-${colIndex}`}
-              style={[
-                styles.headerCell,
-                {
-                  width: cellSize,
-                  height: HEADER_HEIGHT,
-                  backgroundColor: isHighlighted ? headerHighlightBg : headerBg,
-                },
-              ]}>
-              <Text style={[styles.headerText, { color: isHighlighted ? headerHighlightText : headerText }]}>
-                {colIndex}
-              </Text>
+            <View key={`row-${rowIndex}`} style={styles.dataRow} pointerEvents="none">
+              <View
+                style={[
+                  styles.rowHeader,
+                  {
+                    width: HEADER_WIDTH,
+                    height: cellSize,
+                    backgroundColor: isRowHighlighted ? headerHighlightBg : headerBg,
+                  },
+                ]}>
+                <Text
+                  style={[
+                    styles.headerText,
+                    { color: isRowHighlighted ? headerHighlightText : headerText },
+                  ]}>
+                  {rowIndex}
+                </Text>
+              </View>
+              {row.map((value, colIndex) => (
+                <AngleBoardCell
+                  key={`${rowIndex},${colIndex}`}
+                  value={value}
+                  isSelected={selectedCells.has(`${rowIndex},${colIndex}`)}
+                  cellSize={cellSize}
+                />
+              ))}
             </View>
           );
         })}
+
+        {/* Selection overlay during drag */}
+        {overlayStyle && <View style={[styles.overlay, overlayStyle]} pointerEvents="none" />}
+
+        {/* Outer frame, drawn as an overlay so the container has no border.
+            A border would offset layout children by 1px while locationX starts
+            at the border's outer edge, skewing the coordinate mapping. */}
+        <View
+          pointerEvents="none"
+          style={[styles.frame, { borderColor: theme.textSecondary + '20' }]}
+        />
       </View>
-
-      {/* Grid rows with row headers */}
-      {board.grid.map((row, rowIndex) => {
-        const isRowHighlighted = activeRowHighlights.has(rowIndex);
-        return (
-          <View key={`row-${rowIndex}`} style={styles.dataRow}>
-            <View
-              style={[
-                styles.rowHeader,
-                {
-                  width: HEADER_WIDTH,
-                  height: cellSize,
-                  backgroundColor: isRowHighlighted ? headerHighlightBg : headerBg,
-                },
-              ]}>
-              <Text style={[styles.headerText, { color: isRowHighlighted ? headerHighlightText : headerText }]}>
-                {rowIndex}
-              </Text>
-            </View>
-            {row.map((value, colIndex) => (
-              <AngleBoardCell
-                key={`${rowIndex},${colIndex}`}
-                value={value}
-                isSelected={selectedCells.has(`${rowIndex},${colIndex}`)}
-                cellSize={cellSize}
-              />
-            ))}
-          </View>
-        );
-      })}
-
-      {/* Selection overlay during drag */}
-      {overlayStyle && <View style={[styles.overlay, overlayStyle]} pointerEvents="none" />}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    alignItems: 'center',
+  },
   container: {
     alignSelf: 'center',
+  },
+  frame: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     borderWidth: 1,
   },
   headerRow: {

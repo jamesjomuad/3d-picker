@@ -4,6 +4,7 @@ import {
   calculateRowSelection,
   calculateColSelection,
   touchToCell,
+  touchToDragState,
   getTouchZone,
   getDragHighlights,
   getSelectedRowsAndCols,
@@ -291,5 +292,197 @@ describe('getSelectedRowsAndCols', () => {
     const result = getSelectedRowsAndCols(new Set(['4,7']));
     expect(result.rows).toEqual(new Set([4]));
     expect(result.cols).toEqual(new Set([7]));
+  });
+});
+
+describe('touchToCell — 10x10 round trip', () => {
+  const HEADER_W = 28;
+  const HEADER_H = 24;
+
+  // Every point inside a cell must map back to exactly that cell.
+  [24, 30, 35, 50].forEach((CELL) => {
+    it(`maps every cell back to itself at cellSize ${CELL}`, () => {
+      for (let row = 0; row < TOTAL_ROWS; row++) {
+        for (let col = 0; col < TOTAL_COLS; col++) {
+          const x = HEADER_W + col * CELL + CELL / 2;
+          const y = HEADER_H + row * CELL + CELL / 2;
+          expect(touchToCell(x, y, HEADER_W, HEADER_H, CELL, TOTAL_ROWS, TOTAL_COLS)).toEqual({
+            row,
+            col,
+          });
+        }
+      }
+    });
+
+    it(`maps the exact top-left corner of every cell at cellSize ${CELL}`, () => {
+      for (let row = 0; row < TOTAL_ROWS; row++) {
+        for (let col = 0; col < TOTAL_COLS; col++) {
+          const x = HEADER_W + col * CELL;
+          const y = HEADER_H + row * CELL;
+          expect(touchToCell(x, y, HEADER_W, HEADER_H, CELL, TOTAL_ROWS, TOTAL_COLS)).toEqual({
+            row,
+            col,
+          });
+        }
+      }
+    });
+  });
+
+  it('does not leak into the next cell at the boundary', () => {
+    const CELL = 35;
+    expect(
+      touchToCell(HEADER_W + CELL - 0.5, HEADER_H + CELL - 0.5, HEADER_W, HEADER_H, CELL, TOTAL_ROWS, TOTAL_COLS)
+    ).toEqual({ row: 0, col: 0 });
+  });
+
+  it('clamps a touch past the far edge to the last cell', () => {
+    const CELL = 35;
+    expect(
+      touchToCell(
+        HEADER_W + TOTAL_COLS * CELL,
+        HEADER_H + TOTAL_ROWS * CELL,
+        HEADER_W,
+        HEADER_H,
+        CELL,
+        TOTAL_ROWS,
+        TOTAL_COLS
+      )
+    ).toEqual({ row: TOTAL_ROWS - 1, col: TOTAL_COLS - 1 });
+  });
+
+  it('rejects negative (outside the grid) coordinates', () => {
+    const CELL = 35;
+    expect(touchToCell(-5, HEADER_H + 10, HEADER_W, HEADER_H, CELL, TOTAL_ROWS, TOTAL_COLS)).toBeNull();
+    expect(touchToCell(HEADER_W + 10, -5, HEADER_W, HEADER_H, CELL, TOTAL_ROWS, TOTAL_COLS)).toBeNull();
+  });
+
+  it('rejects cell-local coordinates (the old gesture failure signature)', () => {
+    // React Native reports locationX/locationY relative to the deepest touched
+    // view. When the cells were hit-testable, a tap at the centre of a cell
+    // arrived as ~(17, 17); subtracting the header offsets underflowed and
+    // touchToCell returned null, so no selection ever started. The grid keeps
+    // its children pointerEvents="none" so coordinates arrive in container
+    // space; this test pins the shape of the broken payload.
+    const CELL = 35;
+    const cellLocalCentre = CELL / 2;
+    expect(
+      touchToCell(cellLocalCentre, cellLocalCentre, HEADER_W, HEADER_H, CELL, TOTAL_ROWS, TOTAL_COLS)
+    ).toBeNull();
+  });
+});
+
+describe('touchToDragState', () => {
+  const HEADER_W = 28;
+  const HEADER_H = 24;
+  const CELL = 35;
+
+  it('starts a cell-mode drag inside the grid', () => {
+    const drag = touchToDragState(
+      HEADER_W + 4 * CELL + 10,
+      HEADER_H + 3 * CELL + 10,
+      HEADER_W,
+      HEADER_H,
+      CELL,
+      TOTAL_ROWS,
+      TOTAL_COLS
+    );
+    expect(drag).toEqual({ startRow: 3, startCol: 4, endRow: 3, endCol: 4, mode: 'cell' });
+  });
+
+  it('returns null for the corner', () => {
+    expect(touchToDragState(5, 5, HEADER_W, HEADER_H, CELL, TOTAL_ROWS, TOTAL_COLS)).toBeNull();
+  });
+
+  it('starts a full-row drag from a row header', () => {
+    const drag = touchToDragState(
+      10,
+      HEADER_H + 6 * CELL + 10,
+      HEADER_W,
+      HEADER_H,
+      CELL,
+      TOTAL_ROWS,
+      TOTAL_COLS
+    );
+    expect(drag).toEqual({
+      startRow: 6,
+      startCol: 0,
+      endRow: 6,
+      endCol: TOTAL_COLS - 1,
+      mode: 'row',
+    });
+  });
+
+  it('starts a full-column drag from a column header', () => {
+    const drag = touchToDragState(
+      HEADER_W + 2 * CELL + 10,
+      10,
+      HEADER_W,
+      HEADER_H,
+      CELL,
+      TOTAL_ROWS,
+      TOTAL_COLS
+    );
+    expect(drag).toEqual({
+      startRow: 0,
+      startCol: 2,
+      endRow: TOTAL_ROWS - 1,
+      endCol: 2,
+      mode: 'col',
+    });
+  });
+
+  it('maps every row header to its own row', () => {
+    for (let row = 0; row < TOTAL_ROWS; row++) {
+      const drag = touchToDragState(
+        10,
+        HEADER_H + row * CELL + CELL / 2,
+        HEADER_W,
+        HEADER_H,
+        CELL,
+        TOTAL_ROWS,
+        TOTAL_COLS
+      );
+      expect(drag.mode).toBe('row');
+      expect(drag.startRow).toBe(row);
+      expect(drag.endRow).toBe(row);
+    }
+  });
+
+  it('maps every column header to its own column', () => {
+    for (let col = 0; col < TOTAL_COLS; col++) {
+      const drag = touchToDragState(
+        HEADER_W + col * CELL + CELL / 2,
+        10,
+        HEADER_W,
+        HEADER_H,
+        CELL,
+        TOTAL_ROWS,
+        TOTAL_COLS
+      );
+      expect(drag.mode).toBe('col');
+      expect(drag.startCol).toBe(col);
+      expect(drag.endCol).toBe(col);
+    }
+  });
+
+  it('clamps a header touch past the end of the grid to the last row/column', () => {
+    expect(
+      touchToDragState(10, HEADER_H + 40 * CELL, HEADER_W, HEADER_H, CELL, TOTAL_ROWS, TOTAL_COLS)
+        .startRow
+    ).toBe(TOTAL_ROWS - 1);
+    expect(
+      touchToDragState(HEADER_W + 40 * CELL, 10, HEADER_W, HEADER_H, CELL, TOTAL_ROWS, TOTAL_COLS)
+        .startCol
+    ).toBe(TOTAL_COLS - 1);
+  });
+
+  it('treats the exact header boundary as the first cell', () => {
+    expect(touchToDragState(HEADER_W, HEADER_H, HEADER_W, HEADER_H, CELL, TOTAL_ROWS, TOTAL_COLS)).toEqual({
+      startRow: 0,
+      startCol: 0,
+      endRow: 0,
+      endCol: 0,
+      mode: 'cell',
+    });
   });
 });

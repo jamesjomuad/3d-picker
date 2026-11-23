@@ -112,6 +112,46 @@ export function getTouchZone(x, y, headerWidth, headerHeight) {
 }
 
 /**
+ * Build the initial drag state for a container-relative touch point.
+ * Resolves all four zones, so a gesture started on a header selects the full
+ * row/column instead of being rejected for landing outside the grid.
+ * @param {number} x - Touch X relative to the grid container
+ * @param {number} y - Touch Y relative to the grid container
+ * @param {number} headerWidth - Width of row header column
+ * @param {number} headerHeight - Height of column header row
+ * @param {number} cellSize - Size of each cell
+ * @param {number} totalRows
+ * @param {number} totalCols
+ * @returns {{ startRow: number, startCol: number, endRow: number, endCol: number, mode: 'cell' | 'row' | 'col' } | null}
+ */
+export function touchToDragState(x, y, headerWidth, headerHeight, cellSize, totalRows, totalCols) {
+  const zone = getTouchZone(x, y, headerWidth, headerHeight);
+
+  if (zone === 'corner') return null;
+
+  if (zone === 'row') {
+    const row = clamp(Math.floor((y - headerHeight) / cellSize), 0, totalRows - 1);
+    return { startRow: row, startCol: 0, endRow: row, endCol: totalCols - 1, mode: 'row' };
+  }
+
+  if (zone === 'col') {
+    const col = clamp(Math.floor((x - headerWidth) / cellSize), 0, totalCols - 1);
+    return { startRow: 0, startCol: col, endRow: totalRows - 1, endCol: col, mode: 'col' };
+  }
+
+  const cell = touchToCell(x, y, headerWidth, headerHeight, cellSize, totalRows, totalCols);
+  if (!cell) return null;
+
+  return {
+    startRow: cell.row,
+    startCol: cell.col,
+    endRow: cell.row,
+    endCol: cell.col,
+    mode: 'cell',
+  };
+}
+
+/**
  * Calculate which rows and columns are highlighted by a drag state
  * @param {Object} dragState - { startRow, startCol, endRow, endCol, mode }
  * @param {number} totalRows
