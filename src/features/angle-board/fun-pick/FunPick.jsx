@@ -47,10 +47,10 @@ const RENDER_BATCH = 50;
  * board and the summary card take, so it can be mounted beside any board.
  * Presentation only: the batch and the rules live in `useFunPick`, the
  * walk itself in `fun-pick-utils`. The Copy button puts the generated
- * digits on the clipboard, one combination per line, and each result row
- * can be collected into the Selection Basket — a persisted store
- * independent of generation, search and filtering, reviewed on the
- * Collection tab.
+ * digits on the clipboard, one combination per line, "Add to Collection"
+ * collects the whole shown list into the Selection Basket, and each result
+ * row can be collected one by one — a persisted store independent of
+ * generation, search and filtering, reviewed on the Collection tab.
  *
  * @param {Object} props
  * @param {number[][]} props.grid - the board's digits, read row-major
@@ -90,6 +90,7 @@ export function FunPick({ grid, selection, style }) {
   const basketEntries = useBasketStore((state) => state.entries);
   const loadBasket = useBasketStore((state) => state.load);
   const addToBasket = useBasketStore((state) => state.add);
+  const addManyToBasket = useBasketStore((state) => state.addMany);
   const removeFromBasket = useBasketStore((state) => state.remove);
 
   useEffect(() => {
@@ -175,6 +176,19 @@ export function FunPick({ grid, selection, style }) {
   }, [searchedCombinations, filter]);
   const renderedCombinations = visibleCombinations.slice(0, visibleCount);
   const hiddenCount = visibleCombinations.length - renderedCombinations.length;
+
+  // "Add to Collection" collects what the card currently shows: search and
+  // the active filter decide the set, so the button matches the user's view
+  // of the batch. The store skips duplicates, so pressing again after a
+  // partial add only fills in what is still missing.
+  const missingFromCollection = useMemo(
+    () => visibleCombinations.filter((combination) => !basketDigits.has(combination.digits)).length,
+    [visibleCombinations, basketDigits]
+  );
+
+  const handleAddAllToCollection = useCallback(() => {
+    addManyToBasket(visibleCombinations);
+  }, [addManyToBasket, visibleCombinations]);
 
   return (
     <FoldableCard
@@ -287,6 +301,14 @@ export function FunPick({ grid, selection, style }) {
             <View style={styles.actions}>
               <Button size="sm" onPress={handleGenerate}>
                 Generate Again
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onPress={handleAddAllToCollection}
+                disabled={visibleCombinations.length === 0 || missingFromCollection === 0}
+                accessibilityLabel={`Add ${missingFromCollection} shown combinations to collection`}>
+                {missingFromCollection === 0 ? 'Added' : 'Add to Collection'}
               </Button>
               <Button size="sm" variant="outline" onPress={handleCopy}>
                 {copyLabel}

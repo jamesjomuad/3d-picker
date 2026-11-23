@@ -56,6 +56,30 @@ export const useBasketStore = create((set, get) => ({
   },
 
   /**
+   * Adds every combination of a batch (e.g. the visible Fun Pick results)
+   * in one update: sequences already in the basket — or repeated within
+   * the batch — are skipped, kept entries keep their original timestamps,
+   * and storage is written once instead of once per addition.
+   * @param {Array<{ digits: string, path: Array }>} combinations
+   */
+  addMany: (combinations) => {
+    if (!Array.isArray(combinations) || combinations.length === 0) return;
+    const { entries } = get();
+    const known = new Set(entries.map((entry) => entry.digits));
+    const addedAt = new Date().toISOString();
+    const fresh = [];
+    for (const combination of combinations) {
+      if (!combination || typeof combination.digits !== 'string') continue;
+      if (known.has(combination.digits)) continue;
+      known.add(combination.digits);
+      fresh.push({ digits: combination.digits, path: combination.path, addedAt });
+    }
+    if (fresh.length === 0) return;
+    set({ entries: [...entries, ...fresh] });
+    get()._persist();
+  },
+
+  /**
    * Removes the entry with these digits (digits identify entries).
    * @param {string} digits
    */

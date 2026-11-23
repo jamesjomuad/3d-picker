@@ -109,4 +109,37 @@ describe('basketStore', () => {
     useBasketStore.getState().add({ path: [] });
     expect(useBasketStore.getState().entries).toHaveLength(0);
   });
+
+  it('addMany appends a batch once, deduping against the basket and itself', async () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 10, 23, 20, 35));
+    useBasketStore.getState().add(combination('074'));
+
+    useBasketStore.getState().addMany([
+      combination('074'), // already collected — must be skipped
+      combination('638'),
+      combination('638'), // duplicate inside the batch — must be skipped
+      combination('952'),
+      null, // malformed — ignored
+    ]);
+    await flush();
+
+    const { entries } = useBasketStore.getState();
+    expect(entries.map((entry) => entry.digits)).toEqual(['074', '638', '952']);
+    // The kept entry holds its original timestamp; nothing is stamped later.
+    expect(entries[0].addedAt).toBe(new Date(2026, 10, 23, 20, 35).toISOString());
+    // One persist for the whole batch (the earlier add() wrote once too).
+    expect(saveBasket).toHaveBeenCalledTimes(2);
+    expect(saveBasket).toHaveBeenLastCalledWith(expect.arrayContaining([expect.objectContaining({ digits: '952' })]));
+  });
+
+  it('addMany with nothing new does not write storage', async () => {
+    useBasketStore.getState().addMany([combination('074')]);
+    await flush();
+    const writesBefore = saveBasket.mock.calls.length;
+
+    useBasketStore.getState().addMany([combination('074')]);
+    await flush();
+    expect(saveBasket).toHaveBeenCalledTimes(writesBefore);
+    expect(useBasketStore.getState().entries).toHaveLength(1);
+  });
 });
