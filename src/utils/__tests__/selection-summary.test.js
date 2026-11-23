@@ -1,11 +1,6 @@
 import boardData from '@/data/angle-board.json';
 import { useBoardStore } from '@/store/boardStore';
-import {
-  getCellLabel,
-  getColumnLetter,
-  getSelectedCellEntries,
-  getSelectionSummary,
-} from '@/utils/selection-summary';
+import { getSelectedCellEntries, getSelectionSummary } from '@/utils/selection-summary';
 
 const grid = boardData.grid;
 const TOTAL_ROWS = grid.length;
@@ -16,27 +11,6 @@ const summaryFor = (selectedCells, options) => getSelectionSummary(grid, selecte
 
 beforeEach(() => {
   useBoardStore.setState({ selectedCells: new Set() });
-});
-
-describe('getColumnLetter', () => {
-  it('maps the board columns to A–J', () => {
-    expect(getColumnLetter(0)).toBe('A');
-    expect(getColumnLetter(9)).toBe('J');
-  });
-
-  it('handles multi-letter columns and invalid input', () => {
-    expect(getColumnLetter(25)).toBe('Z');
-    expect(getColumnLetter(26)).toBe('AA');
-    expect(getColumnLetter(27)).toBe('AB');
-    expect(getColumnLetter(-1)).toBe('');
-  });
-});
-
-describe('getCellLabel', () => {
-  it('uses 1-based rows and lettered columns', () => {
-    expect(getCellLabel(0, 0)).toBe('A1');
-    expect(getCellLabel(9, 9)).toBe('J10');
-  });
 });
 
 describe('empty selection', () => {
@@ -69,7 +43,7 @@ describe('single cell selection', () => {
     expect(summary.typeLabel).toBe('Single cell');
     expect(summary.digits).toEqual([0]);
     expect(summary.digitsText).toBe('0');
-    expect(summary.coordinatesText).toBe('R1 · C2');
+    expect(summary.coordinatesText).toBe('B1');
     expect(summary.rangeLabel).toBe('B1');
     expect(summary.entries[0]).toMatchObject({ row: 0, col: 1, value: 0, label: 'B1' });
   });
@@ -95,7 +69,7 @@ describe('rectangular selection', () => {
     expect(summary.digits).toEqual([6, 0, 3, 8]);
     expect(summary.digitsText).toBe('6,0,3,8');
     expect(summary.rangeLabel).toBe('A1:D1');
-    expect(summary.coordinatesText).toBe('R1 · C1  R1 · C2  R1 · C3  R1 · C4');
+    expect(summary.coordinatesText).toBe('A1  B1  C1  D1');
   });
 
   it('reads a multi-row rectangle in row-major order', () => {
@@ -191,7 +165,7 @@ describe('large selections', () => {
     expect(summary.count).toBe(TOTAL_ROWS * TOTAL_COLS);
     expect(summary.type).toBe('rect');
     expect(summary.digitsText.split(',')).toHaveLength(TOTAL_ROWS * TOTAL_COLS);
-    expect(summary.coordinatesText).toBe('R1 · C1 → R10 · C10');
+    expect(summary.coordinatesText).toBe('A1 → J10');
     expect(summary.rangeLabel).toBe('A1:J10');
   });
 
@@ -200,7 +174,7 @@ describe('large selections', () => {
       coordinateListLimit: 2,
     });
 
-    expect(summary.coordinatesText).toBe('R1 · C1 → R1 · C4');
+    expect(summary.coordinatesText).toBe('A1 → D1');
   });
 
   it('classifies a full-board selection as a rectangle, not rows or columns', () => {

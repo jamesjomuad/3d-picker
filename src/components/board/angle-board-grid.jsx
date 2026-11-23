@@ -4,6 +4,7 @@ import { PanResponder, StyleSheet, Text, View } from 'react-native';
 import { AngleBoardCell } from './angle-board-cell';
 
 import { useTheme } from '@/hooks/use-theme';
+import { getColumnLetter } from '@/utils/cell-reference';
 import { getDragHighlights, getSelectedRowsAndCols, touchToCell, touchToDragState } from '@/utils/selection';
 import { useBoardStore } from '@/store/boardStore';
 
@@ -245,8 +246,10 @@ export function AngleBoardGrid({ board }) {
         style={styles.container}
         // eslint-disable-next-line react-hooks/refs
         {...panResponder.panHandlers}>
-        {/* Column headers. pointerEvents="none" keeps the touch target on the
-            container so locationX/Y stay container-relative (see above). */}
+        {/* Column headers, labelled A–J like a spreadsheet. The labels are
+            display-only: the gesture mapping below stays zero-based indexes.
+            pointerEvents="none" keeps the touch target on the container so
+            locationX/Y stay container-relative (see the contract above). */}
         <View style={[styles.headerRow, { height: HEADER_HEIGHT }]} pointerEvents="none">
           <View
             style={[
@@ -272,7 +275,7 @@ export function AngleBoardGrid({ board }) {
                     styles.headerText,
                     { color: isHighlighted ? headerHighlightText : headerText },
                   ]}>
-                  {colIndex}
+                  {getColumnLetter(colIndex)}
                 </Text>
               </View>
             );
@@ -298,7 +301,7 @@ export function AngleBoardGrid({ board }) {
                     styles.headerText,
                     { color: isRowHighlighted ? headerHighlightText : headerText },
                   ]}>
-                  {rowIndex}
+                  {rowIndex + 1}
                 </Text>
               </View>
               {row.map((value, colIndex) => (

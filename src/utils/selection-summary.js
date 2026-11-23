@@ -5,7 +5,12 @@
  * store) plus the Angle Board grid into display-ready data for the selected
  * cells card. These are pure functions: the store stays the single source of
  * truth and nothing here mutates or duplicates selection state.
+ *
+ * Cell numbering is not decided here — `@/utils/cell-reference` owns the
+ * Excel-style display form (lettered columns, 1-based rows).
  */
+
+import { getCellReference, getRangeReference } from '@/utils/cell-reference';
 
 /** Above this many cells the coordinate list collapses to start → end. */
 export const COORDINATE_LIST_LIMIT = 16;
@@ -21,53 +26,12 @@ export function getCellKey(row, col) {
 }
 
 /**
- * Convert a zero-based column index to a spreadsheet column letter
- * 0 -> A, 9 -> J, 25 -> Z, 26 -> AA
- * @param {number} col
- * @returns {string}
- */
-export function getColumnLetter(col) {
-  if (!Number.isInteger(col) || col < 0) return '';
-
-  let letters = '';
-  let value = col + 1;
-
-  while (value > 0) {
-    const remainder = (value - 1) % 26;
-    letters = String.fromCharCode(65 + remainder) + letters;
-    value = Math.floor((value - 1) / 26);
-  }
-
-  return letters;
-}
-
-/**
- * Spreadsheet-style label for a cell, e.g. row 0 / col 3 -> "D1"
- * @param {number} row
- * @param {number} col
- * @returns {string}
- */
-export function getCellLabel(row, col) {
-  return `${getColumnLetter(col)}${row + 1}`;
-}
-
-/**
- * Human coordinate for a cell, e.g. "R1 · C4"
- * @param {number} row
- * @param {number} col
- * @returns {string}
- */
-export function getCellCoordinate(row, col) {
-  return `R${row + 1} · C${col + 1}`;
-}
-
-/**
  * Collect the selected cells in row-major order (top to bottom, left to
  * right) by walking the grid itself. Iterating the grid — rather than the
  * Set — keeps ordering stable regardless of the order a drag added cells.
  * @param {number[][]} grid
  * @param {Set<string>} selectedCells
- * @returns {Array<{ key: string, row: number, col: number, value: number, label: string, coordinate: string }>}
+ * @returns {Array<{ key: string, row: number, col: number, value: number, label: string }>}
  */
 export function getSelectedCellEntries(grid, selectedCells) {
   if (!Array.isArray(grid) || !selectedCells) return [];
@@ -87,8 +51,7 @@ export function getSelectedCellEntries(grid, selectedCells) {
         row,
         col,
         value: rowValues[col],
-        label: getCellLabel(row, col),
-        coordinate: getCellCoordinate(row, col),
+        label: getCellReference(row, col),
       });
     }
   }
@@ -208,16 +171,21 @@ export function getSelectionSummary(grid, selectedCells, options = {}) {
   const bounds = getSelectionBounds(entries);
   const digits = entries.map((entry) => entry.value);
 
-  const rangeLabel =
-    type === 'single'
-      ? entries[0].label
-      : `${getCellLabel(bounds.minRow, bounds.minCol)}:${getCellLabel(bounds.maxRow, bounds.maxCol)}`;
+  const rangeLabel = getRangeReference(
+    bounds.minRow,
+    bounds.minCol,
+    bounds.maxRow,
+    bounds.maxCol
+  );
 
   const limit = options.coordinateListLimit ?? COORDINATE_LIST_LIMIT;
   const coordinatesText =
     count <= limit
-      ? entries.map((entry) => entry.coordinate).join('  ')
-      : `${getCellCoordinate(bounds.minRow, bounds.minCol)} → ${getCellCoordinate(bounds.maxRow, bounds.maxCol)}`;
+      ? entries.map((entry) => entry.label).join('  ')
+      : `${getCellReference(bounds.minRow, bounds.minCol)} → ${getCellReference(
+          bounds.maxRow,
+          bounds.maxCol
+        )}`;
 
   return {
     entries,
