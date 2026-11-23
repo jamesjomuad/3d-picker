@@ -8,13 +8,28 @@ import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-export function Collapsible({ children, title }) {
-  const [isOpen, setIsOpen] = useState(false);
+/**
+ * A titled section that expands and hides its content on tap.
+ *
+ * @param {Object} props
+ * @param {React.ReactNode} props.children - Section content
+ * @param {string} props.title - Heading text
+ * @param {number} [props.count] - Badge shown on the right of the heading,
+ *   typically how many items the section holds
+ * @param {boolean} [props.defaultOpen] - Whether the section starts expanded
+ *   (collapsed when omitted)
+ */
+export function Collapsible({ children, title, count, defaultOpen = false }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
   const theme = useTheme();
 
   return (
     <ThemedView>
       <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: isOpen }}
+        accessibilityLabel={`${title}${count != null ? `, ${count} items` : ''}`}
+        hitSlop={{ top: 8, bottom: 8 }}
         style={({ pressed }) => [styles.heading, pressed && styles.pressedHeading]}
         onPress={() => setIsOpen((value) => !value)}>
         <ThemedView type="backgroundElement" style={styles.button}>
@@ -23,11 +38,18 @@ export function Collapsible({ children, title }) {
             size={14}
             weight="bold"
             tintColor={theme.text}
-            style={{ transform: [{ rotate: isOpen ? '-90deg' : '90deg' }] }}
+            style={{ transform: [{ rotate: isOpen ? '90deg' : '0deg' }] }}
           />
         </ThemedView>
 
-        <ThemedText type="small">{title}</ThemedText>
+        <ThemedText type="smallBold" style={styles.title}>
+          {title}
+        </ThemedText>
+        {count != null && (
+          <ThemedText type="small" themeColor="textSecondary">
+            {count}
+          </ThemedText>
+        )}
       </Pressable>
       {isOpen && (
         <Animated.View entering={FadeIn.duration(200)}>
@@ -45,6 +67,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
+    minHeight: 40,
+  },
+  title: {
+    flex: 1,
   },
   pressedHeading: {
     opacity: 0.7,
