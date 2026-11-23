@@ -3,12 +3,12 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import { useImmersiveFullscreen } from '@/hooks/use-immersive-fullscreen';
+import { useImmersiveStatusBar } from '@/hooks/use-immersive-status-bar';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  useImmersiveFullscreen();
+  useImmersiveStatusBar();
   const colorScheme = useColorScheme();
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
