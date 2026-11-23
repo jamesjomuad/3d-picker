@@ -139,17 +139,16 @@ export default function PickerScreen() {
         )}
 
         {/* The results card already keeps its own gap under it, so the summary
-            only adds its margin when the search is out of the way. */}
-        <SelectedCellsCard
-          grid={board.grid}
-          selection={selection}
-          style={query !== '' && isValidQuery ? undefined : styles.selectionCard}
-        />
-
+            only adds its margin when the search is out of the way. The card is
+            hidden entirely with an empty selection — the header hint above the
+            board already tells the user how to select. */}
         {selection.size > 0 && (
-          <ThemedText type="linkPrimary" style={styles.clearButton} onPress={clearSelection}>
-            Clear selection
-          </ThemedText>
+          <SelectedCellsCard
+            grid={board.grid}
+            selection={selection}
+            onClear={clearSelection}
+            style={query !== '' && isValidQuery ? undefined : styles.selectionCard}
+          />
         )}
       </View>
     </ScrollView>
@@ -183,10 +182,5 @@ const styles = StyleSheet.create({
   },
   selectionCard: {
     marginTop: Spacing.three,
-  },
-  clearButton: {
-    marginTop: Spacing.three,
-    textAlign: 'center',
-    fontSize: 14,
   },
 });

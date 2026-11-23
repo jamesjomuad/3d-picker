@@ -21,9 +21,10 @@ const COPY_FEEDBACK_MS = 1600;
  * @param {Object} props
  * @param {number[][]} props.grid - the board's digits, read row-major
  * @param {Set<string>} props.selection - selected "row,col" keys
+ * @param {Function} [props.onClear] - called when the Clear button is pressed
  * @param {Object} [props.style] - Additional card styles
  */
-export function SelectedCellsCard({ grid, selection, style }) {
+export function SelectedCellsCard({ grid, selection, onClear, style }) {
   const theme = useTheme();
   const [copyStatus, setCopyStatus] = useState('idle');
   const resetTimer = useRef(null);
@@ -59,13 +60,20 @@ export function SelectedCellsCard({ grid, selection, style }) {
       header={
         <View style={styles.headerRow}>
           <ThemedText type="smallBold">Selected Cells</ThemedText>
-          <Button
-            size="sm"
-            variant="outline"
-            onPress={handleCopy}
-            disabled={!summary.hasSelection}>
-            {copyLabel}
-          </Button>
+          <View style={styles.headerActions}>
+            <Button
+              size="sm"
+              variant="outline"
+              onPress={handleCopy}
+              disabled={!summary.hasSelection}>
+              {copyLabel}
+            </Button>
+            {onClear && (
+              <Button size="sm" variant="outline" onPress={onClear}>
+                Clear
+              </Button>
+            )}
+          </View>
         </View>
       }>
       {summary.hasSelection ? (
@@ -74,8 +82,8 @@ export function SelectedCellsCard({ grid, selection, style }) {
             {summary.entries.map((cell) => (
               <View
                 key={cell.key}
-                style={[styles.digitChip, { backgroundColor: theme.backgroundSelected }]}>
-                <ThemedText style={[styles.digitText, { color: theme.text }]}>
+                style={[styles.digitChip, { backgroundColor: theme.primary }]}>
+                <ThemedText themeColor="primaryText" style={styles.digitText}>
                   {cell.value}
                 </ThemedText>
               </View>
@@ -111,6 +119,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: Spacing.two,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: Spacing.two,
   },
   body: {
