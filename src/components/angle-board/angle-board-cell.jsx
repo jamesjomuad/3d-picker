@@ -25,8 +25,8 @@ export const AngleBoardCell = memo(function AngleBoardCell({
 }) {
   const theme = useTheme();
 
-  let backgroundColor = isSelected ? theme.backgroundSelected : theme.backgroundElement;
-  let textColor = isSelected ? theme.text : theme.textSecondary;
+  let backgroundColor = isSelected ? theme.primary : theme.backgroundElement;
+  let textColor = isSelected ? theme.primaryText : theme.textSecondary;
   if (!isSelected && highlight === 'match') {
     backgroundColor = theme.primary + '30';
   } else if (!isSelected && highlight === 'active') {

@@ -86,11 +86,11 @@ function AngleBoardHeaderCell({ label, width, height, highlighted }) {
         {
           width,
           height,
-          backgroundColor: highlighted ? theme.backgroundSelected : theme.backgroundElement,
+          backgroundColor: highlighted ? theme.primary : theme.backgroundElement,
         },
       ]}>
       <Text
-        style={[styles.headerText, { color: highlighted ? theme.text : theme.textSecondary }]}>
+        style={[styles.headerText, { color: highlighted ? theme.primaryText : theme.textSecondary }]}>
         {label}
       </Text>
     </View>
