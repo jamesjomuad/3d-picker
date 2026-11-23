@@ -352,7 +352,10 @@ describe('SelectedCellsCard', () => {
     const tree = renderCard({ grid: GRID, selection: new Set(['0,0', '0,1', '0,2', '0,3']) });
     const digits = printedText(tree).filter((value) => /^[0-9]$/.test(value));
 
-    expect(digits).toEqual(['6', '0', '3', '8']);
+    // Chips first, then the single-digit Insights stats row: 4 cells,
+    // 4 unique digits, 0 repeated, 0 combinations (a straight row cannot
+    // bend), 0 start cells.
+    expect(digits).toEqual(['6', '0', '3', '8', '4', '4', '0', '0', '0']);
     tree.unmount();
   });
 

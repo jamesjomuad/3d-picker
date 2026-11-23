@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { FoldableCard } from '@/components/ui/foldable-card';
 import { BorderRadius, Fonts, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { getSelectionInsights } from '@/utils/selection-insights';
 import { getSelectionSummary } from '@/utils/selection-summary';
 
 const COPY_FEEDBACK_MS = 1600;
@@ -14,9 +15,11 @@ const COPY_FEEDBACK_MS = 1600;
 /**
  * Selected cells card
  *
- * Shows the digits, coordinates and range for an Angle Board selection. It takes
- * the same `grid` + `selection` pair the board takes, so it sits beside the board
- * in any screen and never reads a store or modifies the selection itself.
+ * Shows the digits, coordinates and range for an Angle Board selection, plus
+ * a compact insights row (cell, digit and Fun Pick combination counts). It
+ * takes the same `grid` + `selection` pair the board takes, so it sits beside
+ * the board in any screen and never reads a store or modifies the selection
+ * itself.
  *
  * @param {Object} props
  * @param {number[][]} props.grid - the board's digits, read row-major
@@ -30,6 +33,7 @@ export function SelectedCellsCard({ grid, selection, onClear, style }) {
   const resetTimer = useRef(null);
 
   const summary = useMemo(() => getSelectionSummary(grid, selection), [grid, selection]);
+  const insights = useMemo(() => getSelectionInsights(grid, selection), [grid, selection]);
 
   useEffect(
     () => () => {
@@ -53,6 +57,14 @@ export function SelectedCellsCard({ grid, selection, onClear, style }) {
   }, [summary.digitsText, summary.hasSelection]);
 
   const copyLabel = copyStatus === 'copied' ? 'Copied' : copyStatus === 'error' ? 'Failed' : 'Copy';
+
+  const stats = [
+    { label: 'Cells', value: insights.cellCount },
+    { label: 'Unique digits', value: insights.uniqueDigitCount },
+    { label: 'Repeated digits', value: insights.repeatedDigitCount },
+    { label: 'Combinations', value: insights.combinationCount },
+    { label: 'Start cells', value: insights.startCellCount },
+  ];
 
   return (
     <FoldableCard
@@ -102,6 +114,22 @@ export function SelectedCellsCard({ grid, selection, onClear, style }) {
               {summary.typeLabel}
             </ThemedText>
           </View>
+
+          <View style={styles.insights}>
+            <ThemedText themeColor="textSecondary" style={styles.insightsTitle}>
+              Insights
+            </ThemedText>
+            <View style={styles.statRow}>
+              {stats.map((stat) => (
+                <View key={stat.label} style={styles.stat}>
+                  <ThemedText style={styles.statValue}>{stat.value}</ThemedText>
+                  <ThemedText themeColor="textSecondary" style={styles.statLabel}>
+                    {stat.label}
+                  </ThemedText>
+                </View>
+              ))}
+            </View>
+          </View>
         </View>
       ) : (
         <ThemedText themeColor="textSecondary" style={styles.emptyText}>
@@ -150,6 +178,34 @@ const styles = StyleSheet.create({
   metaText: {
     fontSize: 12,
     lineHeight: 16,
+  },
+  insights: {
+    gap: Spacing.one,
+  },
+  insightsTitle: {
+    fontSize: 11,
+    lineHeight: 14,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  statRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.three,
+  },
+  stat: {
+    minWidth: 64,
+    gap: 1,
+  },
+  statValue: {
+    fontFamily: Fonts.mono,
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '600',
+  },
+  statLabel: {
+    fontSize: 11,
+    lineHeight: 14,
   },
   emptyText: {
     fontSize: 14,
