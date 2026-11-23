@@ -19,7 +19,7 @@ jest.mock('@react-native-async-storage/async-storage', () => {
   };
 });
 
-const LEGACY_KEY = 'board…egacy-migrated';
+const LEGACY_KEY = 'board-library-legacy-migrated';
 const SEED_NAME = 'Angle Board 001';
 const ZERO_GRID = Array.from({ length: 10 }, () => Array(10).fill(0));
 

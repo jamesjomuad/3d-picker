@@ -37,14 +37,21 @@ export const useBasketStore = create((set, get) => ({
   },
 
   /**
-   * Adds a generated combination to the basket.
+   * Adds a generated combination to the basket, stamped with the local
+   * time of the press. A digit sequence already in the basket keeps its
+   * original entry untouched — re-adding never refreshes the timestamp.
    * @param {{ digits: string, path: Array }} combination
    */
   add: (combination) => {
     if (!combination || typeof combination.digits !== 'string') return;
     const { entries } = get();
     if (entries.some((entry) => entry.digits === combination.digits)) return;
-    set({ entries: [...entries, { digits: combination.digits, path: combination.path }] });
+    set({
+      entries: [
+        ...entries,
+        { digits: combination.digits, path: combination.path, addedAt: new Date().toISOString() },
+      ],
+    });
     get()._persist();
   },
 

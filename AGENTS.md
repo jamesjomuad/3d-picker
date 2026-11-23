@@ -91,8 +91,8 @@ Run lint before declaring any task done.
 ```
 src/
 ├── app/                  # Expo Router screens and layouts
-│   ├── _layout.jsx       # Root layout (tab navigator, theme provider)
-│   ├── index.jsx         # Home / Angle Board screen
+│   ├── _layout.jsx       # Root stack wrapping the (tabs) group (headerShown: false)
+│   ├── (tabs)/           # Default bottom tab group: index (Picker), collection, boards, settings
 │   └── ...               # Additional routes
 ├── components/           # Reusable UI components
 │   ├── angle-board/      # Angle Board family (board, grid, cells, headers, card, hooks)
@@ -379,6 +379,7 @@ Requirements:
 Adapt the default tabs to the 3D Picker application:
 
 - **Picker** — Main screen containing the Angle Board.
+- **Collection** — Selection Basket of saved picks (count shown as a tab badge).
 - **Boards** — Future Angle Board management.
 - **Settings** — Application preferences.
 

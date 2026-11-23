@@ -10,7 +10,6 @@ import { useTheme } from '@/hooks/use-theme';
 import { useBasketStore } from '@/store/basketStore';
 import { getPathReference } from '@/utils/cell-reference';
 
-import { BasketSection } from './BasketSection';
 import {
   FUN_PICK_DIRECTION_OPTIONS,
   FUN_PICK_FILTERS,
@@ -49,8 +48,9 @@ const RENDER_BATCH = 50;
  * Presentation only: the batch and the rules live in `useFunPick`, the
  * walk itself in `fun-pick-utils`. The Copy button puts the generated
  * digits on the clipboard, one combination per line, and each result row
- * can be collected into the Selection Basket below the list — a persisted
- * store independent of generation, search and filtering.
+ * can be collected into the Selection Basket — a persisted store
+ * independent of generation, search and filtering, reviewed on the
+ * Collection tab.
  *
  * @param {Object} props
  * @param {number[][]} props.grid - the board's digits, read row-major
@@ -303,8 +303,6 @@ export function FunPick({ grid, selection, style }) {
               : 'Select cells on the board, then generate every valid angle walk through them.'}
           </ThemedText>
         )}
-
-        <BasketSection />
       </View>
     </FoldableCard>
   );
