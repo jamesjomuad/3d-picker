@@ -13,7 +13,7 @@ import { useScreenInsets } from '@/hooks/use-screen-insets';
 import { useTheme } from '@/hooks/use-theme';
 import { useAngleBoardStore } from '@/store/angleBoardStore';
 import { useLibraryStore } from '@/store/libraryStore';
-import { parseCombination, searchCombinations } from '@/utils/combination-search';
+import { parseCombinationList, searchCombinations } from '@/utils/combination-search';
 import { assignResultColors, buildSearchHighlights } from '@/utils/search-highlight-utils';
 
 /**
@@ -60,25 +60,39 @@ export default function PickerScreen() {
     setActiveIndex(0);
   }, [query]);
 
-  const isValidQuery = query === '' || parseCombination(query) !== null;
+  const combinations = useMemo(() => parseCombinationList(query), [query]);
+  const isValidQuery = query === '' || combinations !== null;
 
-  const results = useMemo(
-    () => (query && isValidQuery ? searchCombinations(board?.grid, query) : []),
-    [board, query, isValidQuery]
-  );
+  // Each combination is searched independently; its paths stay grouped under
+  // it in the results card.
+  const groups = useMemo(() => {
+    if (!combinations) return [];
+    return combinations.map((combination) => ({
+      combination,
+      results: searchCombinations(board?.grid, combination),
+    }));
+  }, [board, combinations]);
 
-  // One palette colour per result, assigned by order, recoloured when the
-  // system theme flips so board and list keep agreeing.
+  // One palette colour per combination, shared by every path it matched,
+  // recoloured when the system theme flips so board and list keep agreeing.
   const scheme = useColorScheme();
   const mode = scheme === 'dark' ? 'dark' : 'light';
-  const resultColors = useMemo(() => assignResultColors(results.length, mode), [results.length, mode]);
+  const groupColors = useMemo(() => assignResultColors(groups.length, mode), [groups.length, mode]);
+
+  // The board takes one flat list, each result carrying its combination's
+  // colour, so overlapping paths still keep every identity that crosses them.
+  const flatResults = useMemo(() => groups.flatMap((group) => group.results), [groups]);
+  const resultColors = useMemo(
+    () => groups.flatMap((group, index) => group.results.map(() => groupColors[index])),
+    [groups, groupColors]
+  );
 
   // The board's colour layer: every crossed cell knows the colours of the
-  // paths through it, the emphasised result's cells are solid-filled.
+  // combinations through it, the emphasised result's cells are solid-filled.
   // Null while nothing matched keeps the board prop-free.
   const highlights = useMemo(
-    () => buildSearchHighlights(results, activeIndex, mode),
-    [results, activeIndex, mode]
+    () => buildSearchHighlights(flatResults, activeIndex, mode, resultColors),
+    [flatResults, activeIndex, mode, resultColors]
   );
 
   const handleSearchSubmit = useCallback(() => {
@@ -90,10 +104,10 @@ export default function PickerScreen() {
     setQuery('');
   }, []);
 
-  // Feedback while typing: the engine ignores anything that is not digits,
-  // so say so instead of quietly showing "no matches".
+  // Feedback while typing: the engine ignores anything that is not digits
+  // and commas, so say so instead of quietly showing "no matches".
   const searchError =
-    draft !== '' && parseCombination(draft) === null ? 'Digits only (0-9)' : undefined;
+    draft !== '' && parseCombinationList(draft) === null ? 'Digits (0-9), separated by commas' : undefined;
 
   if (!isLoaded || !board) {
     return (
@@ -137,10 +151,9 @@ export default function PickerScreen() {
 
         {query !== '' && isValidQuery && (
           <CombinationSearchResults
-            combination={query}
-            results={results}
+            groups={groups}
+            colors={groupColors}
             activeIndex={activeIndex}
-            colors={resultColors}
             onSelectResult={setActiveIndex}
             style={styles.resultsCard}
           />

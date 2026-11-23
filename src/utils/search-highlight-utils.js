@@ -33,15 +33,18 @@ export function assignResultColors(count, mode) {
  *   search results, in result order
  * @param {number} activeIndex - the result the screen is emphasising
  * @param {'light'|'dark'} mode
+ * @param {string[]} [colors] - one colour per result, in result order. Pass
+ *   this when colours are grouped (e.g. every path of the same combination
+ *   shares its colour); omitted, each result gets its own by order.
  * @returns {{ cells: Map<string, { colors: string[], activeColor: string|null }>, activeText: string }|null}
  *   `cells` maps "row,col" to its colour data (only crossed cells appear);
  *   `activeText` is the digit colour to use on a solid-filled active cell.
  *   Null when there are no results, so the board stays prop-free.
  */
-export function buildSearchHighlights(results, activeIndex, mode) {
+export function buildSearchHighlights(results, activeIndex, mode, colors) {
   if (!Array.isArray(results) || results.length === 0) return null;
 
-  const colors = assignResultColors(results.length, mode);
+  const resultColors = colors ?? assignResultColors(results.length, mode);
   const cells = new Map();
 
   results.forEach((result, index) => {
@@ -52,14 +55,15 @@ export function buildSearchHighlights(results, activeIndex, mode) {
         entry = { colors: [], activeColor: null };
         cells.set(key, entry);
       }
-      // Same colour twice (palette recycle) is still one segment.
-      if (!entry.colors.includes(colors[index])) entry.colors.push(colors[index]);
+      // Same colour twice (palette recycle, or siblings of one combination)
+      // is still one segment.
+      if (!entry.colors.includes(resultColors[index])) entry.colors.push(resultColors[index]);
     }
   });
 
   const active = results[activeIndex];
   if (active) {
-    const activeColor = colors[activeIndex];
+    const activeColor = resultColors[activeIndex];
     for (const cell of active.path) {
       cells.get(`${cell.row},${cell.column}`).activeColor = activeColor;
     }

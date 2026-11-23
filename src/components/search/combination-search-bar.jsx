@@ -1,4 +1,4 @@
-import { StyleSheet, TextInput, View } from 'react-native';
+import { Platform, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { BorderRadius, Fonts, Spacing } from '@/constants/theme';
@@ -7,9 +7,10 @@ import { useTheme } from '@/hooks/use-theme';
 /**
  * Combination search field for the Picker screen.
  *
- * Digits only, as long as you like: the engine caps the work, not the query.
- * The screen owns the text, debounces it, and decides when a submission
- * settles early; this component just reports typing, submitting and clearing.
+ * Digit combinations separated by commas ("123, 456"): the engine caps the
+ * work, not the query. The screen owns the text, debounces it, and decides
+ * when a submission settles early; this component just reports typing,
+ * submitting and clearing.
  *
  * @param {Object} props
  * @param {string} props.value - current text
@@ -41,11 +42,13 @@ export function CombinationSearchBar({ value, onChangeText, onSubmit, onClear, e
           value={value}
           onChangeText={onChangeText}
           onSubmitEditing={onSubmit}
-          placeholder="e.g. 123"
+          placeholder="e.g. 123, 456"
           placeholderTextColor={theme.disabledText}
-          keyboardType="number-pad"
+          // iOS has a digits-and-punctuation pad; Android's number pad has no
+          // comma key, so it gets the normal keyboard and types commas there.
+          keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'}
           returnKeyType="search"
-          maxLength={10}
+          maxLength={60}
           autoCapitalize="none"
           autoCorrect={false}
         />

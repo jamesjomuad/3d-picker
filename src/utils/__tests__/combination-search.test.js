@@ -11,6 +11,7 @@ import {
   MAX_RESULTS,
   getPathCellKeys,
   parseCombination,
+  parseCombinationList,
   searchCombinations,
 } from '../combination-search';
 
@@ -232,6 +233,29 @@ describe('parseCombination', () => {
     expect(parseCombination([1, 2, 10])).toBeNull();
     expect(parseCombination([1, 2.5])).toBeNull();
     expect(parseCombination(['1'])).toBeNull();
+  });
+});
+
+describe('parseCombinationList', () => {
+  it('splits on commas and trims whitespace around each entry', () => {
+    expect(parseCombinationList('123, 456 ,789')).toEqual(['123', '456', '789']);
+  });
+
+  it('ignores empty entries from stray or trailing commas', () => {
+    expect(parseCombinationList('123,')).toEqual(['123']);
+    expect(parseCombinationList(',123,,456,')).toEqual(['123', '456']);
+  });
+
+  it('keeps leading zeros', () => {
+    expect(parseCombinationList('012, 3')).toEqual(['012', '3']);
+  });
+
+  it('refuses the whole query when any entry is invalid or none exist', () => {
+    expect(parseCombinationList('')).toBeNull();
+    expect(parseCombinationList(' , ')).toBeNull();
+    expect(parseCombinationList('123, abc')).toBeNull();
+    expect(parseCombinationList('12 3')).toBeNull();
+    expect(parseCombinationList(null)).toBeNull();
   });
 });
 

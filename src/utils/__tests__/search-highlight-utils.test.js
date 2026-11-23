@@ -110,4 +110,16 @@ describe('buildSearchHighlights', () => {
     expect(highlights.cells.get('0,0').colors).toEqual([getSearchColor(0, 'dark')]);
     expect(highlights.activeText).toBe(getSearchColorText('dark'));
   });
+
+  it('uses supplied colours so siblings of one combination share its colour', () => {
+    // Two paths of the same combination (both colour A) crossing a path of
+    // another combination (colour B).
+    const [colorA, colorB] = assignResultColors(2, 'light');
+    const results = [path([0, 0], [1, 1]), path([2, 2], [1, 1]), path([1, 1], [3, 3])];
+    const highlights = buildSearchHighlights(results, -1, 'light', [colorA, colorA, colorB]);
+
+    expect(highlights.cells.get('0,0').colors).toEqual([colorA]);
+    expect(highlights.cells.get('1,1').colors).toEqual([colorA, colorB]);
+    expect(highlights.cells.get('3,3').colors).toEqual([colorB]);
+  });
 });
