@@ -57,86 +57,109 @@ export function AngleBoardGrid({ board }) {
   const activeRowHighlights = dragState ? dragHighlights.rows : committedHighlights.rows;
   const activeColHighlights = dragState ? dragHighlights.cols : committedHighlights.cols;
 
-  // PanResponder for drag selection
-  // Created directly (not in useMemo) because PanResponder.create only stores
-  // callbacks — it does not read refs during creation. Ref access happens
-  // inside gesture callbacks (outside render), which is safe.
-  // eslint-disable-next-line react-hooks/refs
-  const panResponder = PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
+  // PanResponder for drag selection.
+  // Created once via useRef so the gesture handler is stable across renders.
+  // The callbacks close over stable values:
+  //   - totalRows/totalCols are derived from static board data (never change)
+  //   - Zustand store actions (selectCell, selectRect, etc.) are stable references
+  //   - cellSizeRef holds the current cell size, accessed only inside gesture callbacks
+  // The React 19 lint rule flags ref access patterns that are safe here
+  // (refs are only read inside gesture callbacks, never during render).
+  /* eslint-disable react-hooks/refs */
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
 
-    onPanResponderGrant: (evt) => {
-      const { locationX, locationY } = evt.nativeEvent;
-      const zone = getTouchZone(locationX, locationY, HEADER_WIDTH, HEADER_HEIGHT);
+      onPanResponderGrant: (evt) => {
+        const { locationX, locationY } = evt.nativeEvent;
+        const zone = getTouchZone(locationX, locationY, HEADER_WIDTH, HEADER_HEIGHT);
 
-      if (zone === 'corner') return;
-
-      const cs = cellSizeRef.current;
-      const cell = touchToCell(locationX, locationY, HEADER_WIDTH, HEADER_HEIGHT, cs, totalRows, totalCols);
-      if (!cell) return;
-
-      clearSelection();
-
-      setDragState({
-        startRow: cell.row,
-        startCol: cell.col,
-        endRow: cell.row,
-        endCol: cell.col,
-        mode: zone,
-      });
-    },
-
-    onPanResponderMove: (evt) => {
-      const { locationX, locationY } = evt.nativeEvent;
-
-      setDragState((prev) => {
-        if (!prev) return prev;
+        if (zone === 'corner') return;
 
         const cs = cellSizeRef.current;
+        const cell = touchToCell(
+          locationX,
+          locationY,
+          HEADER_WIDTH,
+          HEADER_HEIGHT,
+          cs,
+          totalRows,
+          totalCols
+        );
+        if (!cell) return;
 
-        if (prev.mode === 'row') {
-          const gridY = locationY - HEADER_HEIGHT;
-          if (gridY < 0) return prev;
-          const row = Math.max(0, Math.min(totalRows - 1, Math.floor(gridY / cs)));
-          return { ...prev, endRow: row };
-        }
+        clearSelection();
 
-        if (prev.mode === 'col') {
-          const gridX = locationX - HEADER_WIDTH;
-          if (gridX < 0) return prev;
-          const col = Math.max(0, Math.min(totalCols - 1, Math.floor(gridX / cs)));
-          return { ...prev, endCol: col };
-        }
+        setDragState({
+          startRow: cell.row,
+          startCol: cell.col,
+          endRow: cell.row,
+          endCol: cell.col,
+          mode: zone,
+        });
+      },
 
-        const cell = touchToCell(locationX, locationY, HEADER_WIDTH, HEADER_HEIGHT, cs, totalRows, totalCols);
-        if (!cell) return prev;
-        return { ...prev, endRow: cell.row, endCol: cell.col };
-      });
-    },
+      onPanResponderMove: (evt) => {
+        const { locationX, locationY } = evt.nativeEvent;
 
-    onPanResponderRelease: () => {
-      setDragState((prev) => {
-        if (!prev) return prev;
+        setDragState((prev) => {
+          if (!prev) return prev;
 
-        const { startRow, startCol, endRow, endCol, mode } = prev;
+          const cs = cellSizeRef.current;
 
-        if (mode === 'row') {
-          selectRows(startRow, endRow, totalRows, totalCols);
-        } else if (mode === 'col') {
-          selectCols(startCol, endCol, totalRows, totalCols);
-        } else if (startRow === endRow && startCol === endCol) {
-          selectCell(startRow, startCol);
-        } else {
-          selectRect(startRow, startCol, endRow, endCol, totalRows, totalCols);
-        }
+          if (prev.mode === 'row') {
+            const gridY = locationY - HEADER_HEIGHT;
+            if (gridY < 0) return prev;
+            const row = Math.max(0, Math.min(totalRows - 1, Math.floor(gridY / cs)));
+            return { ...prev, endRow: row };
+          }
 
-        return null;
-      });
-    },
+          if (prev.mode === 'col') {
+            const gridX = locationX - HEADER_WIDTH;
+            if (gridX < 0) return prev;
+            const col = Math.max(0, Math.min(totalCols - 1, Math.floor(gridX / cs)));
+            return { ...prev, endCol: col };
+          }
 
-    onPanResponderTerminationRequest: () => false,
-  });
+          const cell = touchToCell(
+            locationX,
+            locationY,
+            HEADER_WIDTH,
+            HEADER_HEIGHT,
+            cs,
+            totalRows,
+            totalCols
+          );
+          if (!cell) return prev;
+          return { ...prev, endRow: cell.row, endCol: cell.col };
+        });
+      },
+
+      onPanResponderRelease: () => {
+        setDragState((prev) => {
+          if (!prev) return prev;
+
+          const { startRow, startCol, endRow, endCol, mode } = prev;
+
+          if (mode === 'row') {
+            selectRows(startRow, endRow, totalRows, totalCols);
+          } else if (mode === 'col') {
+            selectCols(startCol, endCol, totalRows, totalCols);
+          } else if (startRow === endRow && startCol === endCol) {
+            selectCell(startRow, startCol);
+          } else {
+            selectRect(startRow, startCol, endRow, endCol, totalRows, totalCols);
+          }
+
+          return null;
+        });
+      },
+
+      onPanResponderTerminationRequest: () => false,
+    })
+  ).current;
+  /* eslint-enable react-hooks/refs */
 
   const handleLayout = useCallback(
     (e) => {
@@ -196,6 +219,7 @@ export function AngleBoardGrid({ board }) {
     <View
       style={[styles.container, { borderColor: theme.textSecondary + '20' }]}
       onLayout={handleLayout}
+      // eslint-disable-next-line react-hooks/refs
       {...panResponder.panHandlers}>
       {/* Column headers */}
       <View style={[styles.headerRow, { height: HEADER_HEIGHT }]}>
