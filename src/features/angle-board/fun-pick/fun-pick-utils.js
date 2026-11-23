@@ -30,6 +30,11 @@
  *   containing that digit; Г / ㄱ / ┘ / L show the L-shaped ones in each
  *   of their four orientations, classified from cell coordinates. Filters
  *   overlap and never change the batch.
+ * - A sequence search narrows any view further: comma-separated digit
+ *   sequences ("12,4") every kept combination must contain, each sequence
+ *   as a consecutive run in the given order, at any position. Search is a
+ *   pure view too — it never regenerates or mutates the batch, and it
+ *   composes with the active filter.
  */
 
 /** The direction rules, keyed by the value stored in the hook. */
@@ -304,5 +309,71 @@ export function getFilterCounts(combinations) {
     label: filter.label,
     count: batch.filter((combination) => matchesFilter(combination, filter)).length,
   }));
+}
+
+/**
+ * Parse a typed sequence search into the sequences it asks for.
+ *
+ * Commas separate sequences; digits within one sequence must appear in a
+ * combination consecutively and in order. Whitespace around commas and
+ * empty segments are ignored (a trailing comma mid-typing is harmless),
+ * and duplicate sequences collapse to one. Only digits 0-9 and commas are
+ * accepted: anything else makes the whole query invalid, so the caller can
+ * say so instead of searching a corrupted field.
+ *
+ * @param {string} query - the raw text of the search field
+ * @returns {{ valid: boolean, sequences: string[] }} the sequences to
+ *   require, in typed order; empty (and valid) for a blank field, which
+ *   means "no search active"
+ */
+export function parseSequenceQuery(query) {
+  if (typeof query !== 'string' || query.trim().length === 0) {
+    return { valid: true, sequences: [] };
+  }
+
+  const parts = query
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+
+  if (parts.some((part) => !/^[0-9]+$/.test(part))) {
+    return { valid: false, sequences: [] };
+  }
+
+  return { valid: true, sequences: [...new Set(parts)] };
+}
+
+/**
+ * Whether a combination's digits contain every required sequence.
+ *
+ * Each sequence must appear as a consecutive run in the exact order typed;
+ * the runs themselves may sit anywhere in the combination, overlap is not
+ * required, and the sequences have no order between them. An empty
+ * sequence list matches everything, so a cleared field restores the view.
+ *
+ * @param {string} digits - the combination's digit string
+ * @param {string[]} sequences - parsed sequences from `parseSequenceQuery`
+ * @returns {boolean}
+ */
+export function matchesSequences(digits, sequences) {
+  if (!Array.isArray(sequences) || sequences.length === 0) return true;
+  if (typeof digits !== 'string') return false;
+  return sequences.every((sequence) => digits.includes(sequence));
+}
+
+/**
+ * Apply a sequence search to a batch (or to an already filtered view).
+ *
+ * Pure view like `applyFilter`: order and combinations are untouched, so
+ * typing never regenerates anything and clearing restores what was there.
+ *
+ * @param {Array<{ digits: string, path: Array }>} combinations
+ * @param {string[]} sequences - parsed sequences; empty means no search
+ * @returns {Array<{ digits: string, path: Array }>} the matching combinations
+ */
+export function applySearch(combinations, sequences) {
+  const batch = Array.isArray(combinations) ? combinations : [];
+  if (!Array.isArray(sequences) || sequences.length === 0) return batch;
+  return batch.filter((combination) => matchesSequences(combination.digits, sequences));
 }
 
