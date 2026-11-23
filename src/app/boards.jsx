@@ -1,28 +1,19 @@
-import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
+import { useScreenInsets } from '@/hooks/use-screen-insets';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function BoardsScreen() {
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-
-  const contentWidth = Math.min(width - Spacing.three * 2, MaxContentWidth);
-  const paddingBottom = insets.bottom + BottomTabInset + Spacing.three;
+  const { contentPadding, contentWidth } = useScreenInsets();
 
   return (
     <ScrollView
       style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentContainerStyle={[styles.contentContainer, { paddingBottom }]}
-      contentInset={{
-        top: insets.top,
-        left: insets.left,
-        right: insets.right,
-      }}>
+      contentContainerStyle={[styles.contentContainer, contentPadding]}>
       <View style={[styles.innerContainer, { width: contentWidth }]}>
         <ThemedView style={styles.headerContainer}>
           <ThemedText type="subtitle">Boards</ThemedText>
@@ -42,7 +33,6 @@ const styles = StyleSheet.create({
   contentContainer: {
     alignItems: 'center',
     flexGrow: 1,
-    paddingTop: Spacing.three,
   },
   innerContainer: {
     flexShrink: 1,
