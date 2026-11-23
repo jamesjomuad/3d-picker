@@ -1,25 +1,32 @@
-import { memo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { memo, useState } from 'react';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { BoardPreview } from '@/components/library/board-preview';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { BorderRadius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
  * Board card in the library list
- * Shows board name, preview, favorite toggle, and active indicator
+ *
+ * One surface, one primary action: tapping anywhere on the card opens the
+ * board. The secondary verbs live in a compact row — Edit, and a ⋯ menu
+ * that carries the rare and dangerous ones (Rename, Duplicate, Delete)
+ * into a bottom sheet, with Delete styled destructive. The sheet dismisses
+ * on an outside tap, the hardware back gesture, its header row or Cancel,
+ * so it can never trap the list behind it. The favorite star sits on the
+ * title row where it reads as a property of the board rather than an
+ * action competing with it.
  *
  * @param {Object} props
  * @param {Object} props.board - Board object
  * @param {boolean} props.isActive - Whether this is the active board
- * @param {() => void} props.onOpen - Open board handler
- * @param {() => void} props.onEdit - Edit board handler
- * @param {() => void} props.onRename - Rename board handler
- * @param {() => void} props.onDuplicate - Duplicate board handler
- * @param {() => void} props.onDelete - Delete board handler
- * @param {() => void} props.onToggleFavorite - Toggle favorite handler
+ * @param {(id: string) => void} props.onOpen - Open board handler
+ * @param {(board: Object) => void} props.onEdit - Edit board handler
+ * @param {(board: Object) => void} props.onRename - Rename board handler
+ * @param {(id: string) => void} props.onDuplicate - Duplicate board handler
+ * @param {(board: Object) => void} props.onDelete - Delete board handler
+ * @param {(id: string) => void} props.onToggleFavorite - Toggle favorite handler
  */
 export const BoardCard = memo(function BoardCard({
   board,
@@ -33,13 +40,29 @@ export const BoardCard = memo(function BoardCard({
 }) {
   const theme = useTheme();
 
+  // Dimensions come from the grid itself; nothing in a board is 10×10 by law.
+  const rows = board.grid?.length ?? 0;
+  const columns = rows > 0 ? board.grid[0].length : 0;
+
+  // The ⋯ sheet is the card's own moment of UI: local state, and every row
+  // closes it before delegating, so Rename or Delete never stack on top of
+  // it and an outside tap always has somewhere to go.
+  const [showMore, setShowMore] = useState(false);
+
   return (
-    <ThemedView
-      type="backgroundElement"
-      style={[
+    <>
+      <Pressable
+      onPress={() => onOpen(board.id)}
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${board.name}${isActive ? ', active board' : ''}`}
+      style={({ pressed }) => [
         styles.card,
-        { borderColor: isActive ? theme.primary : theme.border },
+        {
+          backgroundColor: theme.backgroundElement,
+          borderColor: isActive ? theme.primary : theme.border,
+        },
         isActive && styles.activeCard,
+        pressed && styles.cardPressed,
       ]}>
       <View style={styles.content}>
         <View style={styles.leftColumn}>
@@ -47,23 +70,47 @@ export const BoardCard = memo(function BoardCard({
         </View>
 
         <View style={styles.rightColumn}>
-          <View style={styles.nameRow}>
+          <View style={styles.titleRow}>
             <ThemedText type="default" style={styles.boardName} numberOfLines={1}>
               {board.name}
             </ThemedText>
-            {isActive && (
-              <View style={[styles.activeBadge, { backgroundColor: theme.primary }]}>
-                <Text style={[styles.activeBadgeText, { color: theme.primaryText }]}>
-                  Active
-                </Text>
-              </View>
-            )}
+            <Pressable
+              onPress={() => onToggleFavorite(board.id)}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={
+                board.isFavorite ? `Remove ${board.name} from favorites` : `Add ${board.name} to favorites`
+              }
+              accessibilityState={{ selected: board.isFavorite }}
+              style={({ pressed }) => [
+                styles.favoriteButton,
+                {
+                  backgroundColor: board.isFavorite ? theme.primary : theme.background,
+                  borderColor: board.isFavorite ? theme.primary : theme.border,
+                },
+                pressed && styles.pressed,
+              ]}>
+              <Text
+                style={[
+                  styles.favoriteText,
+                  { color: board.isFavorite ? theme.primaryText : theme.textSecondary },
+                ]}>
+                {board.isFavorite ? '★' : '☆'}
+              </Text>
+            </Pressable>
           </View>
 
           <View style={styles.metaRow}>
-            <ThemedText themeColor="textSecondary" style={styles.metaText}>
-              10×10
-            </ThemedText>
+            {isActive && (
+              <View style={[styles.activeBadge, { backgroundColor: theme.primary }]}>
+                <Text style={[styles.activeBadgeText, { color: theme.primaryText }]}>Active</Text>
+              </View>
+            )}
+            {rows > 0 && (
+              <ThemedText themeColor="textSecondary" style={styles.metaText}>
+                {rows}×{columns}
+              </ThemedText>
+            )}
             {board.updatedAt && (
               <ThemedText themeColor="textSecondary" style={styles.metaText}>
                 {formatRelativeTime(board.updatedAt)}
@@ -72,66 +119,138 @@ export const BoardCard = memo(function BoardCard({
           </View>
 
           <View style={styles.actionsRow}>
-            <ActionButton label="Open" onPress={onOpen} theme={theme} />
-            <ActionButton label="Edit" onPress={onEdit} theme={theme} />
-            <ActionButton label="Rename" onPress={onRename} theme={theme} />
-            <ActionButton label="Duplicate" onPress={onDuplicate} theme={theme} />
-            <ActionButton
-              label="Delete"
-              onPress={onDelete}
+            <PillButton label="Edit" onPress={() => onEdit(board)} theme={theme} />
+            <PillButton
+              label="⋯ More"
+              onPress={() => setShowMore(true)}
               theme={theme}
-              destructive
+              accessibilityLabel={`More options for ${board.name}`}
             />
-            <Pressable
-              onPress={onToggleFavorite}
-              accessibilityLabel={
-                board.isFavorite ? 'Remove from favorites' : 'Add to favorites'
-              }
-              style={({ pressed }) => [
-                styles.favoriteButton,
-                {
-                  backgroundColor: board.isFavorite
-                    ? theme.primary
-                    : theme.background,
-                  borderColor: board.isFavorite ? theme.primary : theme.border,
-                },
-                pressed && styles.pressed,
-              ]}>
-              <Text
-                style={[
-                  styles.favoriteText,
-                  {
-                    color: board.isFavorite ? theme.primaryText : theme.text,
-                  },
-                ]}>
-                {board.isFavorite ? '★' : '☆'}
-              </Text>
-            </Pressable>
           </View>
         </View>
       </View>
-    </ThemedView>
+      </Pressable>
+
+      <BoardActionsSheet
+        visible={showMore}
+        board={board}
+        onHide={() => setShowMore(false)}
+        onOpen={onOpen}
+        onEdit={onEdit}
+        onRename={onRename}
+        onDuplicate={onDuplicate}
+        onDelete={onDelete}
+        onToggleFavorite={onToggleFavorite}
+      />
+    </>
   );
 });
 
-function ActionButton({ label, onPress, theme, destructive }) {
+/**
+ * Compact secondary-action pill. The visual box stays small and quiet;
+ * hitSlop lifts the effective touch area past 44dp.
+ */
+function PillButton({ label, onPress, theme, accessibilityLabel }) {
   return (
     <Pressable
       onPress={onPress}
+      hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
       style={({ pressed }) => [
-        styles.actionButton,
-        {
-          borderColor: destructive ? theme.destructive + '40' : theme.border,
-        },
+        styles.pill,
+        { borderColor: theme.border, backgroundColor: theme.background },
         pressed && styles.pressed,
       ]}>
-      <Text
-        style={[
-          styles.actionText,
-          { color: destructive ? theme.destructive : theme.primary },
-        ]}>
+      <Text style={[styles.pillText, { color: theme.primary }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/**
+ * Bottom sheet of ⋯ options for one board.
+ *
+ * A real Modal, so it escapes the card and the scrolling list: the dim
+ * backdrop is a Pressable that hides the sheet on an outside tap, the
+ * hardware back gesture arrives through onRequestClose, and taps inside
+ * the sheet are captured so they never fall through to the backdrop.
+ * Every row closes the sheet first, then delegates to the card's handler,
+ * so Rename or Delete opens on top of a dismissed sheet.
+ */
+function BoardActionsSheet({
+  visible,
+  board,
+  onHide,
+  onOpen,
+  onEdit,
+  onRename,
+  onDuplicate,
+  onDelete,
+  onToggleFavorite,
+}) {
+  const theme = useTheme();
+
+  // Close, then act: the sheet is gone before any dialog or navigation
+  // the action may raise.
+  const pick = (action) => () => {
+    onHide();
+    action();
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onHide}>
+      <Pressable
+        style={styles.sheetBackdrop}
+        onPress={onHide}
+        accessibilityRole="button"
+        accessibilityLabel="Dismiss board options">
+        <View
+          style={[styles.sheet, { backgroundColor: theme.backgroundElement }]}
+          onStartShouldSetResponderCapture={() => true}>
+          <View style={styles.sheetHeader}>
+            <ThemedText type="smallBold" numberOfLines={1} style={styles.sheetTitle}>
+              {board.name}
+            </ThemedText>
+          </View>
+
+          <SheetRow label="Open board" onPress={pick(() => onOpen(board.id))} theme={theme} />
+          <SheetRow label="Edit board" onPress={pick(() => onEdit(board))} theme={theme} />
+          <SheetRow label="Rename" onPress={pick(() => onRename(board))} theme={theme} />
+          <SheetRow label="Duplicate" onPress={pick(() => onDuplicate(board.id))} theme={theme} />
+          <SheetRow
+            label="Favorite"
+            value={board.isFavorite ? 'Favorited' : 'Not yet'}
+            onPress={pick(() => onToggleFavorite(board.id))}
+            theme={theme}
+          />
+          <SheetRow
+            label="Delete board"
+            destructive
+            onPress={pick(() => onDelete(board))}
+            theme={theme}
+          />
+
+          <View style={[styles.sheetDivider, { backgroundColor: theme.border }]} />
+          <SheetRow label="Cancel" onPress={onHide} theme={theme} />
+        </View>
+      </Pressable>
+    </Modal>
+  );
+}
+
+/** One full-width row of the actions sheet; destructive rows read red. */
+function SheetRow({ label, value, onPress, theme, destructive }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      style={({ pressed }) => [styles.sheetRow, pressed && styles.pressed]}>
+      <Text style={[styles.sheetRowLabel, { color: destructive ? theme.destructive : theme.text }]}>
         {label}
       </Text>
+      {value ? (
+        <Text style={[styles.sheetRowValue, { color: theme.textSecondary }]}>{value}</Text>
+      ) : null}
     </Pressable>
   );
 }
@@ -157,10 +276,12 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
-    marginBottom: Spacing.two,
   },
   activeCard: {
     borderWidth: 2,
+  },
+  cardPressed: {
+    opacity: 0.85,
   },
   content: {
     flexDirection: 'row',
@@ -175,7 +296,7 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: Spacing.one,
   },
-  nameRow: {
+  titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
@@ -184,39 +305,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     flexShrink: 1,
-  },
-  activeBadge: {
-    paddingHorizontal: Spacing.one,
-    paddingVertical: 1,
-    borderRadius: BorderRadius.sm,
-  },
-  activeBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  metaRow: {
-    flexDirection: 'row',
-    gap: Spacing.two,
-  },
-  metaText: {
-    fontSize: 12,
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.one,
-    marginTop: Spacing.one,
-  },
-  actionButton: {
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: BorderRadius.sm,
-  },
-  actionText: {
-    fontSize: 12,
-    fontWeight: '600',
   },
   favoriteButton: {
     width: 32,
@@ -230,6 +318,80 @@ const styles = StyleSheet.create({
   favoriteText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  activeBadge: {
+    paddingHorizontal: Spacing.one,
+    paddingVertical: 1,
+    borderRadius: BorderRadius.sm,
+  },
+  activeBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  metaText: {
+    fontSize: 12,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+    marginTop: Spacing.one,
+  },
+  pill: {
+    minHeight: 36,
+    paddingHorizontal: Spacing.three,
+    borderRadius: BorderRadius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pillText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  sheetBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  sheet: {
+    paddingTop: Spacing.four,
+    paddingBottom: Spacing.five,
+    paddingHorizontal: Spacing.two,
+    borderTopLeftRadius: BorderRadius.lg,
+    borderTopRightRadius: BorderRadius.lg,
+  },
+  sheetHeader: {
+    paddingHorizontal: Spacing.three,
+    paddingBottom: Spacing.two,
+  },
+  sheetTitle: {
+    fontSize: 14,
+    opacity: 0.7,
+  },
+  sheetRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.three,
+    borderRadius: BorderRadius.md,
+  },
+  sheetRowLabel: {
+    fontSize: 16,
+  },
+  sheetRowValue: {
+    fontSize: 14,
+  },
+  sheetDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginVertical: Spacing.one,
   },
   pressed: {
     opacity: 0.7,

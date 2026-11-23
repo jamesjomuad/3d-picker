@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Modal,
   Pressable,
@@ -58,9 +59,21 @@ export default function BoardsScreen() {
     loadLibrary();
   }, [loadLibrary]);
 
+  // `boards` gates the memo: getFilteredBoards is a stable store action
+  // that reads live state, so without it the memo would keep serving the
+  // list captured at mount and a duplicated board would only appear when
+  // the filter changed.
   const filteredBoards = useMemo(
-    () => getFilteredBoards(filter),
-    [getFilteredBoards, filter]
+    () => (Array.isArray(boards) ? getFilteredBoards(filter) : []),
+    [boards, filter, getFilteredBoards]
+  );
+
+  // The Favorites tab shows its count next to the label; boards change
+  // rarely enough that a straight filter over the list is the cheapest
+  // honest number.
+  const favoriteCount = useMemo(
+    () => boards.filter((board) => board.isFavorite).length,
+    [boards]
   );
 
   // The board itself, read from the store on every render: `applyCells` replaces
@@ -182,7 +195,8 @@ export default function BoardsScreen() {
       <ScrollView
         style={[styles.scrollView, { backgroundColor: theme.background }]}
         contentContainerStyle={[styles.contentContainer, contentPadding]}>
-        <View style={[styles.innerContainer, { width: contentWidth }]}>
+        <View style={styles.loadingState}>
+          <ActivityIndicator color={theme.primary} />
           <ThemedText themeColor="textSecondary">Loading boards...</ThemedText>
         </View>
       </ScrollView>
@@ -216,12 +230,14 @@ export default function BoardsScreen() {
         <View style={styles.filterRow}>
           <FilterTab
             label="All"
+            count={boards.length}
             isActive={filter === FILTER_ALL}
             onPress={() => setFilter(FILTER_ALL)}
             theme={theme}
           />
           <FilterTab
             label="Favorites"
+            count={favoriteCount}
             isActive={filter === FILTER_FAVORITES}
             onPress={() => setFilter(FILTER_FAVORITES)}
             theme={theme}
@@ -231,11 +247,19 @@ export default function BoardsScreen() {
         {/* Board list */}
         {isEmpty ? (
           <ThemedView style={styles.emptyState}>
+            <ThemedText type="smallBold" style={styles.emptyTitle}>
+              {filter === FILTER_FAVORITES ? 'No favorites yet' : 'No boards yet'}
+            </ThemedText>
             <ThemedText themeColor="textSecondary" style={styles.emptyText}>
               {filter === FILTER_FAVORITES
-                ? 'No favorite boards yet. Tap ☆ to favorite a board.'
-                : 'No boards yet. Create one to get started.'}
+                ? 'Star a board to keep it within reach here.'
+                : 'Create an Angle Board to arrange your own digit grid.'}
             </ThemedText>
+            {filter === FILTER_ALL && (
+              <Button onPress={handleCreate} size="sm">
+                + Create Board
+              </Button>
+            )}
           </ThemedView>
         ) : (
           <View style={styles.listContainer}>
@@ -244,12 +268,12 @@ export default function BoardsScreen() {
                 key={board.id}
                 board={board}
                 isActive={board.id === activeBoardId}
-                onOpen={() => handleOpen(board.id)}
-                onEdit={() => handleEdit(board)}
-                onRename={() => handleRename(board)}
-                onDuplicate={() => handleDuplicate(board.id)}
-                onDelete={() => handleDelete(board)}
-                onToggleFavorite={() => handleToggleFavorite(board.id)}
+                onOpen={handleOpen}
+                onEdit={handleEdit}
+                onRename={handleRename}
+                onDuplicate={handleDuplicate}
+                onDelete={handleDelete}
+                onToggleFavorite={handleToggleFavorite}
               />
             ))}
           </View>
@@ -340,10 +364,13 @@ export default function BoardsScreen() {
   );
 }
 
-function FilterTab({ label, isActive, onPress, theme }) {
+function FilterTab({ label, count, isActive, onPress, theme }) {
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="tab"
+      accessibilityLabel={`${label}, ${count} ${count === 1 ? 'board' : 'boards'}`}
+      accessibilityState={{ selected: isActive }}
       style={({ pressed }) => [
         styles.filterTab,
         {
@@ -352,12 +379,11 @@ function FilterTab({ label, isActive, onPress, theme }) {
         },
         pressed && styles.pressed,
       ]}>
-      <Text
-        style={[
-          styles.filterText,
-          { color: isActive ? theme.primaryText : theme.text },
-        ]}>
+      <Text style={[styles.filterText, { color: isActive ? theme.primaryText : theme.text }]}>
         {label}
+      </Text>
+      <Text style={[styles.filterCount, { color: isActive ? theme.primaryText : theme.textSecondary }]}>
+        {count}
       </Text>
     </Pressable>
   );
@@ -392,28 +418,48 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.three,
   },
   filterTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.full,
     borderWidth: StyleSheet.hairlineWidth,
-    minHeight: 40,
+    minHeight: 44,
     justifyContent: 'center',
   },
   filterText: {
     fontSize: 14,
     fontWeight: '600',
   },
+  filterCount: {
+    fontSize: 12,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
   listContainer: {
     gap: Spacing.two,
+  },
+  loadingState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.six,
   },
   emptyState: {
     padding: Spacing.four,
     alignItems: 'center',
+    gap: Spacing.two,
     borderRadius: BorderRadius.md,
+  },
+  emptyTitle: {
+    fontSize: 16,
   },
   emptyText: {
     textAlign: 'center',
     fontSize: 14,
+    lineHeight: 20,
   },
   // Rename dialog (ConfirmDialog children)
   // Edit modal
