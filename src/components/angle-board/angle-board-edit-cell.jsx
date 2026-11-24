@@ -4,6 +4,9 @@ import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
+/** Alpha suffix for a Replace-tool match tint, matching the display cell. */
+const MATCH_ALPHA = '33';
+
 /**
  * Editable cell in the Angle Board: shows a digit, and while it is the cell the
  * user tapped it shows a single-digit field instead.
@@ -18,6 +21,8 @@ import { useTheme } from '@/hooks/use-theme';
  * @param {number} props.cellSize
  * @param {boolean} [props.isEditing] - this cell holds the open field
  * @param {string} [props.editValue] - text typed so far
+ * @param {boolean} [props.isMatch] - a Replace-tool match found in the original
+ *   board snapshot, tinted while the replacement is being configured
  * @param {(text: string) => void} [props.onChangeText]
  * @param {() => void} props.onCommit - Enter or blur accepts the digit
  */
@@ -25,6 +30,7 @@ export const AngleBoardEditCell = memo(function AngleBoardEditCell({
   value,
   cellSize,
   isEditing = false,
+  isMatch = false,
   editValue = '',
   onChangeText,
   onCommit,
@@ -38,7 +44,11 @@ export const AngleBoardEditCell = memo(function AngleBoardEditCell({
         {
           width: cellSize,
           height: cellSize,
-          backgroundColor: isEditing ? theme.backgroundSelected : theme.backgroundElement,
+          backgroundColor: isEditing
+            ? theme.backgroundSelected
+            : isMatch
+              ? theme.match + MATCH_ALPHA
+              : theme.backgroundElement,
           borderColor: theme.textSecondary + '20',
         },
       ]}>

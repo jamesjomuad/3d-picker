@@ -15,6 +15,9 @@ const NO_SELECTION = new Set();
 /** Identity-stable stand-in for a board with no search highlights. */
 const NO_HIGHLIGHTS = { cells: new Map() };
 
+/** Identity-stable stand-in for a board with no Replace-tool matches. */
+const NO_MATCHES = new Set();
+
 /**
  * Angle Board — the digit grid with spreadsheet-style selection.
  *
@@ -53,6 +56,10 @@ const NO_HIGHLIGHTS = { cells: new Map() };
  *   through. `activeText` is the digit colour for solid-filled active cells.
  *   Selection always wins, so a highlighted cell that is also selected simply
  *   looks selected.
+ * @param {Set<string>} [props.matchHighlights] - Replace-tool matches (collected
+ *   from the editing session's original snapshot): every "row,col" key is
+ *   tinted, in display and editable mode alike. Selection still wins; kept
+ *   separate from `highlights` so search colours and replace tints never mix.
  * @param {Object} [props.style] - extra style for the outer wrapper
  */
 export function AngleBoard({
@@ -62,6 +69,7 @@ export function AngleBoard({
   editable = false,
   onCellChange,
   highlights,
+  matchHighlights,
   style,
 }) {
   const editing = useAngleBoardEditing({ grid, onCellChange });
@@ -93,6 +101,7 @@ export function AngleBoard({
   const totalCols = grid[0]?.length ?? 0;
   const cells = selection ?? NO_SELECTION;
   const marks = highlights ?? NO_HIGHLIGHTS;
+  const matches = matchHighlights ?? NO_MATCHES;
 
   // Which rows and columns the headers should mark: the drag in progress wins
   // while it lasts, then the committed selection keeps its own rows and columns
@@ -114,6 +123,7 @@ export function AngleBoard({
           selection={cells}
           highlightCells={marks.cells}
           highlightActiveText={marks.activeText}
+          matchCells={matches}
           rowHighlights={headerMarks.rows}
           colHighlights={headerMarks.cols}
           editable={editable}

@@ -1,4 +1,4 @@
-import { computeReplace, countMatches } from '../board-replace';
+import { computeReplace, countMatches, getMatchingCells } from '../board-replace';
 
 /**
  * 4x3 grid with known digit distribution for deterministic assertions:
@@ -15,6 +15,18 @@ const GRID = [
   [1, 8, 9],
   [5, 5, 5],
 ];
+
+describe('getMatchingCells', () => {
+  it('returns every matching key in row-major order', () => {
+    expect(getMatchingCells(GRID, 5)).toEqual(['3,0', '3,1', '3,2']);
+  });
+
+  it('returns an empty list for an invalid digit or a missing grid', () => {
+    expect(getMatchingCells(GRID, 10)).toEqual([]);
+    expect(getMatchingCells(null, 5)).toEqual([]);
+    expect(getMatchingCells([], 5)).toEqual([]);
+  });
+});
 
 describe('countMatches', () => {
   it('counts a digit that appears once', () => {
@@ -128,5 +140,64 @@ describe('computeReplace', () => {
     expect(computeReplace(GRID, 10, 5)).toEqual({ count: 0, changes: {} });
     expect(computeReplace(GRID, 5, 10)).toEqual({ count: 0, changes: {} });
     expect(computeReplace(null, 5, 3)).toEqual({ count: 0, changes: {} });
+  });
+});
+
+describe('replacement against the session snapshot', () => {
+  /** Apply a changes map to a working copy, the way the store does. */
+  const apply = (grid, changes) => {
+    const next = grid.map((row) => [...row]);
+    for (const [key, digit] of Object.entries(changes)) {
+      const [r, c] = key.split(',').map(Number);
+      next[r][c] = digit;
+    }
+    return next;
+  };
+
+  it('does not re-match a digit written by an earlier replacement', () => {
+    const original = [
+      [1, 2, 3],
+      [4, 5, 6],
+      [7, 8, 9],
+    ];
+
+    const first = computeReplace(original, 1, 5);
+    const working = apply(original, first.changes);
+
+    // The working board now holds two 5s (0,0 and 1,1), but only the cell
+    // that originally held 5 may be replaced this time.
+    const second = computeReplace(original, 5, 8);
+    expect(second.changes).toEqual({ '1,1': 8 });
+
+    expect(apply(working, second.changes)).toEqual([
+      [5, 2, 3],
+      [4, 8, 6],
+      [7, 8, 9],
+    ]);
+  });
+
+  it('keeps counts and highlights anchored to the snapshot', () => {
+    const original = [
+      [1, 5, 5],
+      [5, 1, 1],
+    ];
+    const working = apply(original, computeReplace(original, 1, 5).changes);
+
+    // Six 5s on the working board, but only the three that started as 5.
+    expect(working.flat().filter((value) => value === 5)).toHaveLength(6);
+    expect(computeReplace(original, 5, 0).count).toBe(3);
+    expect(getMatchingCells(original, 5)).toEqual(['0,1', '0,2', '1,0']);
+  });
+
+  it('never mutates the snapshot', () => {
+    const original = [
+      [1, 2],
+      [3, 4],
+    ];
+    computeReplace(original, 1, 9);
+    expect(original).toEqual([
+      [1, 2],
+      [3, 4],
+    ]);
   });
 });

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
@@ -6,41 +6,45 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { DigitSelector } from '@/components/ui/digit-selector';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { computeReplace } from '@/utils/board-replace';
+import { getMatchingCells } from '@/utils/board-replace';
 
 /**
  * Replace tool panel for the Edit Board sheet.
  *
- * Lets the user pick a find digit and a replacement digit, see how many
- * cells match, and execute a Replace All with a confirmation step.
+ * Matching always reads the grid it is handed, and the sheet hands it the
+ * snapshot captured when the editing session began — never the working board.
+ * A digit written by an earlier replacement therefore cannot become a source
+ * for the next one: replace 1 with 5, then 5 with 8, and the cell that started
+ * as 1 keeps its 5.
+ *
+ * The matches are reported to the owner through `onMatchesChange` so the board
+ * can tint those exact cells while the replacement is being configured.
  *
  * @param {Object} props
- * @param {number[][]} props.grid - current board grid
- * @param {() => void} props.onReplaceAll - called with `{ count, changes }` when
- *   the user confirms the replacement
+ * @param {number[][]} props.grid - original board snapshot for this editing session
+ * @param {(result: { count: number, changes: Object<string, number> }) => void}
+ *   props.onReplaceAll - called with the changes to apply when the user confirms
  * @param {() => void} props.onClose - called to collapse the panel
+ * @param {(matches: Set<string>) => void} [props.onMatchesChange] - matching
+ *   "row,col" keys of the find digit, for the board's highlight layer
  */
-export function ReplaceTool({ grid, onReplaceAll, onClose }) {
+export function ReplaceTool({ grid, onReplaceAll, onClose, onMatchesChange }) {
   const theme = useTheme();
 
   const [findDigit, setFindDigit] = useState(null);
   const [replaceDigit, setReplaceDigit] = useState(null);
   const [confirmVisible, setConfirmVisible] = useState(false);
 
-  const { count, changes, sameDigit, noMatches } = useMemo(() => {
-    if (findDigit === null || replaceDigit === null) {
-      return { count: 0, changes: {}, sameDigit: false, noMatches: false };
-    }
+  // Matches depend on the find digit alone, so they are visible (and counted)
+  // before a replacement digit is chosen.
+  const matches = useMemo(() => getMatchingCells(grid, findDigit), [grid, findDigit]);
+  const count = matches.length;
+  const sameDigit = findDigit !== null && replaceDigit !== null && findDigit === replaceDigit;
+  const canReplace = findDigit !== null && replaceDigit !== null && !sameDigit && count > 0;
 
-    const result = computeReplace(grid, findDigit, replaceDigit);
-    return {
-      ...result,
-      sameDigit: findDigit === replaceDigit,
-      noMatches: result.count === 0,
-    };
-  }, [grid, findDigit, replaceDigit]);
-
-  const canReplace = findDigit !== null && replaceDigit !== null && !sameDigit && !noMatches;
+  useEffect(() => {
+    onMatchesChange?.(new Set(matches));
+  }, [matches, onMatchesChange]);
 
   const handleReplaceAll = () => {
     if (!canReplace) return;
@@ -49,6 +53,8 @@ export function ReplaceTool({ grid, onReplaceAll, onClose }) {
 
   const handleConfirm = () => {
     setConfirmVisible(false);
+    const changes = {};
+    for (const key of matches) changes[key] = replaceDigit;
     onReplaceAll({ count, changes });
     onClose();
   };
@@ -72,7 +78,7 @@ export function ReplaceTool({ grid, onReplaceAll, onClose }) {
         onSelect={setFindDigit}
       />
 
-      <View style={styles.separator} />
+      <View style={[styles.separator, { backgroundColor: theme.border }]} />
 
       <DigitSelector
         label="Replace with"
@@ -81,22 +87,31 @@ export function ReplaceTool({ grid, onReplaceAll, onClose }) {
       />
 
       <View style={styles.statusRow}>
-        {findDigit === null || replaceDigit === null ? (
+        {findDigit === null ? (
           <Text style={[styles.status, { color: theme.textSecondary }]}>
-            Select both digits to see matches
+            Select a digit to highlight its cells
+          </Text>
+        ) : count === 0 ? (
+          <Text style={[styles.status, { color: theme.textSecondary }]}>
+            No cells contain {findDigit}
+          </Text>
+        ) : replaceDigit === null ? (
+          <Text style={[styles.status, { color: theme.text }]}>
+            {count} matching cell{count === 1 ? '' : 's'} contain {findDigit}
           </Text>
         ) : sameDigit ? (
           <Text style={[styles.status, { color: theme.textSecondary }]}>
             Both digits are the same — no changes needed
           </Text>
-        ) : noMatches ? (
-          <Text style={[styles.status, { color: theme.textSecondary }]}>
-            No cells contain {findDigit}
-          </Text>
         ) : (
-          <Text style={[styles.status, { color: theme.text }]}>
-            {count} cell{count !== 1 ? 's' : ''} contain{count === 1 ? 's' : ''} {findDigit}
-          </Text>
+          <>
+            <Text style={[styles.status, { color: theme.text }]}>
+              Replace {findDigit} → {replaceDigit}
+            </Text>
+            <Text style={[styles.statusDetail, { color: theme.textSecondary }]}>
+              {count} matching cell{count === 1 ? '' : 's'}
+            </Text>
+          </>
         )}
       </View>
 
@@ -111,7 +126,7 @@ export function ReplaceTool({ grid, onReplaceAll, onClose }) {
         visible={confirmVisible}
         title="Confirm Replace"
         message={
-          `Replace all ${count} occurrence${count !== 1 ? 's' : ''} of ` +
+          `Replace the ${count} cell${count === 1 ? '' : 's'} that originally held ` +
           `${findDigit} with ${replaceDigit}?`
         }
         confirmLabel="Replace"
@@ -149,5 +164,9 @@ const styles = StyleSheet.create({
   status: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  statusDetail: {
+    fontSize: 13,
+    lineHeight: 18,
   },
 });

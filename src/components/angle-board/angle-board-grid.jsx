@@ -22,6 +22,8 @@ import { AngleBoardColumnHeaders, AngleBoardRowHeader } from './angle-board-head
  *   search-result "row,col" keys to their colour data
  * @param {string} [props.highlightActiveText] - digit colour for a cell
  *   solid-filled with its active path colour
+ * @param {Set<string>} [props.matchCells] - Replace-tool matches, tinted in both
+ *   display and editable cells
  * @param {Set<number>} props.rowHighlights
  * @param {Set<number>} props.colHighlights
  * @param {boolean} props.editable
@@ -35,6 +37,7 @@ export function AngleBoardGrid({
   selection,
   highlightCells,
   highlightActiveText,
+  matchCells,
   rowHighlights,
   colHighlights,
   editable = false,
@@ -67,6 +70,7 @@ export function AngleBoardGrid({
                 key={`${rowIndex},${colIndex}`}
                 value={value}
                 cellSize={cellSize}
+                isMatch={matchCells?.has(`${rowIndex},${colIndex}`) ?? false}
                 isEditing={
                   editing?.editingCell?.row === rowIndex && editing?.editingCell?.col === colIndex
                 }
@@ -81,6 +85,7 @@ export function AngleBoardGrid({
                 isSelected={selection.has(`${rowIndex},${colIndex}`)}
                 search={highlightCells?.get(`${rowIndex},${colIndex}`) ?? null}
                 searchActiveText={highlightActiveText}
+                isMatch={matchCells?.has(`${rowIndex},${colIndex}`) ?? false}
                 cellSize={cellSize}
               />
             )

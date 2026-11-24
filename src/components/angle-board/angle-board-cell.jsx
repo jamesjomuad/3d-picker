@@ -7,6 +7,9 @@ import { useTheme } from '@/hooks/use-theme';
 /** Alpha suffix for a match segment: a tint, so the digit stays readable. */
 const SEGMENT_ALPHA = '59';
 
+/** Alpha suffix for a Replace-tool match tint: subtle, distinct from a selection. */
+const MATCH_ALPHA = '33';
+
 /**
  * Individual cell in the Angle Board grid
  * Displays a single digit (0-9)
@@ -22,6 +25,8 @@ const SEGMENT_ALPHA = '59';
  *   Selection wins over both.
  * @param {string} [props.searchActiveText] - digit colour on a solid-filled
  *   active cell, chosen by the palette for contrast
+ * @param {boolean} [props.isMatch] - a Replace-tool match found in the original
+ *   board snapshot; tinted, but weaker than a selection or a search result
  * @param {number} props.cellSize - Size of the cell in pixels
  */
 export const AngleBoardCell = memo(function AngleBoardCell({
@@ -29,15 +34,20 @@ export const AngleBoardCell = memo(function AngleBoardCell({
   isSelected = false,
   search = null,
   searchActiveText,
+  isMatch = false,
   cellSize,
 }) {
   const theme = useTheme();
 
-  let backgroundColor = isSelected ? theme.primary : theme.backgroundElement;
-  let textColor = isSelected ? theme.primaryText : theme.textSecondary;
+  let backgroundColor = isMatch ? theme.match + MATCH_ALPHA : theme.backgroundElement;
+  let textColor = isMatch ? theme.text : theme.textSecondary;
   if (!isSelected && search?.activeColor) {
     backgroundColor = search.activeColor;
     textColor = searchActiveText ?? theme.primaryText;
+  }
+  if (isSelected) {
+    backgroundColor = theme.primary;
+    textColor = theme.primaryText;
   }
 
   // A plain match shows its path colours as segments; an active cell is one

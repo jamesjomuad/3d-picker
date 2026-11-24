@@ -5,6 +5,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 're
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { FoldableCard } from '@/components/ui/foldable-card';
+import { InputClearButton } from '@/components/ui/input-clear-button';
 import { BorderRadius, Fonts, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useBasketStore } from '@/store/basketStore';
@@ -447,15 +448,6 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.mono,
     minHeight: 44,
   },
-  searchClear: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    height: 44,
-    paddingHorizontal: Spacing.three,
-    fontSize: 22,
-    lineHeight: 44,
-  },
   searchError: {
     fontSize: 13,
     fontWeight: '500',
@@ -629,14 +621,10 @@ function FunPickSearchField({ value, onChangeText, error }) {
           autoCorrect={false}
         />
         {value.length > 0 && (
-          <ThemedText
-            type="linkPrimary"
+          <InputClearButton
             onPress={() => onChangeText('')}
-            accessibilityRole="button"
             accessibilityLabel="Clear search"
-            style={[styles.searchClear, { color: theme.textSecondary }]}>
-            ×
-          </ThemedText>
+          />
         )}
       </View>
       {error ? (

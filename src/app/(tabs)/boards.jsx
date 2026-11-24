@@ -54,8 +54,10 @@ export default function BoardsScreen() {
   const [duplicateDialog, setDuplicateDialog] = useState(null); // { id }
   const [duplicateValue, setDuplicateValue] = useState('');
   const [editingBoardId, setEditingBoardId] = useState(null); // board open in the edit sheet
+  const [editSnapshot, setEditSnapshot] = useState(null); // original grid, frozen for the session
   const [editSelection, setEditSelection] = useState(null); // block to fill from
   const [showReplaceTool, setShowReplaceTool] = useState(false);
+  const [replaceMatches, setReplaceMatches] = useState(null); // Set of "row,col" keys
 
   useEffect(() => {
     loadLibrary();
@@ -88,24 +90,46 @@ export default function BoardsScreen() {
 
   // The sheet carries its own fill pattern, so it starts clean each time: a
   // leftover selection from the last board would fill this one with those digits.
-  const openEditSheet = useCallback((boardId) => {
+  // The grid it opened with is frozen as `editSnapshot`: Replace matches against
+  // the board as it was, so digits written by an earlier replacement never
+  // become a source for the next one.
+  const openEditSheet = useCallback((boardId, grid) => {
     setEditSelection(null);
     setShowReplaceTool(false);
+    setReplaceMatches(null);
+    setEditSnapshot(grid ? grid.map((row) => [...row]) : null);
     setEditingBoardId(boardId);
   }, []);
 
   const closeEditSheet = useCallback(() => {
     setEditSelection(null);
     setShowReplaceTool(false);
+    setReplaceMatches(null);
+    setEditSnapshot(null);
     setEditingBoardId(null);
   }, []);
+
+  const openReplaceTool = useCallback(() => {
+    setReplaceMatches(null);
+    setShowReplaceTool(true);
+  }, []);
+
+  const closeReplaceTool = useCallback(() => {
+    setShowReplaceTool(false);
+    setReplaceMatches(null);
+  }, []);
+
+  const toggleReplaceTool = useCallback(() => {
+    if (showReplaceTool) closeReplaceTool();
+    else openReplaceTool();
+  }, [showReplaceTool, closeReplaceTool, openReplaceTool]);
 
   // Actions
   const handleCreate = useCallback(() => {
     const boardCount = boards.length + 1;
     const newBoard = createBoard({ name: `Board ${String(boardCount).padStart(3, '0')}` });
     // Jump to edit the new board immediately
-    openEditSheet(newBoard.id);
+    openEditSheet(newBoard.id, newBoard.grid);
   }, [boards.length, createBoard, openEditSheet]);
 
   const handleOpen = useCallback(
@@ -118,7 +142,7 @@ export default function BoardsScreen() {
 
   const handleEdit = useCallback(
     (board) => {
-      openEditSheet(board.id);
+      openEditSheet(board.id, board.grid);
     },
     [openEditSheet]
   );
@@ -373,16 +397,18 @@ export default function BoardsScreen() {
               <Button
                 variant={showReplaceTool ? 'secondary' : 'outline'}
                 size="sm"
-                onPress={() => setShowReplaceTool((prev) => !prev)}>
+                onPress={toggleReplaceTool}>
                 {showReplaceTool ? '✕ Close Replace' : 'Replace'}
               </Button>
             </View>
 
             {showReplaceTool && editingBoard && (
               <ReplaceTool
-                grid={editingBoard.grid}
+                // Replace reads the session snapshot, never the working grid.
+                grid={editSnapshot ?? editingBoard.grid}
                 onReplaceAll={handleReplaceAll}
-                onClose={() => setShowReplaceTool(false)}
+                onClose={closeReplaceTool}
+                onMatchesChange={setReplaceMatches}
               />
             )}
 
@@ -393,6 +419,7 @@ export default function BoardsScreen() {
                 onSelectionChange={setEditSelection}
                 editable
                 onCellChange={handleCellChange}
+                matchHighlights={replaceMatches}
               />
             )}
 

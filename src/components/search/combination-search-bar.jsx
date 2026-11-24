@@ -1,6 +1,7 @@
 import { Platform, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { InputClearButton } from '@/components/ui/input-clear-button';
 import { BorderRadius, Fonts, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -53,7 +54,9 @@ export function CombinationSearchBar({ value, onChangeText, onSubmit, onClear, e
           autoCorrect={false}
         />
 
-        {value.length > 0 && <TextInputClear theme={theme} onPress={onClear} />}
+        {value.length > 0 && (
+          <InputClearButton onPress={onClear} accessibilityLabel="Clear search" />
+        )}
       </View>
 
       {error ? (
@@ -62,23 +65,6 @@ export function CombinationSearchBar({ value, onChangeText, onSubmit, onClear, e
         </ThemedText>
       ) : null}
     </View>
-  );
-}
-
-/**
- * The × sits over the field's right end, big enough for a thumb, with the
- * text given room so a digit never hides under it.
- */
-function TextInputClear({ theme, onPress }) {
-  return (
-    <ThemedText
-      type="linkPrimary"
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel="Clear search"
-      style={[styles.clear, { color: theme.textSecondary }]}>
-      ×
-    </ThemedText>
   );
 }
 
@@ -101,15 +87,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: Fonts.mono,
     minHeight: 44,
-  },
-  clear: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    height: 44,
-    paddingHorizontal: Spacing.three,
-    fontSize: 22,
-    lineHeight: 44,
   },
   error: {
     fontSize: 13,
