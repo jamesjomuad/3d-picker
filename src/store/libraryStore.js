@@ -190,25 +190,19 @@ export const useLibraryStore = create((set, get) => ({
   /**
    * Duplicates a board with a new ID and name
    * @param {string} boardId
+   * @param {string} [name] - Name for the copy; defaults to "<source> (copy)"
    * @returns {Object|null} The new board, or null if not found
    */
-  duplicateBoard: (boardId) => {
+  duplicateBoard: (boardId, name) => {
     const source = get().boards.find((b) => b.id === boardId);
     if (!source) return null;
 
-    const now = new Date().toISOString();
-    const newBoard = {
-      id: undefined, // will be set by createBoard
-      name: `${source.name} (copy)`,
-      isFavorite: false,
-      grid: source.grid.map((row) => [...row]),
-      createdAt: now,
-      updatedAt: now,
-    };
+    const copyName =
+      typeof name === 'string' && name.trim() ? name.trim() : `${source.name} (copy)`;
 
     const created = createBoard({
-      name: newBoard.name,
-      grid: newBoard.grid,
+      name: copyName,
+      grid: source.grid.map((row) => [...row]),
     });
 
     set((state) => ({

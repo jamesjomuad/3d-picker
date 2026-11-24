@@ -51,6 +51,8 @@ export default function BoardsScreen() {
   const [renameDialog, setRenameDialog] = useState(null); // { id, name }
   const [renameValue, setRenameValue] = useState('');
   const [deleteDialog, setDeleteDialog] = useState(null); // { id, name }
+  const [duplicateDialog, setDuplicateDialog] = useState(null); // { id }
+  const [duplicateValue, setDuplicateValue] = useState('');
   const [editingBoardId, setEditingBoardId] = useState(null); // board open in the edit sheet
   const [editSelection, setEditSelection] = useState(null); // block to fill from
   const [showReplaceTool, setShowReplaceTool] = useState(false);
@@ -131,10 +133,9 @@ export default function BoardsScreen() {
 
   const handleRenameConfirm = useCallback(() => {
     if (!renameDialog) return;
-    if (!renameValue.trim()) {
-      Alert.alert('Invalid Name', 'Board name cannot be empty');
-      return;
-    }
+    // The Save button is already disabled while the field is blank; this is
+    // the guard for any other path into confirm.
+    if (!renameValue.trim()) return;
     renameBoard(renameDialog.id, renameValue);
     setRenameDialog(null);
     setRenameValue('');
@@ -153,12 +154,23 @@ export default function BoardsScreen() {
     setDeleteDialog(null);
   }, [deleteDialog, deleteBoard]);
 
-  const handleDuplicate = useCallback(
-    (boardId) => {
-      duplicateBoard(boardId);
-    },
-    [duplicateBoard]
-  );
+  const handleDuplicate = useCallback((board) => {
+    // Prefill with the store's own default, so accepting it unchanged is the
+    // old one-tap path and naming the copy is optional.
+    setDuplicateDialog({ id: board.id });
+    setDuplicateValue(`${board.name} (copy)`);
+  }, []);
+
+  const handleDuplicateConfirm = useCallback(() => {
+    if (!duplicateDialog) return;
+    if (!duplicateValue.trim()) return;
+    duplicateBoard(duplicateDialog.id, duplicateValue);
+    setDuplicateDialog(null);
+    setDuplicateValue('');
+    // The copy is never a favorite, so it could not appear under the
+    // Favorites filter: show All so the new board is visibly there.
+    setFilter(FILTER_ALL);
+  }, [duplicateDialog, duplicateValue, duplicateBoard]);
 
   const handleToggleFavorite = useCallback(
     (boardId) => {
@@ -207,84 +219,89 @@ export default function BoardsScreen() {
   const isEmpty = filteredBoards.length === 0;
 
   return (
-    <ScrollView
-      style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentContainerStyle={[styles.contentContainer, contentPadding]}>
-      <View style={[styles.innerContainer, { width: contentWidth }]}>
-        {/* Header */}
-        <ThemedView style={styles.headerContainer}>
-          <View style={styles.headerTop}>
-            <View>
-              <ThemedText type="subtitle">Boards</ThemedText>
-              <ThemedText themeColor="textSecondary" style={styles.subtitleText}>
-                {boards.length} board{boards.length === 1 ? '' : 's'}
-              </ThemedText>
-            </View>
-            <Button onPress={handleCreate} size="sm">
-              + New
-            </Button>
-          </View>
-        </ThemedView>
-
-        {/* Filter tabs */}
-        <View style={styles.filterRow}>
-          <FilterTab
-            label="All"
-            count={boards.length}
-            isActive={filter === FILTER_ALL}
-            onPress={() => setFilter(FILTER_ALL)}
-            theme={theme}
-          />
-          <FilterTab
-            label="Favorites"
-            count={favoriteCount}
-            isActive={filter === FILTER_FAVORITES}
-            onPress={() => setFilter(FILTER_FAVORITES)}
-            theme={theme}
-          />
-        </View>
-
-        {/* Board list */}
-        {isEmpty ? (
-          <ThemedView style={styles.emptyState}>
-            <ThemedText type="smallBold" style={styles.emptyTitle}>
-              {filter === FILTER_FAVORITES ? 'No favorites yet' : 'No boards yet'}
-            </ThemedText>
-            <ThemedText themeColor="textSecondary" style={styles.emptyText}>
-              {filter === FILTER_FAVORITES
-                ? 'Star a board to keep it within reach here.'
-                : 'Create an Angle Board to arrange your own digit grid.'}
-            </ThemedText>
-            {filter === FILTER_ALL && (
+    <View style={[styles.screen, { backgroundColor: theme.background }]}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[styles.contentContainer, contentPadding]}>
+        <View style={[styles.innerContainer, { width: contentWidth }]}>
+          {/* Header */}
+          <ThemedView style={styles.headerContainer}>
+            <View style={styles.headerTop}>
+              <View>
+                <ThemedText type="subtitle">Boards</ThemedText>
+                <ThemedText themeColor="textSecondary" style={styles.subtitleText}>
+                  {boards.length} board{boards.length === 1 ? '' : 's'}
+                </ThemedText>
+              </View>
               <Button onPress={handleCreate} size="sm">
-                + Create Board
+                + New
               </Button>
-            )}
+            </View>
           </ThemedView>
-        ) : (
-          <View style={styles.listContainer}>
-            {filteredBoards.map((board) => (
-              <BoardCard
-                key={board.id}
-                board={board}
-                isActive={board.id === activeBoardId}
-                onOpen={handleOpen}
-                onEdit={handleEdit}
-                onRename={handleRename}
-                onDuplicate={handleDuplicate}
-                onDelete={handleDelete}
-                onToggleFavorite={handleToggleFavorite}
-              />
-            ))}
-          </View>
-        )}
-      </View>
 
-      {/* Rename dialog */}
+          {/* Filter tabs */}
+          <View style={styles.filterRow}>
+            <FilterTab
+              label="All"
+              count={boards.length}
+              isActive={filter === FILTER_ALL}
+              onPress={() => setFilter(FILTER_ALL)}
+              theme={theme}
+            />
+            <FilterTab
+              label="Favorites"
+              count={favoriteCount}
+              isActive={filter === FILTER_FAVORITES}
+              onPress={() => setFilter(FILTER_FAVORITES)}
+              theme={theme}
+            />
+          </View>
+
+          {/* Board list */}
+          {isEmpty ? (
+            <ThemedView style={styles.emptyState}>
+              <ThemedText type="smallBold" style={styles.emptyTitle}>
+                {filter === FILTER_FAVORITES ? 'No favorites yet' : 'No boards yet'}
+              </ThemedText>
+              <ThemedText themeColor="textSecondary" style={styles.emptyText}>
+                {filter === FILTER_FAVORITES
+                  ? 'Star a board to keep it within reach here.'
+                  : 'Create an Angle Board to arrange your own digit grid.'}
+              </ThemedText>
+              {filter === FILTER_ALL && (
+                <Button onPress={handleCreate} size="sm">
+                  + Create Board
+                </Button>
+              )}
+            </ThemedView>
+          ) : (
+            <View style={styles.listContainer}>
+              {filteredBoards.map((board) => (
+                <BoardCard
+                  key={board.id}
+                  board={board}
+                  isActive={board.id === activeBoardId}
+                  onOpen={handleOpen}
+                  onEdit={handleEdit}
+                  onRename={handleRename}
+                  onDuplicate={handleDuplicate}
+                  onDelete={handleDelete}
+                  onToggleFavorite={handleToggleFavorite}
+                />
+              ))}
+            </View>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* Rename and delete dialogs are true Modal popups: they paint above
+          the screen and the sheet on their own window, dim what is behind,
+          and answer the Android back gesture with Cancel. */}
       <ConfirmDialog
         visible={!!renameDialog}
         title="Rename Board"
-        confirmLabel="Rename"
+        confirmLabel="Save"
+        confirmDisabled={!renameValue.trim()}
         onCancel={() => setRenameDialog(null)}
         onConfirm={handleRenameConfirm}>
         <Input
@@ -293,14 +310,41 @@ export default function BoardsScreen() {
           placeholder="Board name"
           autoFocus
         />
+        {renameValue.trim() ? null : (
+          <Text style={[styles.dialogError, { color: theme.destructive }]}>
+            Enter a name for this board.
+          </Text>
+        )}
+      </ConfirmDialog>
+
+      {/* Duplicate asks for the copy's name, prefilled with the default */}
+      <ConfirmDialog
+        visible={!!duplicateDialog}
+        title="Duplicate Board"
+        message="Give the copy a name. Its grid is copied independently of the original."
+        confirmLabel="Duplicate"
+        confirmDisabled={!duplicateValue.trim()}
+        onCancel={() => setDuplicateDialog(null)}
+        onConfirm={handleDuplicateConfirm}>
+        <Input
+          value={duplicateValue}
+          onChangeText={setDuplicateValue}
+          placeholder="Board name"
+          autoFocus
+        />
+        {duplicateValue.trim() ? null : (
+          <Text style={[styles.dialogError, { color: theme.destructive }]}>
+            Enter a name for the copy.
+          </Text>
+        )}
       </ConfirmDialog>
 
       {/* Delete confirmation */}
       <ConfirmDialog
         visible={!!deleteDialog}
-        title="Delete Board"
-        message={`Are you sure you want to delete "${deleteDialog?.name}"? This cannot be undone.`}
-        confirmLabel="Delete"
+        title="Delete Board?"
+        message={`"${deleteDialog?.name}" will be deleted from this device. This cannot be undone.`}
+        confirmLabel="Delete Board"
         confirmVariant="destructive"
         onCancel={() => setDeleteDialog(null)}
         onConfirm={handleDeleteConfirm}
@@ -360,7 +404,7 @@ export default function BoardsScreen() {
           </View>
         </ScrollView>
       </Modal>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -390,6 +434,9 @@ function FilterTab({ label, count, isActive, onPress, theme }) {
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
   scrollView: {
     flex: 1,
   },
@@ -462,6 +509,9 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   // Rename dialog (ConfirmDialog children)
+  dialogError: {
+    fontSize: 13,
+  },
   // Edit modal
   editModal: {
     flex: 1,

@@ -319,6 +319,16 @@ describe('duplicateBoard', () => {
     expect(copy.name).toBe('Original (copy)');
   });
 
+  it('uses a provided name for the copy', () => {
+    const copy = useLibraryStore.getState().duplicateBoard(originalId, '  My Copy  ');
+    expect(copy.name).toBe('My Copy');
+  });
+
+  it('falls back to the default name when the provided name is blank', () => {
+    const copy = useLibraryStore.getState().duplicateBoard(originalId, '   ');
+    expect(copy.name).toBe('Original (copy)');
+  });
+
   it('copies the grid data', () => {
     const copy = useLibraryStore.getState().duplicateBoard(originalId);
     expect(copy.grid[0][0]).toBe(5);

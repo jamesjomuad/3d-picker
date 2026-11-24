@@ -41,7 +41,9 @@ export function OptionSheet({ visible, title, options, value, onSelect, onClose 
         accessibilityLabel={`Dismiss ${title} options`}>
         <View
           style={[styles.sheet, { backgroundColor: theme.backgroundElement }]}
-          onStartShouldSetResponderCapture={() => true}>
+          // Bubble phase, not capture: a capture handler here would claim the
+          // touch before any row beneath it and leave the whole sheet inert.
+          onStartShouldSetResponder={() => true}>
           <View style={styles.header}>
             <ThemedText type="smallBold" numberOfLines={1} style={styles.headerTitle}>
               {title}

@@ -24,7 +24,7 @@ import { useTheme } from '@/hooks/use-theme';
  * @param {(id: string) => void} props.onOpen - Open board handler
  * @param {(board: Object) => void} props.onEdit - Edit board handler
  * @param {(board: Object) => void} props.onRename - Rename board handler
- * @param {(id: string) => void} props.onDuplicate - Duplicate board handler
+ * @param {(board: Object) => void} props.onDuplicate - Duplicate board handler
  * @param {(board: Object) => void} props.onDelete - Delete board handler
  * @param {(id: string) => void} props.onToggleFavorite - Toggle favorite handler
  */
@@ -206,7 +206,11 @@ function BoardActionsSheet({
         accessibilityLabel="Dismiss board options">
         <View
           style={[styles.sheet, { backgroundColor: theme.backgroundElement }]}
-          onStartShouldSetResponderCapture={() => true}>
+          // Bubble phase, never capture: a capture-phase handler here takes
+          // the touch itself, which would leave every row below it dead.
+          // In the bubble phase the deepest responder (a SheetRow) wins
+          // first, and only taps on the sheet's own padding reach this.
+          onStartShouldSetResponder={() => true}>
           <View style={styles.sheetHeader}>
             <ThemedText type="smallBold" numberOfLines={1} style={styles.sheetTitle}>
               {board.name}
@@ -216,10 +220,9 @@ function BoardActionsSheet({
           <SheetRow label="Open board" onPress={pick(() => onOpen(board.id))} theme={theme} />
           <SheetRow label="Edit board" onPress={pick(() => onEdit(board))} theme={theme} />
           <SheetRow label="Rename" onPress={pick(() => onRename(board))} theme={theme} />
-          <SheetRow label="Duplicate" onPress={pick(() => onDuplicate(board.id))} theme={theme} />
+          <SheetRow label="Duplicate" onPress={pick(() => onDuplicate(board))} theme={theme} />
           <SheetRow
-            label="Favorite"
-            value={board.isFavorite ? 'Favorited' : 'Not yet'}
+            label={board.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
             onPress={pick(() => onToggleFavorite(board.id))}
             theme={theme}
           />
