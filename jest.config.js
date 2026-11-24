@@ -11,5 +11,8 @@ module.exports = {
     // The default template imports src/global.css from constants/theme.js for
     // the web build. Jest has no CSS transform, and no test needs the styles.
     '\\.(css|sass|scss|less)$': '<rootDir>/test/style-mock.js',
+    // The theme hook now reads the settings store, so any component test
+    // pulls in the persistence services and AsyncStorage with it.
+    '^@react-native-async-storage/async-storage$': '<rootDir>/test/async-storage-mock.js',
   },
 };

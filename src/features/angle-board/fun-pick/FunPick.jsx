@@ -8,6 +8,7 @@ import { FoldableCard } from '@/components/ui/foldable-card';
 import { BorderRadius, Fonts, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useBasketStore } from '@/store/basketStore';
+import { useSettingsStore } from '@/store/settingsStore';
 import { getPathReference } from '@/utils/cell-reference';
 
 import {
@@ -76,6 +77,23 @@ export function FunPick({ grid, selection, style }) {
   const [hasGenerated, setHasGenerated] = useState(false);
   const [copyStatus, setCopyStatus] = useState('idle');
   const resetTimer = useRef(null);
+
+  // The "Default direction" and "Default combination length" preferences
+  // from Settings seed the rules while the user has not picked them by hand
+  // in this session. useFunPick stays store-free by design, so the bridge
+  // lives here: a manual chip press wins for the rest of the session, and
+  // the setting is honoured again on the next mount (or immediately, if it
+  // changes before any press).
+  const defaultDirection = useSettingsStore((state) => state.funPickDirection);
+  const defaultType = useSettingsStore((state) => state.funPickType);
+  const directionTouched = useRef(false);
+  const typeTouched = useRef(false);
+  useEffect(() => {
+    if (!directionTouched.current) setDirection(defaultDirection);
+  }, [defaultDirection, setDirection]);
+  useEffect(() => {
+    if (!typeTouched.current) setType(defaultType);
+  }, [defaultType, setType]);
 
   // Sequence search ("12,4"). Local to the card and applied immediately:
   // every keystroke just re-derives a view over the existing batch. An
@@ -219,7 +237,10 @@ export function FunPick({ grid, selection, style }) {
                     key={option.value}
                     label={option.label}
                     selected={option.value === type}
-                    onSelect={() => setType(option.value)}
+                    onSelect={() => {
+                      typeTouched.current = true;
+                      setType(option.value);
+                    }}
                   />
                 ))}
               </View>
@@ -232,7 +253,10 @@ export function FunPick({ grid, selection, style }) {
                     key={option.value}
                     label={option.label}
                     selected={option.value === direction}
-                    onSelect={() => setDirection(option.value)}
+                    onSelect={() => {
+                      directionTouched.current = true;
+                      setDirection(option.value);
+                    }}
                   />
                 ))}
               </View>
