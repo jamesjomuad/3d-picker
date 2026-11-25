@@ -34,10 +34,11 @@ export function OptionSheet({ visible, title, options, value, onSelect, onClose 
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      {/* No button role here: the sheet contains option buttons, and nesting
+          buttons produces invalid HTML and a React hydration warning on web. */}
       <Pressable
         style={styles.backdrop}
         onPress={onClose}
-        accessibilityRole="button"
         accessibilityLabel={`Dismiss ${title} options`}>
         <View
           style={[styles.sheet, { backgroundColor: theme.backgroundElement }]}

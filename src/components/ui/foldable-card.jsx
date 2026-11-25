@@ -18,10 +18,11 @@ const toggleAnimation = {
 /**
  * Foldable card container
  *
- * A Card-styled surface whose whole header toggles the content open and shut.
- * The fold is driven by LayoutAnimation around a mount/unmount of the content
- * — the New Architecture runs it on the UI thread on both platforms, so no
- * measurement or shared values are involved.
+ * A Card-styled surface whose title area toggles the content open and shut.
+ * Trailing actions stay outside the toggle, so the web tree never nests a
+ * button inside another button. The fold is driven by LayoutAnimation around
+ * a mount/unmount of the content — the New Architecture runs it on the UI
+ * thread on both platforms, so no measurement or shared values are involved.
  *
  * @param {Object} props
  * @param {React.ReactNode} props.children - Collapsible card content
@@ -53,31 +54,31 @@ export function FoldableCard({
     <ThemedView
       type="backgroundElement"
       style={[styles.card, { borderColor: theme.border }, style]}>
-      <Pressable
-        onPress={handleToggle}
-        accessibilityRole="button"
-        accessibilityState={{ expanded }}
-        accessibilityLabel={typeof title === 'string' ? title : undefined}
-        style={({ pressed }) => [
-          styles.header,
-          expanded && { borderBottomColor: theme.border },
-          pressed && styles.pressed,
-        ]}>
-        {icon ? icon : null}
-        <View style={styles.titleBlock}>
-          {title ? (
-            <ThemedText type="smallBold" numberOfLines={1}>
-              {title}
-            </ThemedText>
-          ) : null}
-          {subtitle ? (
-            <ThemedText themeColor="textSecondary" style={styles.subtitle} numberOfLines={1}>
-              {subtitle}
-            </ThemedText>
-          ) : null}
-        </View>
+      <View style={[styles.header, expanded && { borderBottomColor: theme.border }]}>
+        <Pressable
+          onPress={handleToggle}
+          accessibilityRole="button"
+          accessibilityState={{ expanded }}
+          accessibilityLabel={typeof title === 'string' ? title : undefined}
+          style={({ pressed }) => [styles.headerToggle, pressed && styles.pressed]}>
+          {icon ? icon : null}
+          <View style={styles.titleBlock}>
+            {title ? (
+              <ThemedText type="smallBold" numberOfLines={1}>
+                {title}
+              </ThemedText>
+            ) : null}
+            {subtitle ? (
+              <ThemedText themeColor="textSecondary" style={styles.subtitle} numberOfLines={1}>
+                {subtitle}
+              </ThemedText>
+            ) : null}
+          </View>
+        </Pressable>
         {trailing ? trailing : null}
-        <View style={{ transform: [{ rotate: expanded ? '-90deg' : '90deg' }] }}>
+        <View
+          pointerEvents="none"
+          style={{ transform: [{ rotate: expanded ? '-90deg' : '90deg' }] }}>
           <SymbolView
             name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
             size={14}
@@ -85,7 +86,7 @@ export function FoldableCard({
             tintColor={theme.text}
           />
         </View>
-      </Pressable>
+      </View>
 
       {expanded && (
         <View style={styles.content}>
@@ -111,6 +112,12 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'transparent',
+  },
+  headerToggle: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
   },
   pressed: {
     opacity: 0.7,

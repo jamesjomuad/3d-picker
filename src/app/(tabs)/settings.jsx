@@ -19,6 +19,7 @@ import { pickBackupText, shareBackupFile } from '@/services/backup-file';
 import { checkForUpdate } from '@/utils/update-check';
 import { useBasketStore } from '@/store/basketStore';
 import { useLibraryStore } from '@/store/libraryStore';
+import { useResultsStore } from '@/store/resultsStore';
 import { useSettingsStore } from '@/store/settingsStore';
 
 const THEME_OPTIONS = [
@@ -188,8 +189,9 @@ export default function SettingsScreen() {
   /**
    * Wipes every stored byte the app owns, then brings each domain back to
    * its factory state in memory: the library reseeds itself with the
-   * default Angle Board (loadLibrary persists it), the basket empties, and
-   * settings return to defaults without writing (storage was just cleared).
+   * default Angle Board (loadLibrary persists it), the basket empties, draw
+   * results clear, and settings return to defaults without writing
+   * (storage was just cleared).
    */
   const handleClearData = async () => {
     setClearDialog(false);
@@ -198,6 +200,16 @@ export default function SettingsScreen() {
       useLibraryStore.setState({ boards: [], activeBoardId: null, isLoaded: false });
       await useLibraryStore.getState().loadLibrary();
       useBasketStore.setState({ entries: [], isLoaded: false });
+      useResultsStore.setState({
+        records: [],
+        isLoaded: true,
+        isRefreshing: false,
+        isLoadingMore: false,
+        hasMore: false,
+        nextCursor: null,
+        lastSyncAt: null,
+        error: null,
+      });
       useSettingsStore.getState().reset();
       Alert.alert('App data cleared', 'Boards, collection and settings are back to defaults.');
     } catch (error) {
