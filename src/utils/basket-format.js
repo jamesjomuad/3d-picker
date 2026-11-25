@@ -7,8 +7,6 @@
  * verified with a plain function call.
  */
 
-import { getPathReference } from '@/utils/cell-reference';
-
 const MONTHS = [
   'Jan',
   'Feb',
@@ -48,20 +46,30 @@ export function formatAddedAt(value) {
 }
 
 /**
- * The numbered plain-text list sent through the share sheet: app name,
- * total, one block per pick with its board reference and the local date
- * and time it was added, closing credit. Picks without a recorded
- * timestamp (saved before the basket tracked dates) omit the Added line.
+ * Share-sheet timestamp: "Nov 25, 2026 8:00AM". Reuses the display formatter
+ * but drops its separator and the space before AM/PM for a compact parenthetical.
  *
- * @param {Array<{ digits: string, path: Array, addedAt?: string }>} entries - basket entries
+ * @param {string|number|null|undefined} value
+ * @returns {string}
+ */
+function formatShareAddedAt(value) {
+  return formatAddedAt(value).replace(' · ', ' ').replace(/ (AM|PM)$/, '$1');
+}
+
+/**
+ * The plain-text list sent through the share sheet: app name,
+ * total, one numbered line per pick with its local added date and time,
+ * closing credit. Picks without a recorded timestamp (saved before the
+ * basket tracked dates) show the digits alone.
+ *
+ * @param {Array<{ digits: string, addedAt?: string }>} entries - basket entries
  * @returns {string}
  */
 export function buildBasketShareText(entries) {
   const blocks = entries.map((entry, index) => {
-    const lines = [`${index + 1}. ${entry.digits} (${getPathReference(entry.path)})`];
-    const added = formatAddedAt(entry.addedAt);
-    if (added) lines.push(`   Added: ${added}`);
-    return lines.join('\n');
+    const added = formatShareAddedAt(entry.addedAt);
+    const suffix = added ? ` (Added: ${added})` : '';
+    return `${index + 1}. ${entry.digits}${suffix}`;
   });
 
   return [
@@ -69,7 +77,7 @@ export function buildBasketShareText(entries) {
     '',
     `Total Picks: ${entries.length}`,
     '',
-    ...blocks.map((block, i) => (i === 0 ? block : `\n${block}`)),
+    ...blocks,
     '',
     'Generated using 3D Picker.',
   ].join('\n');

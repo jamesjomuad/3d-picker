@@ -39,7 +39,7 @@ describe('buildBasketShareText', () => {
   const first = new Date(2026, 10, 23, 20, 35).toISOString();
   const second = new Date(2026, 10, 24, 9, 7).toISOString();
 
-  it('builds the full numbered list with coordinates and Added lines', () => {
+  it('builds compact numbered lines with Added in parentheses', () => {
     const text = buildBasketShareText([
       {
         digits: '074',
@@ -67,11 +67,8 @@ describe('buildBasketShareText', () => {
         '',
         'Total Picks: 2',
         '',
-        '1. 074 (B2 → D3 → F4)',
-        '   Added: Nov 23, 2026 · 8:35 PM',
-        '',
-        '2. 638 (A1 → C1 → C3)',
-        '   Added: Nov 24, 2026 · 9:07 AM',
+        '1. 074 (Added: Nov 23, 2026 8:35PM)',
+        '2. 638 (Added: Nov 24, 2026 9:07AM)',
         '',
         'Generated using 3D Picker.',
       ].join('\n')
@@ -81,7 +78,8 @@ describe('buildBasketShareText', () => {
   it('omits the Added line for legacy entries without a timestamp', () => {
     const text = buildBasketShareText([{ digits: '952', path: [{ row: 9, column: 9 }] }]);
 
-    expect(text).toContain('1. 952 (J10)');
+    expect(text).toContain('1. 952');
     expect(text).not.toContain('Added');
+    expect(text).not.toContain('J10');
   });
 });
