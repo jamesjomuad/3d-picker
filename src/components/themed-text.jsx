@@ -36,8 +36,8 @@ const styles = StyleSheet.create({
     fontWeight: Typography.weight.semibold,
   },
   subtitle: {
-    fontSize: Typography.size.headline,
-    lineHeight: Typography.lineHeight.headline,
+    fontSize: Typography.size.title,
+    lineHeight: Typography.lineHeight.title,
     fontWeight: Typography.weight.semibold,
   },
   link: {
