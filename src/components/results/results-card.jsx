@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { BorderRadius, Spacing } from '@/constants/theme';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
   formatCombination,
@@ -90,25 +90,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   lottery: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '600',
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
+    fontWeight: Typography.weight.semibold,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
   status: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '600',
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
+    fontWeight: Typography.weight.semibold,
   },
   digitsRow: {
     flexDirection: 'row',
     gap: Spacing.four,
   },
   digit: {
-    fontSize: 34,
-    lineHeight: 40,
-    fontWeight: '700',
+    fontSize: Typography.size.headline,
+    lineHeight: Typography.lineHeight.headline,
+    fontWeight: Typography.weight.bold,
     fontVariant: ['tabular-nums'],
   },
   metaRow: {
@@ -117,8 +117,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   meta: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
     fontVariant: ['tabular-nums'],
   },
 });

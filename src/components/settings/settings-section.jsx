@@ -2,7 +2,7 @@ import { Fragment } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { BorderRadius, Spacing } from '@/constants/theme';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -63,8 +63,8 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   caption: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: Typography.size.caption,
+    fontWeight: Typography.weight.semibold,
     letterSpacing: 0.6,
     marginLeft: Spacing.one,
   },
@@ -81,8 +81,8 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   footer: {
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
     marginLeft: Spacing.one,
   },
 });

@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { BorderRadius, Spacing } from '@/constants/theme';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -53,8 +53,8 @@ export function DigitSelector({ value, onSelect, label }) {
 
 const styles = StyleSheet.create({
   label: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: Typography.size.body,
+    fontWeight: Typography.weight.semibold,
     marginBottom: Spacing.one,
   },
   row: {
@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   digitText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: Typography.size.bodyLarge,
+    fontWeight: Typography.weight.semibold,
   },
 });

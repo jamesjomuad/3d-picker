@@ -4,7 +4,7 @@ import { LayoutAnimation, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BorderRadius, Spacing } from '@/constants/theme';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 const ANIMATION_DURATION_MS = 220;
@@ -120,8 +120,8 @@ const styles = StyleSheet.create({
     gap: Spacing.half,
   },
   subtitle: {
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
   },
   content: {
     padding: Spacing.three,

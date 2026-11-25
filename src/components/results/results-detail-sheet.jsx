@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { BorderRadius, Spacing } from '@/constants/theme';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
   formatCombination,
@@ -173,8 +173,8 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.three,
   },
   eyebrow: {
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
@@ -183,14 +183,14 @@ const styles = StyleSheet.create({
     gap: Spacing.four,
   },
   digit: {
-    fontSize: 28,
-    lineHeight: 34,
-    fontWeight: '700',
+    fontSize: Typography.size.section,
+    lineHeight: Typography.lineHeight.section,
+    fontWeight: Typography.weight.bold,
     fontVariant: ['tabular-nums'],
   },
   combination: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
@@ -202,12 +202,12 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
   },
   detailLabel: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
   },
   detailValue: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
     flexShrink: 1,
     textAlign: 'right',
     fontVariant: ['tabular-nums'],
@@ -220,17 +220,17 @@ const styles = StyleSheet.create({
     marginTop: Spacing.one,
   },
   conflictTitle: {
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '700',
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
+    fontWeight: Typography.weight.bold,
   },
   conflictText: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
   },
   conflictSnapshot: {
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
   },
   closeButton: {
     minHeight: 48,
@@ -240,8 +240,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   closeText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: Typography.size.bodyLarge,
+    fontWeight: Typography.weight.semibold,
   },
   pressed: {
     opacity: 0.7,

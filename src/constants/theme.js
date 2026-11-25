@@ -59,6 +59,43 @@ export const Fonts = Platform.select({
   },
 });
 
+/**
+ * Typography tokens
+ * Single source of truth for text size, leading and weight.
+ * Names describe role, never raw pixels, so a scale change happens once here.
+ * Digits use the mono family via `Typography.family.mono` to keep tabular
+ * alignment and leading zeros visually stable.
+ */
+export const Typography = {
+  family: Fonts,
+  size: {
+    caption: 12,
+    body: 14,
+    bodyLarge: 16,
+    subtitle: 18,
+    title: 22,
+    section: 28,
+    headline: 32,
+    hero: 48,
+  },
+  lineHeight: {
+    caption: 16,
+    body: 20,
+    bodyLarge: 24,
+    subtitle: 24,
+    title: 28,
+    section: 34,
+    headline: 38,
+    hero: 52,
+  },
+  weight: {
+    regular: '400',
+    medium: '500',
+    semibold: '600',
+    bold: '700',
+  },
+};
+
 export const Spacing = {
   half: 2,
   one: 4,

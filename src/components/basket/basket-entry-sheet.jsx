@@ -2,7 +2,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensio
 
 import { AngleBoard } from '@/components/angle-board';
 import { ThemedText } from '@/components/themed-text';
-import { BorderRadius, Spacing } from '@/constants/theme';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { formatAddedAt } from '@/utils/basket-format';
 import { MIN_CELL_SIZE, getBoardSize } from '@/utils/board-layout';
@@ -171,19 +171,19 @@ const styles = StyleSheet.create({
     gap: Spacing.half,
   },
   eyebrow: {
-    fontSize: 12,
+    fontSize: Typography.size.caption,
     letterSpacing: 0.4,
     textTransform: 'uppercase',
     opacity: 0.7,
   },
   digits: {
-    fontSize: 28,
-    fontWeight: '700',
+    fontSize: Typography.size.section,
+    fontWeight: Typography.weight.bold,
     fontVariant: ['tabular-nums'],
   },
   detail: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
   },
   preview: {
     marginHorizontal: Spacing.three,
@@ -194,11 +194,11 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   previewLabel: {
-    fontSize: 13,
+    fontSize: Typography.size.body,
   },
   previewHint: {
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
   },
   boardFrame: {
     alignItems: 'center',
@@ -206,8 +206,8 @@ const styles = StyleSheet.create({
   },
   errorText: {
     paddingHorizontal: Spacing.three,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
   },
   action: {
     minHeight: 48,
@@ -218,8 +218,8 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   actionText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: Typography.size.bodyLarge,
+    fontWeight: Typography.weight.semibold,
   },
   divider: {
     height: StyleSheet.hairlineWidth,

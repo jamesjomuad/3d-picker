@@ -10,7 +10,7 @@ import { SettingsSection } from '@/components/settings/settings-section';
 import { ThemedText } from '@/components/themed-text';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { APP_SHARE_MESSAGE, RELEASES_URL } from '@/constants/app-config';
-import { BorderRadius, Spacing } from '@/constants/theme';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useScreenInsets } from '@/hooks/use-screen-insets';
 import { useTheme } from '@/hooks/use-theme';
 import { checkForUpdate } from '@/utils/update-check';
@@ -273,6 +273,6 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
   },
   aboutVersion: {
-    fontSize: 13,
+    fontSize: Typography.size.body,
   },
 });

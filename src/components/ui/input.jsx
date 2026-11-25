@@ -1,7 +1,7 @@
 import { StyleSheet, Text, TextInput as RNTextInput, View } from 'react-native';
 
 import { InputClearButton } from '@/components/ui/input-clear-button';
-import { BorderRadius, Spacing } from '@/constants/theme';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -72,7 +72,7 @@ export function Input({
               color: textColor,
             },
             multiline && {
-              minHeight: numberOfLines * 24,
+              minHeight: numberOfLines * Typography.lineHeight.bodyLarge,
               textAlignVertical: 'top',
             },
             inputStyle,
@@ -106,8 +106,8 @@ export function Input({
 
 const styles = StyleSheet.create({
   label: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: Typography.size.body,
+    fontWeight: Typography.weight.medium,
     marginBottom: Spacing.one,
   },
   fieldRow: {
@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.two,
     paddingVertical: Spacing.two,
-    fontSize: 16,
+    fontSize: Typography.size.bodyLarge,
     minHeight: 44,
   },
   inputWithClear: {
@@ -126,8 +126,8 @@ const styles = StyleSheet.create({
     paddingRight: Spacing.four + Spacing.three,
   },
   error: {
-    fontSize: 13,
+    fontSize: Typography.size.body,
     marginTop: Spacing.one,
-    fontWeight: '500',
+    fontWeight: Typography.weight.medium,
   },
 });

@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Fonts } from '@/constants/theme';
+import { Fonts, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /** Alpha suffix for a match segment: a tint, so the digit stays readable. */
@@ -109,8 +109,8 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   cellText: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: Typography.size.subtitle,
+    fontWeight: Typography.weight.semibold,
     fontFamily: Fonts.mono,
   },
 });

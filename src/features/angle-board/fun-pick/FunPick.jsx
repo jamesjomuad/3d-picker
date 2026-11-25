@@ -16,7 +16,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { InputClearButton } from '@/components/ui/input-clear-button';
-import { BorderRadius, Fonts, Spacing } from '@/constants/theme';
+import { BorderRadius, Fonts, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAngleBoardStore } from '@/store/angleBoardStore';
 import { useBasketStore } from '@/store/basketStore';
@@ -541,8 +541,8 @@ const styles = StyleSheet.create({
     gap: 1,
   },
   headerSubtitle: {
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
   },
   basketWrap: {
     position: 'relative',
@@ -560,9 +560,9 @@ const styles = StyleSheet.create({
   },
   basketBadgeText: {
     fontFamily: Fonts.mono,
-    fontSize: 11,
-    lineHeight: 14,
-    fontWeight: '700',
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
+    fontWeight: Typography.weight.bold,
   },
   floatingClose: {
     position: 'absolute',
@@ -604,8 +604,8 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
   },
   sectionTitle: {
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
     letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
@@ -615,8 +615,8 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
   },
   sectionHelper: {
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
   },
   chip: {
     minHeight: 44,
@@ -629,22 +629,22 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
   },
   chipCheck: {
-    fontSize: 12,
-    lineHeight: 14,
-    fontWeight: '700',
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
+    fontWeight: Typography.weight.bold,
   },
   chipLabel: {
     flexShrink: 1,
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
   },
   chipLabelActive: {
-    fontWeight: '700',
+    fontWeight: Typography.weight.bold,
   },
   chipCount: {
     fontFamily: Fonts.mono,
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
     minWidth: 14,
     textAlign: 'right',
   },
@@ -663,12 +663,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
     paddingRight: 44,
     fontFamily: Fonts.mono,
-    fontSize: 14,
+    fontSize: Typography.size.body,
   },
   searchError: {
     color: '#D93025',
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
   },
   resultsHeader: {
     flexDirection: 'row',
@@ -678,8 +678,8 @@ const styles = StyleSheet.create({
   },
   resultsCount: {
     fontFamily: Fonts.mono,
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
   },
   resultActions: {
     flexDirection: 'row',
@@ -687,8 +687,8 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.one,
   },
   addHint: {
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
   },
   resultRows: {
     gap: Spacing.one,
@@ -705,19 +705,19 @@ const styles = StyleSheet.create({
   resultDigits: {
     flex: 1,
     fontFamily: Fonts.mono,
-    fontSize: 18,
-    lineHeight: 24,
-    fontWeight: '700',
+    fontSize: Typography.size.subtitle,
+    lineHeight: Typography.lineHeight.bodyLarge,
+    fontWeight: Typography.weight.bold,
   },
   resultPath: {
     fontFamily: Fonts.mono,
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
   },
   emptyText: {
     padding: Spacing.three,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
     textAlign: 'center',
   },
   moreButton: {

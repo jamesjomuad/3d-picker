@@ -4,7 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { DigitSelector } from '@/components/ui/digit-selector';
-import { Spacing } from '@/constants/theme';
+import { Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getMatchingCells } from '@/utils/board-replace';
 
@@ -151,8 +151,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   title: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: Typography.size.bodyLarge,
+    fontWeight: Typography.weight.semibold,
   },
   separator: {
     height: StyleSheet.hairlineWidth,
@@ -162,11 +162,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   status: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
   },
   statusDetail: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
   },
 });

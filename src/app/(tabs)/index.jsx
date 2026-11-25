@@ -7,7 +7,7 @@ import { CombinationSearchBar } from '@/components/search/combination-search-bar
 import { CombinationSearchResults } from '@/components/search/combination-search-results';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
+import { Spacing, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useScreenInsets } from '@/hooks/use-screen-insets';
@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.three,
   },
   subtitleText: {
-    fontSize: 14,
+    fontSize: Typography.size.body,
   },
   searchBar: {
     marginBottom: Spacing.three,

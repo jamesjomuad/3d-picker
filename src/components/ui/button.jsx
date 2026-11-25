@@ -1,6 +1,6 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 
-import { BorderRadius, Spacing } from '@/constants/theme';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -76,14 +76,14 @@ function getSizeStyles(size) {
         paddingHorizontal: Spacing.two,
         paddingVertical: Spacing.one,
         minHeight: 32,
-        text: { fontSize: 14, lineHeight: 18 },
+        text: { fontSize: Typography.size.body, lineHeight: Typography.lineHeight.body },
       };
     case 'lg':
       return {
         paddingHorizontal: Spacing.four,
         paddingVertical: Spacing.three,
         minHeight: 52,
-        text: { fontSize: 17, lineHeight: 22 },
+        text: { fontSize: Typography.size.bodyLarge, lineHeight: Typography.lineHeight.bodyLarge },
       };
     case 'md':
     default:
@@ -91,7 +91,7 @@ function getSizeStyles(size) {
         paddingHorizontal: Spacing.three,
         paddingVertical: Spacing.two,
         minHeight: 44,
-        text: { fontSize: 16, lineHeight: 20 },
+        text: { fontSize: Typography.size.bodyLarge, lineHeight: Typography.lineHeight.body },
       };
   }
 }
@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   text: {
-    fontWeight: '600',
+    fontWeight: Typography.weight.semibold,
     textAlign: 'center',
   },
 });

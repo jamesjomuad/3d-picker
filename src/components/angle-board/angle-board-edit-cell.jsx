@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { Fonts } from '@/constants/theme';
+import { Fonts, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /** Alpha suffix for a Replace-tool match tint, matching the display cell. */
@@ -77,13 +77,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   cellText: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: Typography.size.subtitle,
+    fontWeight: Typography.weight.semibold,
     fontFamily: Fonts.mono,
   },
   cellInput: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: Typography.size.subtitle,
+    fontWeight: Typography.weight.semibold,
     fontFamily: Fonts.mono,
     textAlign: 'center',
     width: '100%',

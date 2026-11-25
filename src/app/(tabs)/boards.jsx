@@ -21,7 +21,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BorderRadius, Spacing } from '@/constants/theme';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useScreenInsets } from '@/hooks/use-screen-insets';
 import { useTheme } from '@/hooks/use-theme';
 import { router } from 'expo-router';
@@ -772,7 +772,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   subtitleText: {
-    fontSize: 14,
+    fontSize: Typography.size.body,
   },
   filterRow: {
     flexDirection: 'row',
@@ -791,12 +791,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   filterText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: Typography.size.body,
+    fontWeight: Typography.weight.semibold,
   },
   filterCount: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: Typography.size.caption,
+    fontWeight: Typography.weight.bold,
     fontVariant: ['tabular-nums'],
   },
   listContainer: {
@@ -816,16 +816,16 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
   },
   emptyTitle: {
-    fontSize: 16,
+    fontSize: Typography.size.bodyLarge,
   },
   emptyText: {
     textAlign: 'center',
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
   },
   // Rename dialog (ConfirmDialog children)
   dialogError: {
-    fontSize: 13,
+    fontSize: Typography.size.body,
   },
   // Edit modal
   editModal: {
@@ -876,8 +876,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.one,
   },
   modeTabText: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: Typography.size.body,
+    fontWeight: Typography.weight.semibold,
     textAlign: 'center',
   },
   pressed: {

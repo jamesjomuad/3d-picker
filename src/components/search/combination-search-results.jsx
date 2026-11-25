@@ -2,7 +2,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { FoldableCard } from '@/components/ui/foldable-card';
-import { BorderRadius, Fonts, Spacing } from '@/constants/theme';
+import { BorderRadius, Fonts, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getPathReference } from '@/utils/cell-reference';
 import { MAX_RESULTS } from '@/utils/combination-search';
@@ -86,7 +86,7 @@ export function CombinationSearchResults({ groups, colors, activeIndex, onSelect
                           accessibilityLabel={`Show path ${index + 1} of ${results.length} for combination ${combination} on the board, colour ${color}`}
                           style={[
                             styles.rowText,
-                            isActive && { color: theme.text, fontWeight: '700' },
+                            isActive && { color: theme.text, fontWeight: Typography.weight.bold },
                           ]}>
                           {index + 1}. {getPathReference(result.path)}
                         </ThemedText>
@@ -147,11 +147,11 @@ const styles = StyleSheet.create({
   },
   rowText: {
     fontFamily: Fonts.mono,
-    fontSize: 13,
-    lineHeight: 20,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
   },
   more: {
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
   },
 });

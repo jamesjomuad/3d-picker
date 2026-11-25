@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 
 import { Button } from '@/components/ui/button';
 import { ThemedText } from '@/components/themed-text';
-import { BorderRadius, Fonts, Spacing } from '@/constants/theme';
+import { BorderRadius, Fonts, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
   formatBoardChange,
@@ -11,8 +11,8 @@ import {
   getLocationFromIndex,
 } from '@/utils/board-json';
 
-const LINE_HEIGHT = 20;
-const FONT_SIZE = 13;
+const LINE_HEIGHT = Typography.lineHeight.body;
+const FONT_SIZE = Typography.size.body;
 const GUTTER_WIDTH = 36;
 const CHAR_WIDTH = 7.8;
 const TOKEN_PATTERN =
@@ -313,8 +313,8 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   helper: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
   },
   editor: {
     flexDirection: 'row',
@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
   },
   lineNumber: {
     fontFamily: Fonts.mono,
-    fontSize: 11,
+    fontSize: Typography.size.caption,
     lineHeight: LINE_HEIGHT,
     fontVariant: ['tabular-nums'],
   },
@@ -368,21 +368,21 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
   },
   errorTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 20,
+    fontSize: Typography.size.body,
+    fontWeight: Typography.weight.bold,
+    lineHeight: Typography.lineHeight.body,
   },
   errorRow: {
     minHeight: 44,
     justifyContent: 'center',
   },
   errorText: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
   },
   errorMore: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
   },
   preview: {
     borderWidth: StyleSheet.hairlineWidth,
@@ -391,8 +391,8 @@ const styles = StyleSheet.create({
     gap: Spacing.half,
   },
   previewText: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
   },
   actions: {
     flexDirection: 'row',

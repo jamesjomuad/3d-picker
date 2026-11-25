@@ -13,7 +13,7 @@ import { ResultsCard } from '@/components/results/results-card';
 import { ResultsDetailSheet } from '@/components/results/results-detail-sheet';
 import { Button } from '@/components/ui/button';
 import { ThemedText } from '@/components/themed-text';
-import { BorderRadius, Spacing } from '@/constants/theme';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useScreenInsets } from '@/hooks/use-screen-insets';
 import { useTheme } from '@/hooks/use-theme';
 import { useResultsStore } from '@/store/resultsStore';
@@ -251,16 +251,16 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   subtitle: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
   },
   errorBox: {
     borderRadius: BorderRadius.md,
     padding: Spacing.two,
   },
   errorText: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
   },
   filterRow: {
     gap: Spacing.two,
@@ -278,8 +278,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   filterChipText: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: Typography.size.body,
+    fontWeight: Typography.weight.semibold,
     fontVariant: ['tabular-nums'],
   },
   clearFilter: {
@@ -289,8 +289,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.one,
   },
   clearFilterText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: Typography.size.body,
+    fontWeight: Typography.weight.semibold,
   },
   row: {
     marginBottom: Spacing.two,
@@ -301,8 +301,8 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   endText: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
   },
   loadingState: {
     flex: 1,
@@ -319,8 +319,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
   },
   emptyText: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
     textAlign: 'center',
   },
   pressed: {

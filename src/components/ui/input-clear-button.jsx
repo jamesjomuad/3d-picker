@@ -1,7 +1,7 @@
 import { StyleSheet } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -39,7 +39,7 @@ const styles = StyleSheet.create({
     top: 0,
     height: 44,
     paddingHorizontal: Spacing.three,
-    fontSize: 22,
-    lineHeight: 44,
+    fontSize: Typography.size.title,
+    lineHeight: Typography.lineHeight.headline,
   },
 });

@@ -2,7 +2,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { FoldableCard } from '@/components/ui/foldable-card';
-import { Spacing } from '@/constants/theme';
+import { Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -47,12 +47,12 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   badgeText: {
-    fontSize: 10,
-    fontWeight: '700',
+    fontSize: Typography.size.caption,
+    fontWeight: Typography.weight.bold,
     letterSpacing: 0.5,
   },
   description: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
   },
 });

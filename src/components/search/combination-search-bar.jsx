@@ -2,7 +2,7 @@ import { Platform, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { InputClearButton } from '@/components/ui/input-clear-button';
-import { BorderRadius, Fonts, Spacing } from '@/constants/theme';
+import { BorderRadius, Fonts, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -70,8 +70,8 @@ export function CombinationSearchBar({ value, onChangeText, onSubmit, onClear, e
 
 const styles = StyleSheet.create({
   label: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: Typography.size.body,
+    fontWeight: Typography.weight.medium,
     marginBottom: Spacing.one,
   },
   fieldRow: {
@@ -84,13 +84,13 @@ const styles = StyleSheet.create({
     // Room for the clear button at the right end.
     paddingRight: Spacing.four + Spacing.three,
     paddingVertical: Spacing.two,
-    fontSize: 18,
+    fontSize: Typography.size.subtitle,
     fontFamily: Fonts.mono,
     minHeight: 44,
   },
   error: {
-    fontSize: 13,
-    fontWeight: '500',
+    fontSize: Typography.size.body,
+    fontWeight: Typography.weight.medium,
     marginTop: Spacing.one,
   },
 });

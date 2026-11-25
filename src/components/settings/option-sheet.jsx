@@ -2,7 +2,7 @@ import { SymbolView } from 'expo-symbols';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { BorderRadius, Spacing } from '@/constants/theme';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.two,
   },
   headerTitle: {
-    fontSize: 14,
+    fontSize: Typography.size.body,
     opacity: 0.7,
   },
   list: {
@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
     marginRight: Spacing.three,
   },
   rowLabel: {
-    fontSize: 16,
+    fontSize: Typography.size.bodyLarge,
     flexShrink: 1,
   },
   pressed: {
@@ -148,6 +148,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cancelLabel: {
-    fontWeight: '600',
+    fontWeight: Typography.weight.semibold,
   },
 });

@@ -3,7 +3,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { BoardPreview } from '@/components/library/board-preview';
 import { ThemedText } from '@/components/themed-text';
-import { BorderRadius, Spacing } from '@/constants/theme';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -305,8 +305,8 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   boardName: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: Typography.size.bodyLarge,
+    fontWeight: Typography.weight.semibold,
     flexShrink: 1,
   },
   favoriteButton: {
@@ -319,8 +319,8 @@ const styles = StyleSheet.create({
     marginLeft: 'auto',
   },
   favoriteText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: Typography.size.bodyLarge,
+    fontWeight: Typography.weight.semibold,
   },
   metaRow: {
     flexDirection: 'row',
@@ -333,13 +333,13 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
   },
   activeBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
+    fontSize: Typography.size.caption,
+    fontWeight: Typography.weight.bold,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
   metaText: {
-    fontSize: 12,
+    fontSize: Typography.size.caption,
   },
   actionsRow: {
     flexDirection: 'row',
@@ -355,8 +355,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pillText: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: Typography.size.body,
+    fontWeight: Typography.weight.semibold,
   },
   sheetBackdrop: {
     flex: 1,
@@ -375,7 +375,7 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.two,
   },
   sheetTitle: {
-    fontSize: 14,
+    fontSize: Typography.size.body,
     opacity: 0.7,
   },
   sheetRow: {
@@ -387,10 +387,10 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
   },
   sheetRowLabel: {
-    fontSize: 16,
+    fontSize: Typography.size.bodyLarge,
   },
   sheetRowValue: {
-    fontSize: 14,
+    fontSize: Typography.size.body,
   },
   sheetDivider: {
     height: StyleSheet.hairlineWidth,

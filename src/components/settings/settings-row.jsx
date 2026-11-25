@@ -2,7 +2,7 @@ import { SymbolView } from 'expo-symbols';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -94,10 +94,10 @@ const styles = StyleSheet.create({
   },
   label: {
     flex: 1,
-    fontSize: 16,
+    fontSize: Typography.size.bodyLarge,
   },
   value: {
-    fontSize: 15,
+    fontSize: Typography.size.bodyLarge,
     flexShrink: 1,
   },
   chevron: {

@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Fonts, BorderRadius } from '@/constants/theme';
+import { Fonts, BorderRadius, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -27,7 +27,7 @@ export const BoardPreview = memo(function BoardPreview({ grid, size = 120 }) {
             borderColor: theme.border,
           },
         ]}>
-        <Text style={{ color: theme.textSecondary, fontSize: 10 }}>Empty</Text>
+        <Text style={{ color: theme.textSecondary, fontSize: Typography.size.caption }}>Empty</Text>
       </View>
     );
   }
@@ -96,6 +96,6 @@ const styles = StyleSheet.create({
   },
   cellText: {
     fontFamily: Fonts.mono,
-    fontWeight: '600',
+    fontWeight: Typography.weight.semibold,
   },
 });

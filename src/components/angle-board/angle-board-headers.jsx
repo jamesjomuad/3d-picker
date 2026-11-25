@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '@/hooks/use-theme';
 import { HEADER_HEIGHT, HEADER_WIDTH } from '@/utils/board-layout';
 import { getColumnLetter } from '@/utils/cell-reference';
+import { Typography } from '@/constants/theme';
 
 /**
  * Fixed-size header chrome: the corner cell plus the A–J column labels, and a
@@ -107,7 +108,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   headerText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: Typography.size.caption,
+    fontWeight: Typography.weight.semibold,
   },
 });

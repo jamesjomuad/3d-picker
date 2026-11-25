@@ -6,7 +6,7 @@ import { BasketEntrySheet } from '@/components/basket/basket-entry-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { BorderRadius, Spacing } from '@/constants/theme';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useScreenInsets } from '@/hooks/use-screen-insets';
 import { useTheme } from '@/hooks/use-theme';
@@ -314,12 +314,12 @@ const styles = StyleSheet.create({
     gap: Spacing.half,
   },
   headerTitleText: {
-    fontSize: 22,
-    lineHeight: 28,
-    fontWeight: '600',
+    fontSize: Typography.size.title,
+    lineHeight: Typography.lineHeight.title,
+    fontWeight: Typography.weight.semibold,
   },
   countText: {
-    fontSize: 14,
+    fontSize: Typography.size.body,
   },
   row: {
     flexDirection: 'row',
@@ -337,13 +337,13 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   digits: {
-    fontSize: 20,
-    lineHeight: 26,
+    fontSize: Typography.size.title,
+    lineHeight: Typography.lineHeight.title,
     fontVariant: ['tabular-nums'],
   },
   metaText: {
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
   },
   actions: {
     marginTop: Spacing.three,
@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     textAlign: 'center',
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
   },
 });

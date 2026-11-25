@@ -1,6 +1,6 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { BorderRadius, Spacing } from '@/constants/theme';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -115,12 +115,12 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   title: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: Typography.size.subtitle,
+    fontWeight: Typography.weight.semibold,
   },
   message: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
   },
   actions: {
     flexDirection: 'row',
@@ -136,8 +136,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buttonText: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: Typography.size.bodyLarge,
+    fontWeight: Typography.weight.semibold,
   },
   disabled: {
     opacity: 0.4,

@@ -5,7 +5,7 @@ import { StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { FoldableCard } from '@/components/ui/foldable-card';
-import { BorderRadius, Fonts, Spacing } from '@/constants/theme';
+import { BorderRadius, Fonts, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getSelectionInsights } from '@/utils/selection-insights';
 import { getSelectionSummary } from '@/utils/selection-summary';
@@ -169,28 +169,28 @@ const styles = StyleSheet.create({
   },
   digitText: {
     fontFamily: Fonts.mono,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '600',
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
+    fontWeight: Typography.weight.semibold,
   },
   coordinates: {
     fontFamily: Fonts.mono,
-    fontSize: 12,
-    lineHeight: 18,
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.body,
   },
   meta: {
     gap: Spacing.half,
   },
   metaText: {
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
   },
   insights: {
     gap: Spacing.one,
   },
   insightsTitle: {
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
@@ -205,16 +205,16 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontFamily: Fonts.mono,
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '600',
+    fontSize: Typography.size.bodyLarge,
+    lineHeight: Typography.lineHeight.body,
+    fontWeight: Typography.weight.semibold,
   },
   statLabel: {
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
   },
   emptyText: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: Typography.size.body,
+    lineHeight: Typography.lineHeight.body,
   },
 });
