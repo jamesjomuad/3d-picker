@@ -30,6 +30,11 @@ export default function AppTabs() {
         )}
       </NativeTabs.Trigger>
 
+      <NativeTabs.Trigger name="results">
+        <NativeTabs.Trigger.Label>Results</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="chart.bar.fill" md="insert_chart" />
+      </NativeTabs.Trigger>
+
       <NativeTabs.Trigger name="boards">
         <NativeTabs.Trigger.Label>Boards</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
