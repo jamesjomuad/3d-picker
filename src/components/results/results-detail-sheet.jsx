@@ -183,8 +183,8 @@ const styles = StyleSheet.create({
     gap: Spacing.four,
   },
   digit: {
-    fontSize: Typography.size.section,
-    lineHeight: Typography.lineHeight.section,
+    fontSize: Typography.size.hero,
+    lineHeight: Typography.lineHeight.hero,
     fontWeight: Typography.weight.bold,
     fontVariant: ['tabular-nums'],
   },
