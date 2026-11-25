@@ -505,3 +505,82 @@ describe('replaceCells', () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe('applyEditedBoard', () => {
+  let boardId;
+  let source;
+
+  beforeEach(async () => {
+    await useLibraryStore.getState().loadLibrary();
+    source = useLibraryStore.getState().createBoard({ name: 'JSON Source' });
+    boardId = source.id;
+  });
+
+  it('applies name, favorite state and grid while preserving identity', async () => {
+    const grid = Array.from({ length: 10 }, () => Array(10).fill(0));
+    grid[0][0] = 7;
+    const edited = {
+      ...source,
+      name: 'JSON Edited',
+      isFavorite: true,
+      grid,
+    };
+
+    const result = await useLibraryStore.getState().applyEditedBoard(boardId, edited);
+
+    expect(result.success).toBe(true);
+    const board = useLibraryStore.getState().boards.find((b) => b.id === boardId);
+    expect(board.name).toBe('JSON Edited');
+    expect(board.isFavorite).toBe(true);
+    expect(board.grid[0][0]).toBe(7);
+    expect(board.createdAt).toBe(source.createdAt);
+    expect(board.id).toBe(boardId);
+  });
+
+  it('persists the edited board', async () => {
+    const edited = { ...source, name: 'Persisted JSON' };
+
+    await useLibraryStore.getState().applyEditedBoard(boardId, edited);
+
+    expect(mockStoredLibrary.boards.find((b) => b.id === boardId).name).toBe('Persisted JSON');
+  });
+
+  it('does not update state when persistence fails', async () => {
+    const { saveLibrary } = require('@/services/board-storage');
+    saveLibrary.mockRejectedValueOnce(new Error('Disk full'));
+
+    const result = await useLibraryStore.getState().applyEditedBoard(boardId, {
+      ...source,
+      name: 'Should Not Stick',
+    });
+
+    expect(result.success).toBe(false);
+    expect(useLibraryStore.getState().boards.find((b) => b.id === boardId).name).toBe('JSON Source');
+  });
+
+  it('rejects a mismatched board id', async () => {
+    const result = await useLibraryStore.getState().applyEditedBoard(boardId, {
+      ...source,
+      id: 'other-board',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects an invalid grid', async () => {
+    const grid = source.grid.map((row) => [...row]);
+    grid[0][0] = 12;
+    const result = await useLibraryStore.getState().applyEditedBoard(boardId, {
+      ...source,
+      grid,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('returns failure for a non-existent board', async () => {
+    const result = await useLibraryStore.getState().applyEditedBoard('no-such-board', {
+      ...source,
+      id: 'no-such-board',
+    });
+    expect(result.success).toBe(false);
+  });
+});

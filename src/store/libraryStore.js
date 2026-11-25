@@ -307,4 +307,53 @@ export const useLibraryStore = create((set, get) => ({
     set({ boards: newBoards });
     return { success: true };
   },
+
+  /**
+   * Applies a complete edited board with persistence-first semantics.
+   * Identity and creation time come from the stored board, so JSON edits can
+   * change only name, favorite state and grid data.
+   *
+   * @param {string} boardId
+   * @param {Object} board - Validated board from the JSON editor
+   * @returns {Promise<{ success: boolean, board?: Object, error?: string }>}
+   */
+  applyEditedBoard: async (boardId, board) => {
+    if (!board || board.id !== boardId) {
+      return { success: false, error: 'Board identity cannot change' };
+    }
+    if (typeof board.isFavorite !== 'boolean') {
+      return { success: false, error: 'Board must have a valid favorite state' };
+    }
+
+    const validation = validateBoard(board);
+    if (!validation.valid) {
+      return { success: false, error: validation.error };
+    }
+
+    const source = get().boards.find((b) => b.id === boardId);
+    if (!source) return { success: false, error: 'Board not found' };
+
+    const updatedBoard = {
+      ...source,
+      name: board.name,
+      isFavorite: board.isFavorite,
+      grid: board.grid.map((row) => [...row]),
+      updatedAt: new Date().toISOString(),
+    };
+    const newBoards = get().boards.map((b) => (b.id === boardId ? updatedBoard : b));
+
+    try {
+      await saveLibrary({
+        version: 1,
+        activeBoardId: get().activeBoardId,
+        boards: newBoards,
+      });
+    } catch (error) {
+      console.error('Failed to save board:', error);
+      return { success: false, error: 'Failed to save changes' };
+    }
+
+    set({ boards: newBoards });
+    return { success: true, board: updatedBoard };
+  },
 }));
