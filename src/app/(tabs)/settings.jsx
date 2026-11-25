@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Image, Linking, ScrollView, Share, StyleSheet, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import { router } from 'expo-router';
 
 import { ComingSoonCard } from '@/components/settings/coming-soon-card';
 import { OptionSheet } from '@/components/settings/option-sheet';
@@ -13,6 +14,8 @@ import { APP_SHARE_MESSAGE, RELEASES_URL } from '@/constants/app-config';
 import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useScreenInsets } from '@/hooks/use-screen-insets';
 import { useTheme } from '@/hooks/use-theme';
+import { createBackup, parseBackup, restoreBackup, serializeBackup } from '@/services/backup';
+import { pickBackupText, shareBackupFile } from '@/services/backup-file';
 import { checkForUpdate } from '@/utils/update-check';
 import { useBasketStore } from '@/store/basketStore';
 import { useLibraryStore } from '@/store/libraryStore';
@@ -30,9 +33,9 @@ const THEME_OPTIONS = [
  * Organised as grouped panels — Appearance, Notifications, Data & Storage,
  * Share & Updates, About — built from the shared settings components.
  * Every row here does something real: theme mode drives the app-wide colour
- * scheme and persists. Features that do not exist yet (notifications,
- * export, ...) are foldable Coming Soon cards, never dead controls.
- * Destructive actions confirm first.
+ * scheme and persists, backups use local files, and info rows open in-app
+ * pages. Notifications remains an honest Coming Soon card. Destructive
+ * actions confirm first.
  */
 export default function SettingsScreen() {
   const theme = useTheme();
@@ -50,6 +53,9 @@ export default function SettingsScreen() {
   const [sheet, setSheet] = useState(null);
   const [clearDialog, setClearDialog] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [exportingBackup, setExportingBackup] = useState(false);
+  const [importingBackup, setImportingBackup] = useState(false);
+  const [pendingBackup, setPendingBackup] = useState(null);
 
   const themeLabel =
     THEME_OPTIONS.find((option) => option.value === themeMode)?.label ?? 'System';
@@ -63,6 +69,89 @@ export default function SettingsScreen() {
       await Share.share({ message: APP_SHARE_MESSAGE, title: appName });
     } catch (error) {
       console.warn('Sharing failed:', error);
+    }
+  };
+
+  /** Writes the current boards and saved picks to a file and opens Share. */
+  const handleExportBackup = async () => {
+    setExportingBackup(true);
+    try {
+      const backup = await createBackup();
+      await shareBackupFile(serializeBackup(backup));
+      Alert.alert(
+        'Backup ready',
+        'Your boards and saved picks are in a JSON file. Save or share it from the sheet.'
+      );
+    } catch (error) {
+      console.warn('Backup export failed:', error);
+      Alert.alert(
+        'Could not export backup',
+        error?.message ?? 'Something went wrong. Try again.'
+      );
+    } finally {
+      setExportingBackup(false);
+    }
+  };
+
+  /** Reads a user-selected file and asks before replacing local data. */
+  const handleImportBackup = async () => {
+    setImportingBackup(true);
+    try {
+      const text = await pickBackupText();
+      if (!text) return;
+
+      const result = parseBackup(text);
+      if (!result.valid) {
+        Alert.alert('Invalid backup', result.error);
+        return;
+      }
+
+      setPendingBackup({
+        backup: result.backup,
+        boardCount: result.backup.data.library.boards.length,
+        entryCount: result.backup.data.basket.entries.length,
+      });
+    } catch (error) {
+      console.warn('Backup import failed:', error);
+      Alert.alert(
+        'Could not read backup',
+        error?.message ?? 'The selected file could not be opened. Try again.'
+      );
+    } finally {
+      setImportingBackup(false);
+    }
+  };
+
+  /** Replaces stored data, then updates in-memory stores used by other tabs. */
+  const handleConfirmImport = async () => {
+    const pending = pendingBackup;
+    setPendingBackup(null);
+    if (!pending) return;
+
+    setImportingBackup(true);
+    try {
+      await restoreBackup(pending.backup);
+
+      const { library, basket } = pending.backup.data;
+      useLibraryStore.setState({
+        boards: library.boards,
+        activeBoardId: library.activeBoardId,
+        isLoaded: true,
+      });
+      useBasketStore.setState({ entries: basket.entries, isLoaded: true });
+
+      Alert.alert(
+        'Backup imported',
+        `Restored ${library.boards.length} board${library.boards.length === 1 ? '' : 's'} and ${basket.entries.length} saved pick${basket.entries.length === 1 ? '' : 's'}.`
+      );
+    } catch (error) {
+      console.warn('Backup restore failed:', error);
+      Alert.alert(
+        'Could not import backup',
+        error?.message ?? 'Nothing was changed. Try again with another file.'
+      );
+    } finally {
+      setImportingBackup(false);
     }
   };
 
@@ -145,15 +234,19 @@ export default function SettingsScreen() {
             }
           />
 
-          <SettingsSection
-            title="Data & Storage"
-            notes={
-              <ComingSoonCard title="Export, Import & Backup">
-                Save the board library and collection to a file, import it back, and keep
-                restorable backups — all on-device, staying fully offline like the rest of the
-                app.
-              </ComingSoonCard>
-            }>
+          <SettingsSection title="Data & Storage">
+            <SettingsRow
+              icon={{ ios: 'square.and.arrow.up', android: 'upload', web: 'upload' }}
+              label="Export Backup"
+              value={exportingBackup ? 'Exporting…' : undefined}
+              onPress={exportingBackup || importingBackup ? undefined : handleExportBackup}
+            />
+            <SettingsRow
+              icon={{ ios: 'square.and.arrow.down', android: 'download', web: 'download' }}
+              label="Import Backup"
+              value={importingBackup ? 'Importing…' : undefined}
+              onPress={exportingBackup || importingBackup ? undefined : handleImportBackup}
+            />
             <SettingsRow
               icon={{ ios: 'trash', android: 'delete', web: 'delete' }}
               label="Clear App Data"
@@ -194,25 +287,7 @@ export default function SettingsScreen() {
             ) : null}
           </SettingsSection>
 
-          <SettingsSection
-            title="About"
-            notes={
-              <>
-                <ComingSoonCard title="What's New & Changelog">
-                  In-app release notes once published versions exist, so you can see what changed
-                  without leaving the app.
-                </ComingSoonCard>
-                <ComingSoonCard title="Privacy Policy">
-                  A readable policy page inside the app. 3D Picker is fully local-first — no
-                  account, no network calls, no data leaves the device — and the page will say
-                  exactly that once it is written.
-                </ComingSoonCard>
-                <ComingSoonCard title="Open-Source Licenses">
-                  The bundled list of third-party libraries and their licenses, generated from
-                  the project dependencies.
-                </ComingSoonCard>
-              </>
-            }>
+          <SettingsSection title="About">
             <View style={styles.about}>
               <Image source={require('@/assets/images/icon.png')} style={styles.aboutLogo} />
               <ThemedText type="smallBold">{appName}</ThemedText>
@@ -221,6 +296,21 @@ export default function SettingsScreen() {
                 {build ? ` (${build})` : ''}
               </ThemedText>
             </View>
+            <SettingsRow
+              icon={{ ios: 'doc.text', android: 'description', web: 'description' }}
+              label="What's New & Changelog"
+              onPress={() => router.push('/changelog')}
+            />
+            <SettingsRow
+              icon={{ ios: 'hand.raised', android: 'privacy_tip', web: 'privacy_tip' }}
+              label="Privacy Policy"
+              onPress={() => router.push('/privacy-policy')}
+            />
+            <SettingsRow
+              icon={{ ios: 'curlybraces', android: 'data_object', web: 'data_object' }}
+              label="Open-Source Licenses"
+              onPress={() => router.push('/licenses')}
+            />
           </SettingsSection>
         </View>
       </ScrollView>
@@ -243,6 +333,22 @@ export default function SettingsScreen() {
         onConfirm={handleClearData}
         onCancel={() => setClearDialog(false)}
       />
+
+      {pendingBackup ? (
+        <ConfirmDialog
+          visible
+          title="Import Backup"
+          message="This replaces the boards and saved picks currently on this device. It cannot be undone."
+          confirmLabel="Import & Replace"
+          confirmVariant="destructive"
+          onConfirm={handleConfirmImport}
+          onCancel={() => setPendingBackup(null)}>
+          <ThemedText type="small">
+            {pendingBackup.boardCount} board{pendingBackup.boardCount === 1 ? '' : 's'} ·{' '}
+            {pendingBackup.entryCount} saved pick{pendingBackup.entryCount === 1 ? '' : 's'}
+          </ThemedText>
+        </ConfirmDialog>
+      ) : null}
     </View>
   );
 }

@@ -3,7 +3,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import { BorderRadius } from '@/constants/theme';
+import { BorderRadius, Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useImmersiveStatusBar } from '@/hooks/use-immersive-status-bar';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -20,6 +20,15 @@ export default function RootLayout() {
   }, [loadSettings]);
 
   const colorScheme = useColorScheme();
+  const palette = colorScheme === 'dark' ? Colors.dark : Colors.light;
+  const infoScreenOptions = {
+    headerShown: true,
+    headerStyle: { backgroundColor: palette.background },
+    headerTintColor: palette.text,
+    headerShadowVisible: false,
+    headerTitleStyle: { fontWeight: Typography.weight.semibold },
+  };
+
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AnimatedSplashOverlay />
@@ -36,6 +45,18 @@ export default function RootLayout() {
             sheetLargestUndimmedDetentIndex: 1,
             sheetExpandsWhenScrolledToEdge: false,
           }}
+        />
+        <Stack.Screen
+          name="changelog"
+          options={{ ...infoScreenOptions, title: "What's New" }}
+        />
+        <Stack.Screen
+          name="privacy-policy"
+          options={{ ...infoScreenOptions, title: 'Privacy Policy' }}
+        />
+        <Stack.Screen
+          name="licenses"
+          options={{ ...infoScreenOptions, title: 'Open-Source Licenses' }}
         />
       </Stack>
     </ThemeProvider>
