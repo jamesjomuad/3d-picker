@@ -25,11 +25,13 @@
  * - A batch holds every distinct path the rules allow: candidates are
  *   enumerated exhaustively in walk order, with no maximum result count, so
  *   repeated Generate presses over the same selection return the same set.
- * - Combinations are filtered for display by an active filter: All shows
- *   the whole batch; With 0 / With 1 / With 2 show the combinations
- *   containing that digit; Г / ㄱ / ┘ / L show the L-shaped ones in each
- *   of their four orientations, classified from cell coordinates. Filters
- *   overlap and never change the batch.
+ * - Combinations are filtered for display by checkbox-style groups: digit
+ *   buttons (With 0 / With 1 / With 2), direction buttons (Horizontal &
+ *   Vertical or Diagonal), and L-shape buttons (Г / ㄱ / ┘ / L). Several
+ *   buttons in one group may be active and combine with OR; active groups
+ *   combine with AND. "All" clears the groups. An optional Distinct button
+ *   keeps one representative per sorted-digit group. Filters overlap and
+ *   never change the batch.
  * - A sequence search narrows any view further: comma-separated digit
  *   sequences ("12,4") every kept combination must contain, each sequence
  *   as a consecutive run in the given order, at any position. Search is a
@@ -246,12 +248,12 @@ export function getLPattern(path) {
 }
 
 /**
- * Filters for the results list, in display order. A filter with a `digit`
- * matches every combination whose digits contain it; a filter with a
- * `pattern` matches the combinations whose path is that L orientation;
- * "All" matches the whole batch. Filters overlap on purpose ("102" shows
- * under All, With 0, With 1, With 2, and its shape filter alike) — exactly
- * one is active at a time.
+ * Digit and L-shape filters for the results list, in display order. A filter
+ * with a `digit` matches every combination whose digits contain it; a filter
+ * with a `pattern` matches the combinations whose path is that L
+ * orientation; "All" clears the filter groups. Filters overlap on purpose
+ * ("102" shows under All, With 0, With 1, With 2, and its shape filter
+ * alike); several may be active at once.
  */
 export const FUN_PICK_FILTERS = [
   { value: 'all', label: 'All', digit: null, pattern: null, hint: 'exist' },
@@ -265,49 +267,241 @@ export const FUN_PICK_FILTERS = [
 ];
 
 /**
- * Whether a combination is shown by a filter.
+ * Direction filters for the results list. They classify the path already
+ * generated, unlike the Generation Rules direction, which decides which
+ * paths the generator walks. Selecting both keeps orthogonal and diagonal
+ * paths, so this group uses OR like the other groups.
+ */
+export const FUN_PICK_DIRECTION_FILTERS = [
+  {
+    value: 'direction-orthogonal',
+    label: 'Horizontal & Vertical',
+    direction: FUN_PICK_DIRECTIONS.orthogonal,
+    hint: 'horizontal or vertical',
+  },
+  {
+    value: 'direction-diagonal',
+    label: 'Diagonal',
+    direction: FUN_PICK_DIRECTIONS.diagonal,
+    hint: 'diagonal',
+  },
+];
+
+/** Optional filter that keeps one representative per sorted-digit group. */
+export const FUN_PICK_DISTINCT_FILTER = {
+  value: 'distinct',
+  label: 'Distinct',
+  hint: 'distinct',
+};
+
+/** Every chip in the results filter bar, in display order. */
+export const FUN_PICK_RESULT_FILTER_OPTIONS = [
+  ...FUN_PICK_FILTERS,
+  ...FUN_PICK_DIRECTION_FILTERS,
+  FUN_PICK_DISTINCT_FILTER,
+];
+
+/** Selectable options; "All" is the reset control, not a checkbox. */
+export const FUN_PICK_SELECTABLE_FILTERS = FUN_PICK_RESULT_FILTER_OPTIONS.filter(
+  (option) => option.value !== 'all'
+);
+
+/**
+ * The step family used by a path, or null for a path that mixes families.
+ * Generation keeps one family per path, so the first step already decides;
+ * checking every step keeps this safe for any batch handed to the filters.
+ *
+ * @param {Array<{ row: number, column: number }>} path
+ * @returns {'orthogonal'|'diagonal'|null}
+ */
+export function getPathDirection(path) {
+  if (!Array.isArray(path) || path.length < 2) return null;
+
+  const families = new Set();
+  for (let index = 1; index < path.length; index += 1) {
+    const previous = path[index - 1];
+    const current = path[index];
+    if (!previous || !current) return null;
+
+    const rowDistance = Math.abs(current.row - previous.row);
+    const columnDistance = Math.abs(current.column - previous.column);
+    if (rowDistance === 0 && columnDistance > 0) {
+      families.add(FUN_PICK_DIRECTIONS.orthogonal);
+    } else if (columnDistance === 0 && rowDistance > 0) {
+      families.add(FUN_PICK_DIRECTIONS.orthogonal);
+    } else if (rowDistance > 0 && columnDistance > 0) {
+      families.add(FUN_PICK_DIRECTIONS.diagonal);
+    } else {
+      return null;
+    }
+  }
+
+  return families.size === 1 ? [...families][0] : null;
+}
+
+/**
+ * Whether a combination is shown by one filter option.
  *
  * @param {{ digits: string, path: Array<{ row: number, column: number }> }} combination
- * @param {{ digit: string|null, pattern: string|null }} filter - one of `FUN_PICK_FILTERS`
+ * @param {{ digit?: string|null, direction?: string|null, pattern?: string|null }} filter
  * @returns {boolean}
  */
 export function matchesFilter(combination, filter) {
-  if (filter.digit !== null) {
+  if (filter.digit != null) {
     return typeof combination.digits === 'string' && combination.digits.includes(filter.digit);
   }
-  if (filter.pattern !== null) return getLPattern(combination.path) === filter.pattern;
+  if (filter.direction != null) return getPathDirection(combination.path) === filter.direction;
+  if (filter.pattern != null) return getLPattern(combination.path) === filter.pattern;
   return true;
 }
 
 /**
- * Apply a filter to a generated batch.
- *
- * Pure view over the batch: the combinations keep their generated order and
- * nothing is mutated, so switching filters never regenerates anything. An
- * unknown filter value falls back to "All".
+ * Apply one filter to a generated batch. Kept for callers that need a single
+ * option; the card uses `applyFilters`, which combines whole groups. Pure
+ * view over the batch: order and objects are untouched. An unknown value
+ * falls back to "All".
  *
  * @param {Array<{ digits: string, path: Array }>} combinations - a generated batch
- * @param {string} filterValue - the active filter's `value`
+ * @param {string} filterValue - the filter's `value`
  * @returns {Array<{ digits: string, path: Array }>} the matching combinations
  */
 export function applyFilter(combinations, filterValue) {
-  const filter = FUN_PICK_FILTERS.find((option) => option.value === filterValue) ?? FUN_PICK_FILTERS[0];
-  if (!Array.isArray(combinations)) return [];
-  return combinations.filter((combination) => matchesFilter(combination, filter));
+  const batch = Array.isArray(combinations) ? combinations : [];
+  const filter =
+    FUN_PICK_RESULT_FILTER_OPTIONS.find((option) => option.value === filterValue) ??
+    FUN_PICK_FILTERS[0];
+  if (filter.value === FUN_PICK_DISTINCT_FILTER.value) return applyDistinct(batch);
+  return batch.filter((combination) => matchesFilter(combination, filter));
 }
 
 /**
- * Per-filter match counts for the filter bar badges.
+ * Keep one representative per permutation-equivalent digit group.
+ *
+ * The group key is the sorted digit string, so multiplicity and leading
+ * zeros survive ("077" and "707" share a group; "07" and "70" do not lose
+ * their zero). The canonical sorted combination wins when it was generated;
+ * otherwise the first generated member of the group wins. Nothing is
+ * invented and nothing in the input is mutated.
+ *
+ * @param {Array<{ digits: string, path: Array }>} combinations
+ * @returns {Array<{ digits: string, path: Array }>} representatives in group-discovery order
+ */
+export function applyDistinct(combinations) {
+  const batch = Array.isArray(combinations) ? combinations : [];
+  const representatives = new Map();
+
+  for (const combination of batch) {
+    if (!combination || typeof combination.digits !== 'string') continue;
+    const key = [...combination.digits].sort().join('');
+    const current = representatives.get(key);
+    if (!current) {
+      representatives.set(key, combination);
+    } else if (current.digits !== key && combination.digits === key) {
+      representatives.set(key, combination);
+    }
+  }
+
+  return [...representatives.values()];
+}
+
+/**
+ * Empty selection state: every selectable filter option starts inactive.
+ *
+ * @returns {Record<string, boolean>}
+ */
+export function createFilterSelection() {
+  return Object.fromEntries(
+    FUN_PICK_SELECTABLE_FILTERS.map((option) => [option.value, false])
+  );
+}
+
+/** Reset all filter selections without touching generated results. */
+export function clearFilterSelection() {
+  return createFilterSelection();
+}
+
+/**
+ * Toggle one option without disturbing any other selection. Unknown values
+ * are ignored, so a stale caller cannot invent filter state.
+ *
+ * @param {Record<string, boolean>} selection
+ * @param {string} value - one of `FUN_PICK_SELECTABLE_FILTERS`
+ * @returns {Record<string, boolean>}
+ */
+export function toggleFilterSelection(selection, value) {
+  if (!FUN_PICK_SELECTABLE_FILTERS.some((option) => option.value === value)) return selection;
+  return { ...selection, [value]: !selection[value] };
+}
+
+/**
+ * Whether any result filter is active. Used by the "All" reset control.
+ *
+ * @param {Record<string, boolean>} selection
+ * @returns {boolean}
+ */
+export function hasActiveFilters(selection) {
+  return FUN_PICK_SELECTABLE_FILTERS.some((option) => selection?.[option.value]);
+}
+
+/**
+ * Apply every active filter group to a batch: OR inside a group, AND across
+ * groups. An empty group leaves the batch alone. Search is applied by the
+ * caller before this function or by `applyFunPickView`.
+ *
+ * @param {Array<{ digits: string, path: Array }>} combinations
+ * @param {Record<string, boolean>} selection - state from `toggleFilterSelection`
+ * @returns {Array<{ digits: string, path: Array }>} a new array of the same combination objects
+ */
+export function applyFilters(combinations, selection) {
+  let result = Array.isArray(combinations) ? combinations : [];
+  const active = selection ?? {};
+
+  const digits = FUN_PICK_FILTERS.filter((filter) => filter.digit !== null && active[filter.value]).map(
+    (filter) => filter.digit
+  );
+  if (digits.length > 0) {
+    result = result.filter(
+      (combination) =>
+        typeof combination.digits === 'string' && digits.some((digit) => combination.digits.includes(digit))
+    );
+  }
+
+  const directions = FUN_PICK_DIRECTION_FILTERS.filter((filter) => active[filter.value]).map(
+    (filter) => filter.direction
+  );
+  if (directions.length > 0) {
+    result = result.filter((combination) => directions.includes(getPathDirection(combination.path)));
+  }
+
+  const patterns = FUN_PICK_FILTERS.filter(
+    (filter) => filter.pattern !== null && active[filter.value]
+  ).map((filter) => filter.pattern);
+  if (patterns.length > 0) {
+    result = result.filter((combination) => patterns.includes(getLPattern(combination.path)));
+  }
+
+  if (active[FUN_PICK_DISTINCT_FILTER.value]) result = applyDistinct(result);
+  return result;
+}
+
+/**
+ * Per-filter match counts for the filter bar badges. Distinct counts the
+ * representative groups in the batch; every other chip counts its own
+ * matches, regardless of what else is active.
  *
  * @param {Array<{ digits: string, path: Array }>} combinations - a generated batch
  * @returns {Array<{ value: string, label: string, count: number }>}
  */
 export function getFilterCounts(combinations) {
   const batch = Array.isArray(combinations) ? combinations : [];
-  return FUN_PICK_FILTERS.map((filter) => ({
+  const distinctCount = applyDistinct(batch).length;
+  return FUN_PICK_RESULT_FILTER_OPTIONS.map((filter) => ({
     value: filter.value,
     label: filter.label,
-    count: batch.filter((combination) => matchesFilter(combination, filter)).length,
+    count:
+      filter.value === FUN_PICK_DISTINCT_FILTER.value
+        ? distinctCount
+        : batch.filter((combination) => matchesFilter(combination, filter)).length,
   }));
 }
 
@@ -375,5 +569,19 @@ export function applySearch(combinations, sequences) {
   const batch = Array.isArray(combinations) ? combinations : [];
   if (!Array.isArray(sequences) || sequences.length === 0) return batch;
   return batch.filter((combination) => matchesSequences(combination.digits, sequences));
+}
+
+/**
+ * Derive the visible results from one generated batch: search AND every
+ * active filter group. Kept here so search order cannot drift between the
+ * card and its tests; neither step mutates or regenerates the batch.
+ *
+ * @param {Array<{ digits: string, path: Array }>} combinations
+ * @param {Record<string, boolean>} selection - state from `toggleFilterSelection`
+ * @param {string[]} sequences - parsed sequences; empty means no search
+ * @returns {Array<{ digits: string, path: Array }>}
+ */
+export function applyFunPickView(combinations, selection, sequences) {
+  return applyFilters(applySearch(combinations, sequences), selection);
 }
 
