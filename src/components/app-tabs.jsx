@@ -8,10 +8,12 @@ export default function AppTabs() {
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
   const basketCount = useBasketStore((state) => state.entries.length);
+  const iconColor = scheme === 'dark' ? { selected: colors.primary } : undefined;
 
   return (
     <NativeTabs
       backgroundColor={colors.background}
+      iconColor={iconColor}
       indicatorColor={colors.backgroundElement}
       labelStyle={{ selected: { color: colors.text } }}>
       <NativeTabs.Trigger name="index">
