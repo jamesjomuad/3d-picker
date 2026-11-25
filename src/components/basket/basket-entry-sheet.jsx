@@ -8,6 +8,7 @@ import { formatAddedAt } from '@/utils/basket-format';
 import { MIN_CELL_SIZE, getBoardSize } from '@/utils/board-layout';
 import { getPathReference } from '@/utils/cell-reference';
 import { MAX_RESULTS } from '@/utils/combination-search';
+import { AppIcon } from '@/components/ui/app-icon';
 
 /**
  * Detail sheet for one saved basket pick.
@@ -124,7 +125,7 @@ export function BasketEntrySheet({
             ) : null}
 
             <View style={[styles.divider, { backgroundColor: theme.border }]} />
-            <SheetAction label="Close" onPress={onClose} theme={theme} />
+            <SheetAction label="Close" icon="xmark" onPress={onClose} theme={theme} />
           </ScrollView>
         </View>
       </Pressable>
@@ -133,7 +134,7 @@ export function BasketEntrySheet({
 }
 
 /** One full-width sheet action; 48dp tall so it is easy to hit deliberately. */
-function SheetAction({ label, onPress, theme }) {
+function SheetAction({ label, onPress, theme, icon }) {
   return (
     <Pressable
       onPress={onPress}
@@ -144,7 +145,10 @@ function SheetAction({ label, onPress, theme }) {
         { borderColor: theme.border },
         pressed && styles.pressed,
       ]}>
-      <Text style={[styles.actionText, { color: theme.text }]}>{label}</Text>
+      <View style={styles.actionContent}>
+        {icon ? <AppIcon name={icon} size="small" tone="text" /> : null}
+        <Text style={[styles.actionText, { color: theme.text }]}>{label}</Text>
+      </View>
     </Pressable>
   );
 }
@@ -216,6 +220,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     borderRadius: BorderRadius.md,
     borderWidth: StyleSheet.hairlineWidth,
+  },
+  actionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
   },
   actionText: {
     fontSize: Typography.size.bodyLarge,

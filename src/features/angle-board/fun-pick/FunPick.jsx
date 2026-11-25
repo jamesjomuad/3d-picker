@@ -37,6 +37,7 @@ import {
   toggleFilterSelection,
 } from './fun-pick-utils';
 import { useFunPick } from './useFunPick';
+import { AppIcon } from '@/components/ui/app-icon';
 
 const COPY_FEEDBACK_MS = 1600;
 const RENDER_BATCH = 50;
@@ -262,7 +263,7 @@ export function FunPickScreen() {
             </View>
           )}
         </View>
-        <Button size="sm" onPress={handleGenerate} disabled={selection.size === 0}>
+        <Button size="sm" onPress={handleGenerate} disabled={selection.size === 0} icon="sparkles">
           Generate
         </Button>
       </View>
@@ -280,7 +281,7 @@ export function FunPickScreen() {
         nestedScrollEnabled={false}>
         <View style={[styles.filtersHeader, { borderColor: theme.border }]}>
           <ThemedText type="smallBold">Filters</ThemedText>
-          <Button size="sm" variant="ghost" onPress={handleClearAll}>
+          <Button size="sm" variant="ghost" onPress={handleClearAll} icon="trash">
             Clear All
           </Button>
         </View>
@@ -405,7 +406,8 @@ export function FunPickScreen() {
             size="sm"
             variant="outline"
             onPress={handleShowMore}
-            style={styles.moreButton}>
+            style={styles.moreButton}
+            icon="chevron.down">
             Show {hiddenCount} more
           </Button>
         )}
@@ -476,11 +478,7 @@ function FilterChip({ option, count, checked, onToggle }) {
         },
         pressed && styles.pressed,
       ]}>
-      {checked && (
-        <ThemedText themeColor="primary" style={styles.chipCheck}>
-          ✓
-        </ThemedText>
-      )}
+      {checked && <AppIcon name="checkmark" size="small" tone="primary" />}
       <ThemedText
         themeColor="text"
         style={[styles.chipLabel, checked && styles.chipLabelActive]}
@@ -509,6 +507,7 @@ const CombinationRow = memo(function CombinationRow({ combination, isSaved, onTo
       <Button
         size="sm"
         variant={isSaved ? 'secondary' : 'outline'}
+        icon={isSaved ? 'checkmark' : 'plus'}
         onPress={() => onToggle(combination)}>
         {isSaved ? 'Added' : 'Add'}
       </Button>

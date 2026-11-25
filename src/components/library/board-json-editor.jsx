@@ -285,21 +285,23 @@ export function BoardJsonEditor({
 
       {showActions && (
         <View style={styles.actions}>
-          <Button variant="outline" onPress={onCancel} disabled={applying} style={styles.action}>
+          <Button variant="outline" onPress={onCancel} disabled={applying} style={styles.action} icon="xmark">
             Cancel
           </Button>
           <Button
             variant="secondary"
             onPress={onPreview}
             disabled={applying || !value.trim()}
-            style={styles.action}>
+            style={styles.action}
+            icon="eye">
             Preview Changes
           </Button>
           <Button
             onPress={onApply}
             disabled={!preview || applying}
             loading={applying}
-            style={styles.action}>
+            style={styles.action}
+            icon="checkmark">
             Apply Changes
           </Button>
         </View>

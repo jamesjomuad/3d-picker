@@ -74,19 +74,19 @@ export function SelectedCellsCard({ grid, selection, onClear, onFunPick, style }
       trailing={
         <View style={styles.headerActions} pointerEvents="box-none">
           {onClear && (
-            <Button size="sm" variant="outline" onPress={onClear}>
+            <Button size="sm" variant="outline" onPress={onClear} icon="trash">
               Clear
             </Button>
           )}
           <Button
             size="sm"
             variant="outline"
-            onPress={handleCopy}
+            onPress={handleCopy} icon="doc.on.doc"
             disabled={!summary.hasSelection}>
             {copyLabel}
           </Button>
           {onFunPick && summary.hasSelection && (
-            <Button size="sm" variant="primary" onPress={onFunPick}>
+            <Button size="sm" variant="primary" onPress={onFunPick} icon="sparkles">
               Fun Pick
             </Button>
           )}

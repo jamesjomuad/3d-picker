@@ -1,7 +1,8 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { AppIcon } from './app-icon';
 
 /**
  * Button component with variants and sizes
@@ -15,6 +16,8 @@ import { useTheme } from '@/hooks/use-theme';
  * @param {'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive'} [props.variant='primary'] - Visual variant
  * @param {'sm' | 'md' | 'lg'} [props.size='md'] - Size variant
  * @param {Object} [props.style] - Additional container styles
+ * @param {string} [props.icon] - Symbol name from app-icon, shown before the label
+ * @param {string} [props.accessibilityLabel] - Overrides the spoken label
  */
 export function Button({
   children,
@@ -24,6 +27,8 @@ export function Button({
   variant = 'primary',
   size = 'md',
   style,
+  icon,
+  accessibilityLabel,
 }) {
   const theme = useTheme();
   const isDisabled = disabled || loading;
@@ -35,6 +40,9 @@ export function Button({
     <Pressable
       onPress={onPress}
       disabled={isDisabled}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: isDisabled }}
+      accessibilityLabel={accessibilityLabel}
       style={({ pressed }) => [
         styles.base,
         sizeStyles,
@@ -46,7 +54,16 @@ export function Button({
       {loading ? (
         <ActivityIndicator size="small" color={colors.text} />
       ) : (
-        <Text style={[styles.text, sizeStyles.text, { color: colors.text }]}>{children}</Text>
+        <View style={styles.content}>
+          {icon ? (
+            <AppIcon
+              name={icon}
+              size={size === 'sm' ? 'small' : 'action'}
+              tone={colors.text}
+            />
+          ) : null}
+          <Text style={[styles.text, sizeStyles.text, { color: colors.text }]}>{children}</Text>
+        </View>
       )}
     </Pressable>
   );
@@ -103,6 +120,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: BorderRadius.md,
     borderWidth: StyleSheet.hairlineWidth,
+  },
+  content: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.one,
   },
   disabled: {
     opacity: 0.5,

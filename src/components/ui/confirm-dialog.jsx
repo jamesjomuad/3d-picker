@@ -2,6 +2,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { AppIcon } from '@/components/ui/app-icon';
 
 /**
  * Modal confirmation / action dialog
@@ -35,6 +36,7 @@ export function ConfirmDialog({
   cancelLabel = 'Cancel',
   confirmVariant = 'primary',
   confirmDisabled = false,
+  icon,
   onConfirm,
   onCancel,
 }) {
@@ -89,7 +91,7 @@ export function ConfirmDialog({
                 pressed && styles.pressed,
                 confirmDisabled && styles.disabled,
               ]}>
-              <Text style={[styles.buttonText, { color: theme.primaryText }]}>{confirmLabel}</Text>
+              <>{icon ? <AppIcon name={icon} size="small" tone={theme.primaryText} /> : null}<Text style={[styles.buttonText, { color: theme.primaryText }]}>{confirmLabel}</Text></>
             </Pressable>
           </View>
         </View>

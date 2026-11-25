@@ -1,15 +1,16 @@
-import { SymbolView } from 'expo-symbols';
 import { Pressable, StyleSheet } from 'react-native';
 
 import { BorderRadius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+
+import { AppIcon } from './app-icon';
 
 /**
  * Icon-only circular button
  * Uses expo-symbols for cross-platform icon rendering
  *
  * @param {Object} props
- * @param {string} props.symbol - SF Symbol name (auto-mapped per platform)
+ * @param {string} props.symbol - Key from SYMBOL_NAMES (auto-mapped per platform)
  * @param {() => void} [props.onPress] - Press handler
  * @param {boolean} [props.disabled] - Disabled state
  * @param {'filled' | 'outline'} [props.variant='filled'] - Visual variant
@@ -30,7 +31,6 @@ export function IconButton({
   const isOutline = variant === 'outline';
   const backgroundColor = isOutline ? 'transparent' : theme.backgroundElement;
   const borderColor = isOutline ? theme.border : 'transparent';
-  const iconColor = theme.text;
 
   return (
     <Pressable
@@ -49,37 +49,9 @@ export function IconButton({
         disabled && styles.disabled,
         pressed && styles.pressed,
       ]}>
-      <SymbolView
-        name={getSymbolName(symbol)}
-        size={sizeValue * 0.45}
-        weight="medium"
-        tintColor={iconColor}
-      />
+      <AppIcon name={symbol} size={Math.round(sizeValue * 0.45)} tone="text" />
     </Pressable>
   );
-}
-
-function getSymbolName(name) {
-  // Map iOS SF Symbols to Android/Web equivalents
-  const symbolMap = {
-    'chevron.right': { ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' },
-    'chevron.left': { ios: 'chevron.left', android: 'chevron_left', web: 'chevron_left' },
-    'chevron.down': { ios: 'chevron.down', android: 'expand_more', web: 'expand_more' },
-    'chevron.up': { ios: 'chevron.up', android: 'expand_less', web: 'expand_less' },
-    'xmark': { ios: 'xmark', android: 'close', web: 'close' },
-    'plus': { ios: 'plus', android: 'add', web: 'add' },
-    'minus': { ios: 'minus', android: 'remove', web: 'remove' },
-    'trash': { ios: 'trash', android: 'delete', web: 'delete' },
-    'gearshape': { ios: 'gearshape', android: 'settings', web: 'settings' },
-    'square.and.pencil': { ios: 'square.and.pencil', android: 'edit', web: 'edit' },
-    'magnifyingglass': { ios: 'magnifyingglass', android: 'search', web: 'search' },
-    'basket': { ios: 'basket.fill', android: 'shopping_basket', web: 'shopping_basket' },
-    'collection': { ios: 'list.bullet.rectangle.fill', android: 'list_alt', web: 'list_alt' },
-    'checkmark': { ios: 'checkmark', android: 'check', web: 'check' },
-    'info.circle': { ios: 'info.circle', android: 'info', web: 'info' },
-  };
-
-  return symbolMap[name] || name;
 }
 
 function getSizeValue(size) {

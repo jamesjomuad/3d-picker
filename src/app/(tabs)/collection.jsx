@@ -148,7 +148,7 @@ export default function CollectionScreen() {
           </ThemedText>
         </View>
         {entries.length > 0 && (
-          <Button size="sm" style={styles.touchTarget} onPress={handleShare}>
+          <Button size="sm" style={styles.touchTarget} onPress={handleShare} icon="square.and.arrow.up">
             Share
           </Button>
         )}
@@ -165,7 +165,7 @@ export default function CollectionScreen() {
       <Button
         size="sm"
         style={styles.touchTarget}
-        onPress={() => router.navigate('/')}>
+        onPress={() => router.navigate('/')} icon="sparkles">
         Go to Fun Pick
       </Button>
     </View>
@@ -177,7 +177,7 @@ export default function CollectionScreen() {
         size="sm"
         variant="outline"
         style={styles.touchTarget}
-        onPress={() => setShowClearDialog(true)}>
+        onPress={() => setShowClearDialog(true)} icon="trash">
         Clear All
       </Button>
     </View>
@@ -221,6 +221,7 @@ export default function CollectionScreen() {
         message={`Remove all ${entries.length} picks from the basket? This cannot be undone.`}
         confirmLabel="Clear"
         confirmVariant="destructive"
+        icon="trash"
         onCancel={() => setShowClearDialog(false)}
         onConfirm={() => {
           clear();
@@ -272,7 +273,7 @@ const BasketRow = memo(function BasketRow({ entry, index, width, onSelect, onRem
         variant="outline"
         style={styles.touchTarget}
         accessibilityLabel={`Remove ${entry.digits} from basket`}
-        onPress={() => onRemove(entry.digits)}>
+        onPress={() => onRemove(entry.digits)} icon="trash">
         Remove
       </Button>
     </View>

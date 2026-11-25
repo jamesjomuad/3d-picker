@@ -11,6 +11,7 @@ import {
 import { ThemedText } from '@/components/themed-text';
 import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { AppIcon } from '@/components/ui/app-icon';
 import {
   formatCombination,
   getRecordStatus,
@@ -148,7 +149,8 @@ export function ResultsDetailSheet({ visible, record, onClose }) {
               { borderColor: theme.border },
               pressed && styles.pressed,
             ]}>
-            <Text style={[styles.closeText, { color: theme.text }]}>Close</Text>
+            <AppIcon name="xmark" size="small" tone="text" />
+              <Text style={[styles.closeText, { color: theme.text }]}>Close</Text>
           </Pressable>
         </View>
       </Pressable>

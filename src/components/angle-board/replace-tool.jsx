@@ -67,7 +67,7 @@ export function ReplaceTool({ grid, onReplaceAll, onClose, onMatchesChange }) {
     <View style={[styles.container, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]}>Replace</Text>
-        <Button variant="ghost" size="sm" onPress={onClose}>
+        <Button variant="ghost" size="sm" onPress={onClose} icon="xmark">
           Close
         </Button>
       </View>
@@ -117,7 +117,7 @@ export function ReplaceTool({ grid, onReplaceAll, onClose, onMatchesChange }) {
 
       <Button
         variant="primary"
-        onPress={handleReplaceAll}
+        onPress={handleReplaceAll} icon="swap"
         disabled={!canReplace}>
         Replace All
       </Button>
@@ -130,7 +130,7 @@ export function ReplaceTool({ grid, onReplaceAll, onClose, onMatchesChange }) {
           `${findDigit} with ${replaceDigit}?`
         }
         confirmLabel="Replace"
-        cancelLabel="Cancel"
+        cancelLabel="Cancel" icon="swap"
         onConfirm={handleConfirm}
         onCancel={handleCancel}
       />

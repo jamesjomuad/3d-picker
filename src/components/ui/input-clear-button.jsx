@@ -1,11 +1,10 @@
-import { StyleSheet } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 
-import { ThemedText } from '@/components/themed-text';
-import { Spacing, Typography } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { AppIcon } from '@/components/ui/app-icon';
+import { Spacing } from '@/constants/theme';
 
 /**
- * The × button that empties a text field.
+ * The clear button that empties a text field.
  *
  * Absolutely positioned against the field's right end by design: the parent
  * keeps the field and this button in a relative wrapper and leaves matching
@@ -18,17 +17,14 @@ import { useTheme } from '@/hooks/use-theme';
  * @param {Object} [props.style] - Position tweaks for unusually tall fields
  */
 export function InputClearButton({ onPress, accessibilityLabel = 'Clear text', style }) {
-  const theme = useTheme();
-
   return (
-    <ThemedText
-      type="linkPrimary"
+    <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      style={[styles.clear, { color: theme.textSecondary }, style]}>
-      ×
-    </ThemedText>
+      style={[styles.clear, style]}>
+      <AppIcon name="xmark" size="small" tone="textSecondary" />
+    </Pressable>
   );
 }
 
@@ -37,9 +33,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 0,
     top: 0,
+    width: 44,
     height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: Spacing.three,
-    fontSize: Typography.size.title,
-    lineHeight: Typography.lineHeight.headline,
   },
 });

@@ -27,6 +27,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { router } from 'expo-router';
 import { useLibraryStore } from '@/store/libraryStore';
 import { compareBoards, parseBoardJson, serializeBoardJson } from '@/utils/board-json';
+import { AppIcon } from '@/components/ui/app-icon';
 
 const FILTER_ALL = 'all';
 const FILTER_FAVORITES = 'favorites';
@@ -407,8 +408,7 @@ export default function BoardsScreen() {
                   {boards.length} board{boards.length === 1 ? '' : 's'}
                 </ThemedText>
               </View>
-              <Button onPress={handleCreate} size="sm">
-                + New
+              <Button onPress={handleCreate} size="sm" icon="plus">New
               </Button>
             </View>
           </ThemedView>
@@ -443,8 +443,7 @@ export default function BoardsScreen() {
                   : 'Create an Angle Board to arrange your own digit grid.'}
               </ThemedText>
               {filter === FILTER_ALL && (
-                <Button onPress={handleCreate} size="sm">
-                  + Create Board
+                <Button onPress={handleCreate} size="sm" icon="plus">Create Board
                 </Button>
               )}
             </ThemedView>
@@ -662,6 +661,11 @@ export default function BoardsScreen() {
                         },
                         pressed && styles.pressed,
                       ]}>
+                      <AppIcon
+                        name={option.label === 'JSON' ? 'curlybraces' : 'square.grid.2x2'}
+                        size="small"
+                        tone={isActive ? 'primaryText' : 'textSecondary'}
+                      />
                       <Text
                         style={[
                           styles.modeTabText,
@@ -679,8 +683,9 @@ export default function BoardsScreen() {
                   <Button
                     variant={showReplaceTool ? 'secondary' : 'outline'}
                     onPress={toggleReplaceTool}
-                    style={styles.footerAction}>
-                    {showReplaceTool ? '✕ Close Replace' : 'Replace'}
+                    style={styles.footerAction}
+                    icon={showReplaceTool ? 'xmark' : 'swap'}>
+                    {showReplaceTool ? 'Close Replace' : 'Replace'}
                   </Button>
                 ) : (
                   <>
@@ -688,21 +693,24 @@ export default function BoardsScreen() {
                       variant="outline"
                       onPress={handleJsonCancel}
                       disabled={jsonApplying}
-                      style={styles.footerAction}>
+                      style={styles.footerAction}
+                      icon="xmark">
                       Cancel
                     </Button>
                     <Button
                       variant="secondary"
                       onPress={handleJsonPreview}
                       disabled={jsonApplying || !jsonText.trim()}
-                      style={styles.footerAction}>
+                      style={styles.footerAction}
+                      icon="eye">
                       Preview Changes
                     </Button>
                     <Button
                       onPress={handleJsonApply}
                       disabled={!jsonPreview || jsonApplying}
                       loading={jsonApplying}
-                      style={styles.footerAction}>
+                      style={styles.footerAction}
+                      icon="checkmark">
                       Apply Changes
                     </Button>
                   </>
@@ -711,7 +719,8 @@ export default function BoardsScreen() {
                 <Button
                   variant="primary"
                   onPress={closeEditSheet}
-                  style={styles.footerAction}>
+                  style={styles.footerAction}
+                  icon="checkmark.circle">
                   Done
                 </Button>
               </View>

@@ -16,10 +16,7 @@ export default function AppTabs() {
       labelStyle={{ selected: { color: colors.text } }}>
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Picker</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={require('@/assets/images/tabIcons/home.png')}
-          renderingMode="template"
-        />
+        <NativeTabs.Trigger.Icon sf="house.fill" md="home" />
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="collection">
@@ -37,10 +34,7 @@ export default function AppTabs() {
 
       <NativeTabs.Trigger name="boards">
         <NativeTabs.Trigger.Label>Boards</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={require('@/assets/images/tabIcons/explore.png')}
-          renderingMode="template"
-        />
+        <NativeTabs.Trigger.Icon sf="square.grid.2x2.fill" md="grid_view" />
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="settings">

@@ -10,6 +10,7 @@ import { MaxContentWidth, Spacing } from '@/constants/theme';
 
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
+import { AppIcon } from './ui/app-icon';
 
 export default function AppTabs() {
   return (
@@ -18,16 +19,16 @@ export default function AppTabs() {
       <TabList asChild>
         <CustomTabList>
           <TabTrigger name="picker" href="/" asChild>
-            <TabButton>Picker</TabButton>
+            <TabButton icon="house">Picker</TabButton>
           </TabTrigger>
           <TabTrigger name="collection" href="/collection" asChild>
-            <TabButton>Collection</TabButton>
+            <TabButton icon="collection">Collection</TabButton>
           </TabTrigger>
           <TabTrigger name="boards" href="/boards" asChild>
-            <TabButton>Boards</TabButton>
+            <TabButton icon="square.grid.2x2">Boards</TabButton>
           </TabTrigger>
           <TabTrigger name="settings" href="/settings" asChild>
-            <TabButton>Settings</TabButton>
+            <TabButton icon="gearshape">Settings</TabButton>
           </TabTrigger>
         </CustomTabList>
       </TabList>
@@ -35,15 +36,20 @@ export default function AppTabs() {
   );
 }
 
-export function TabButton({ children, isFocused, ...props }) {
+export function TabButton({ children, isFocused, icon, ...props }) {
   return (
     <Pressable {...props} style={({ pressed }) => pressed && styles.pressed}>
       <ThemedView
         type={isFocused ? 'backgroundSelected' : 'backgroundElement'}
         style={styles.tabButtonView}>
-        <ThemedText type="small" themeColor={isFocused ? 'text' : 'textSecondary'}>
-          {children}
-        </ThemedText>
+        <View style={styles.tabButtonContent}>
+          {icon ? (
+            <AppIcon name={icon} size="small" tone={isFocused ? 'text' : 'textSecondary'} />
+          ) : null}
+          <ThemedText type="small" themeColor={isFocused ? 'text' : 'textSecondary'}>
+            {children}
+          </ThemedText>
+        </View>
       </ThemedView>
     </Pressable>
   );
@@ -87,6 +93,11 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.7,
+  },
+  tabButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
   },
   tabButtonView: {
     paddingVertical: Spacing.one,

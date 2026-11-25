@@ -96,6 +96,15 @@ export const Typography = {
   },
 };
 
+/** Icon sizes. Use these instead of ad-hoc pixel values. */
+export const IconSize = {
+  inline: 14,
+  small: 16,
+  action: 20,
+  navigation: 24,
+  prominent: 28,
+};
+
 export const Spacing = {
   half: 2,
   one: 4,

@@ -11,6 +11,7 @@ import {
 
 import { ResultsCard } from '@/components/results/results-card';
 import { ResultsDetailSheet } from '@/components/results/results-detail-sheet';
+import { AppIcon } from '@/components/ui/app-icon';
 import { Button } from '@/components/ui/button';
 import { ThemedText } from '@/components/themed-text';
 import { BorderRadius, Spacing, Typography } from '@/constants/theme';
@@ -104,7 +105,7 @@ export default function ResultsScreen() {
           size="sm"
           onPress={handleRefresh}
           disabled={isRefreshing}
-          loading={isRefreshing}>
+          loading={isRefreshing} icon="arrow.clockwise">
           Refresh
         </Button>
       </View>
@@ -156,6 +157,7 @@ export default function ResultsScreen() {
               onPress={() => setDateFilter(FILTER_ALL)}
               accessibilityRole="button"
               style={({ pressed }) => [styles.clearFilter, pressed && styles.pressed]}>
+              <AppIcon name="xmark.circle" size="small" tone="primary" />
               <Text style={[styles.clearFilterText, { color: theme.primary }]}>
                 Clear filter
               </Text>
@@ -191,7 +193,7 @@ export default function ResultsScreen() {
           : 'Draw results will appear here once they load.'}
       </ThemedText>
       {!isRefreshing && (
-        <Button variant="outline" size="sm" onPress={handleRefresh}>
+        <Button variant="outline" size="sm" onPress={handleRefresh} icon="arrow.clockwise">
           Try again
         </Button>
       )}

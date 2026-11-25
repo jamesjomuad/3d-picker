@@ -5,6 +5,7 @@ import { BoardPreview } from '@/components/library/board-preview';
 import { ThemedText } from '@/components/themed-text';
 import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { AppIcon } from '@/components/ui/app-icon';
 
 /**
  * Board card in the library list
@@ -90,13 +91,7 @@ export const BoardCard = memo(function BoardCard({
                 },
                 pressed && styles.pressed,
               ]}>
-              <Text
-                style={[
-                  styles.favoriteText,
-                  { color: board.isFavorite ? theme.primaryText : theme.textSecondary },
-                ]}>
-                {board.isFavorite ? '★' : '☆'}
-              </Text>
+              <AppIcon name={board.isFavorite ? 'star' : 'star.slash'} size="small" tone={board.isFavorite ? 'primaryText' : 'textSecondary'} />
             </Pressable>
           </View>
 
@@ -119,9 +114,9 @@ export const BoardCard = memo(function BoardCard({
           </View>
 
           <View style={styles.actionsRow}>
-            <PillButton label="Edit" onPress={() => onEdit(board)} theme={theme} />
+            <PillButton label="Edit" icon="square.and.pencil" onPress={() => onEdit(board)} theme={theme} />
             <PillButton
-              label="⋯ More"
+              label="More" icon="ellipsis"
               onPress={() => setShowMore(true)}
               theme={theme}
               accessibilityLabel={`More options for ${board.name}`}
@@ -150,7 +145,7 @@ export const BoardCard = memo(function BoardCard({
  * Compact secondary-action pill. The visual box stays small and quiet;
  * hitSlop lifts the effective touch area past 44dp.
  */
-function PillButton({ label, onPress, theme, accessibilityLabel }) {
+function PillButton({ label, onPress, theme, accessibilityLabel, icon }) {
   return (
     <Pressable
       onPress={onPress}
@@ -162,7 +157,10 @@ function PillButton({ label, onPress, theme, accessibilityLabel }) {
         { borderColor: theme.border, backgroundColor: theme.background },
         pressed && styles.pressed,
       ]}>
-      <Text style={[styles.pillText, { color: theme.primary }]}>{label}</Text>
+      <View style={styles.pillContent}>
+        {icon ? <AppIcon name={icon} size="small" tone="primary" /> : null}
+        <Text style={[styles.pillText, { color: theme.primary }]}>{label}</Text>
+      </View>
     </Pressable>
   );
 }
@@ -217,24 +215,26 @@ function BoardActionsSheet({
             </ThemedText>
           </View>
 
-          <SheetRow label="Open board" onPress={pick(() => onOpen(board.id))} theme={theme} />
-          <SheetRow label="Edit board" onPress={pick(() => onEdit(board))} theme={theme} />
-          <SheetRow label="Rename" onPress={pick(() => onRename(board))} theme={theme} />
-          <SheetRow label="Duplicate" onPress={pick(() => onDuplicate(board))} theme={theme} />
+          <SheetRow label="Open board" icon="arrow.right" onPress={pick(() => onOpen(board.id))} theme={theme} />
+          <SheetRow label="Edit board" icon="square.and.pencil" onPress={pick(() => onEdit(board))} theme={theme} />
+          <SheetRow label="Rename" icon="text.cursor" onPress={pick(() => onRename(board))} theme={theme} />
+          <SheetRow label="Duplicate" icon="doc.on.doc" onPress={pick(() => onDuplicate(board))} theme={theme} />
           <SheetRow
             label={board.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+            icon={board.isFavorite ? 'star.slash' : 'star'}
             onPress={pick(() => onToggleFavorite(board.id))}
             theme={theme}
           />
           <SheetRow
             label="Delete board"
+            icon="trash"
             destructive
             onPress={pick(() => onDelete(board))}
             theme={theme}
           />
 
           <View style={[styles.sheetDivider, { backgroundColor: theme.border }]} />
-          <SheetRow label="Cancel" onPress={onHide} theme={theme} />
+          <SheetRow label="Cancel" icon="xmark" onPress={onHide} theme={theme} />
         </View>
       </Pressable>
     </Modal>
@@ -242,15 +242,20 @@ function BoardActionsSheet({
 }
 
 /** One full-width row of the actions sheet; destructive rows read red. */
-function SheetRow({ label, value, onPress, theme, destructive }) {
+function SheetRow({ label, value, onPress, theme, destructive, icon }) {
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       style={({ pressed }) => [styles.sheetRow, pressed && styles.pressed]}>
-      <Text style={[styles.sheetRowLabel, { color: destructive ? theme.destructive : theme.text }]}>
-        {label}
-      </Text>
+      <View style={styles.sheetRowLabelWrap}>
+        {icon ? (
+          <AppIcon name={icon} size="small" tone={destructive ? 'destructive' : 'text'} />
+        ) : null}
+        <Text style={[styles.sheetRowLabel, { color: destructive ? theme.destructive : theme.text }]}>
+          {label}
+        </Text>
+      </View>
       {value ? (
         <Text style={[styles.sheetRowValue, { color: theme.textSecondary }]}>{value}</Text>
       ) : null}
@@ -354,6 +359,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  pillContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
   pillText: {
     fontSize: Typography.size.body,
     fontWeight: Typography.weight.semibold,
@@ -386,7 +396,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     borderRadius: BorderRadius.md,
   },
+  sheetRowLabelWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    flexShrink: 1,
+  },
   sheetRowLabel: {
+    flexShrink: 1,
     fontSize: Typography.size.bodyLarge,
   },
   sheetRowValue: {
