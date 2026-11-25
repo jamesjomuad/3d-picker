@@ -3,6 +3,28 @@
 All notable changes to 3D Picker are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [semantic versioning](https://semver.org/).
 
+## [1.2.0] - 2026-11-25
+
+### Added
+- **JSON board editor** — advanced edit mode with syntax highlighting, line numbers, line/column errors, preview, and apply. Visual Editor stays the default.
+- **New board naming** — New Board asks for a name before creating a board.
+- **Fun Pick bottom sheet** — generate and filter picks while the board stays visible.
+- **Multi-select Fun Pick filters** — digit, direction and L-pattern filters each support multiple choices, with Distinct grouping.
+- **Saved-pick plotting** — Collection detail sheets preview a saved pick on the active board and highlight matching paths without changing the board.
+- **Numeric search keyboard** — Android combination search opens the numeric keypad.
+
+### Changed
+- Board edit view puts the grid at the top and groups all actions in a fixed bottom footer.
+- Replace tool uses clearer action buttons and still matches against the original edit snapshot.
+- Fun Pick generation is fixed at 3D; direction chips filter results.
+- Collection basket list is virtualized and share text is shorter.
+- Board cards no longer draw the temporary highlight border.
+
+### Fixed
+- Board More-menu actions now work: Open, Edit, Rename, Duplicate, Favorite, Delete and Cancel.
+- Dialogs and option sheets respond to outside taps, hardware back and Cancel.
+- Duplicated boards deep-copy the grid and do not inherit favorite or active status.
+
 ## [1.1.0] - 2026-11-24
 
 ### Added
@@ -42,5 +64,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Board library** — editable grids, board creation, persistence on-device, boards screen.
 - Reusable UI primitives (button, input, text, confirm dialog) with light/dark theming.
 
+[1.2.0]: https://github.com/jamesjomuad/3d-picker/releases/tag/v1.2.0
 [1.1.0]: https://github.com/jamesjomuad/3d-picker/releases/tag/v1.1.0
 [1.0.0]: https://github.com/jamesjomuad/3d-picker/releases/tag/v1.0.0
