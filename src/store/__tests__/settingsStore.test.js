@@ -12,9 +12,7 @@ import { useSettingsStore } from '@/store/settingsStore';
 let mockStored = null;
 jest.mock('@/services/settings-storage', () => ({
   THEME_MODES: ['system', 'light', 'dark'],
-  FUN_PICK_DIRECTION_VALUES: ['all', 'orthogonal', 'diagonal'],
-  FUN_PICK_TYPE_VALUES: ['2D', '3D', '4D'],
-  DEFAULT_SETTINGS: { themeMode: 'system', funPickDirection: 'all', funPickType: '3D' },
+  DEFAULT_SETTINGS: { themeMode: 'system' },
   loadSettings: jest.fn(async () => mockStored),
   saveSettings: jest.fn(async () => {}),
 }));
@@ -23,8 +21,6 @@ jest.mock('@/services/settings-storage', () => ({
 function resetStore() {
   useSettingsStore.setState({
     themeMode: 'system',
-    funPickDirection: 'all',
-    funPickType: '3D',
     isLoaded: false,
   });
 }
@@ -43,24 +39,20 @@ describe('settingsStore', () => {
   });
 
   it('starts on defaults and reports itself unloaded', () => {
-    const { themeMode, funPickDirection, funPickType, isLoaded } = useSettingsStore.getState();
+    const { themeMode, isLoaded } = useSettingsStore.getState();
     expect(themeMode).toBe('system');
-    expect(funPickDirection).toBe('all');
-    expect(funPickType).toBe('3D');
     expect(isLoaded).toBe(false);
   });
 
   it('loads saved settings once and never re-reads storage', async () => {
-    mockStored = { themeMode: 'dark', funPickDirection: 'diagonal', funPickType: '2D' };
+    mockStored = { themeMode: 'dark' };
 
     await useSettingsStore.getState().load();
     expect(useSettingsStore.getState().themeMode).toBe('dark');
-    expect(useSettingsStore.getState().funPickDirection).toBe('diagonal');
-    expect(useSettingsStore.getState().funPickType).toBe('2D');
     expect(useSettingsStore.getState().isLoaded).toBe(true);
 
     // A second mount must not clobber newer in-memory values.
-    mockStored = { themeMode: 'light', funPickDirection: 'all', funPickType: '4D' };
+    mockStored = { themeMode: 'light' };
     await useSettingsStore.getState().load();
     expect(useSettingsStore.getState().themeMode).toBe('dark');
   });
@@ -71,38 +63,15 @@ describe('settingsStore', () => {
 
     expect(useSettingsStore.getState().themeMode).toBe('light');
     expect(saveSettings).toHaveBeenCalledTimes(1);
-    expect(saveSettings).toHaveBeenCalledWith({
-      themeMode: 'light',
-      funPickDirection: 'all',
-      funPickType: '3D',
-    });
+    expect(saveSettings).toHaveBeenCalledWith({ themeMode: 'light' });
   });
 
   it('refuses unknown values without state change or write', async () => {
     useSettingsStore.getState().setThemeMode('neon');
-    useSettingsStore.getState().setFunPickDirection('up-left');
-    useSettingsStore.getState().setFunPickType('5D');
     await flush();
 
-    const state = useSettingsStore.getState();
-    expect(state.themeMode).toBe('system');
-    expect(state.funPickDirection).toBe('all');
-    expect(state.funPickType).toBe('3D');
+    expect(useSettingsStore.getState().themeMode).toBe('system');
     expect(saveSettings).not.toHaveBeenCalled();
-  });
-
-  it('applies and persists the Fun Pick defaults', async () => {
-    useSettingsStore.getState().setFunPickDirection('orthogonal');
-    useSettingsStore.getState().setFunPickType('4D');
-    await flush();
-
-    expect(useSettingsStore.getState().funPickDirection).toBe('orthogonal');
-    expect(useSettingsStore.getState().funPickType).toBe('4D');
-    expect(saveSettings).toHaveBeenLastCalledWith({
-      themeMode: 'system',
-      funPickDirection: 'orthogonal',
-      funPickType: '4D',
-    });
   });
 
   it('reset returns to defaults without writing storage', async () => {
@@ -115,8 +84,6 @@ describe('settingsStore', () => {
 
     const state = useSettingsStore.getState();
     expect(state.themeMode).toBe('system');
-    expect(state.funPickDirection).toBe('all');
-    expect(state.funPickType).toBe('3D');
     expect(state.isLoaded).toBe(true);
     expect(saveSettings).toHaveBeenCalledTimes(writesBefore);
   });

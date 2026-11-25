@@ -16,6 +16,7 @@ import {
   createFilterSelection,
   getFilterCounts,
   getPathDirection,
+  getPathMovement,
   hasActiveFilters,
   parseSequenceQuery,
   toggleFilterSelection,
@@ -89,8 +90,15 @@ describe('filter groups', () => {
   });
 
   it('ORs multiple direction filters inside the direction group', () => {
-    const selection = { 'direction-orthogonal': true, 'direction-diagonal': true };
+    const selection = {
+      'direction-horizontal': true,
+      'direction-vertical': true,
+      'direction-diagonal': true,
+      'direction-orthogonal': true,
+    };
     expect(digitsOf(applyFilters(BATCH, selection))).toEqual(['012', '234', '678', '901']);
+    expect(digitsOf(applyFilters(BATCH, { 'direction-horizontal': true }))).toEqual(['012', '678']);
+    expect(digitsOf(applyFilters(BATCH, { 'direction-vertical': true }))).toEqual(['901']);
   });
 
   it('ORs multiple L-pattern filters inside the shape group', () => {
@@ -107,7 +115,10 @@ describe('filter groups', () => {
     expect(digitsOf(applyFilters(BATCH, selection))).toEqual(['012']);
   });
 
-  it('classifies orthogonal and diagonal paths from coordinates', () => {
+  it('classifies horizontal, vertical, and diagonal paths from coordinates', () => {
+    expect(getPathMovement(BATCH[0].path)).toBe('horizontal');
+    expect(getPathMovement(BATCH[1].path)).toBe('diagonal');
+    expect(getPathMovement(BATCH[3].path)).toBe('vertical');
     expect(getPathDirection(BATCH[0].path)).toBe('orthogonal');
     expect(getPathDirection(BATCH[1].path)).toBe('diagonal');
     expect(getPathDirection([])).toBeNull();
@@ -116,7 +127,10 @@ describe('filter groups', () => {
   it('counts every chip on the searched batch, including Distinct', () => {
     const counts = getFilterCounts(BATCH);
     expect(counts.find((option) => option.value === 'with-0').count).toBe(2);
+    expect(counts.find((option) => option.value === 'direction-horizontal').count).toBe(2);
+    expect(counts.find((option) => option.value === 'direction-vertical').count).toBe(1);
     expect(counts.find((option) => option.value === 'direction-diagonal').count).toBe(1);
+    expect(counts.find((option) => option.value === 'direction-orthogonal').count).toBe(3);
     expect(counts.find((option) => option.value === 'distinct').count).toBe(4);
   });
 });

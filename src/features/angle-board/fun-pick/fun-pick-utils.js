@@ -15,23 +15,23 @@
  *   perpendicular to the step just taken. Straight runs and 45/135-degree
  *   turns (a diagonal mixed with an orthogonal step) are not valid angles,
  *   so a neighbour only counts when it sits on the turning axis.
- * - The direction rule picks which step families are allowed: the four
- *   orthogonal ones (L-shaped angles), the four diagonal ones (V-shaped
- *   angles between diagonals), or all eight. A 90-degree rotation keeps a
- *   step in its own family, so one path never mixes the two.
- * - The type rule picks how many digits a combination holds: 2D, 3D or 4D.
+ * - Generation walks all eight step families: four orthogonal ones
+ *   (L-shaped angles) and four diagonal ones (V-shaped angles between
+ *   diagonals). A 90-degree rotation keeps a step in its own family, so one
+ *   path never mixes the two.
+ * - Every combination holds exactly three digits.
  * - A cell is never reused within one combination, and cells outside the
  *   selection are never used.
  * - A batch holds every distinct path the rules allow: candidates are
  *   enumerated exhaustively in walk order, with no maximum result count, so
  *   repeated Generate presses over the same selection return the same set.
  * - Combinations are filtered for display by checkbox-style groups: digit
- *   buttons (With 0 / With 1 / With 2), direction buttons (Horizontal &
- *   Vertical or Diagonal), and L-shape buttons (Г / ㄱ / ┘ / L). Several
- *   buttons in one group may be active and combine with OR; active groups
- *   combine with AND. "All" clears the groups. An optional Distinct button
- *   keeps one representative per sorted-digit group. Filters overlap and
- *   never change the batch.
+ *   chips (With 0 / With 1 / With 2), direction chips (Horizontal, Vertical,
+ *   Diagonal, or Horizontal & Vertical), and L-shape chips (Г / ㄱ / ┘ / L).
+ *   Several chips in one group may be active and combine with OR; active
+ *   groups combine with AND. An optional Distinct chip keeps one
+ *   representative per sorted-digit group. Filters overlap and never change
+ *   the batch.
  * - A sequence search narrows any view further: comma-separated digit
  *   sequences ("12,4") every kept combination must contain, each sequence
  *   as a consecutive run in the given order, at any position. Search is a
@@ -46,41 +46,7 @@ export const FUN_PICK_DIRECTIONS = {
   diagonal: 'diagonal',
 };
 
-/** Direction options for the rules selector, in display order. */
-export const FUN_PICK_DIRECTION_OPTIONS = [
-  { value: FUN_PICK_DIRECTIONS.all, label: 'All directions' },
-  { value: FUN_PICK_DIRECTIONS.orthogonal, label: 'Horizontal & Vertical' },
-  { value: FUN_PICK_DIRECTIONS.diagonal, label: 'Diagonal only' },
-];
-
-/** The combination types, keyed by their display label. */
-export const FUN_PICK_TYPES = {
-  two: '2D',
-  three: '3D',
-  four: '4D',
-};
-
-/** Type options for the rules selector, in display order. */
-export const FUN_PICK_TYPE_OPTIONS = [
-  { value: FUN_PICK_TYPES.two, label: '2D', length: 2 },
-  { value: FUN_PICK_TYPES.three, label: '3D', length: 3 },
-  { value: FUN_PICK_TYPES.four, label: '4D', length: 4 },
-];
-
-/** Default combination type. */
-export const FUN_PICK_DEFAULT_TYPE = FUN_PICK_TYPES.three;
-
-/**
- * Digits per combination for a type; unknown values fall back to the default.
- *
- * @param {'2D'|'3D'|'4D'} type
- * @returns {number}
- */
-export function getTypeLength(type) {
-  return FUN_PICK_TYPE_OPTIONS.find((option) => option.value === type)?.length ?? FUN_PICK_LENGTH;
-}
-
-/** Default combination length in digits. */
+/** Digits per combination. Fun Pick is 3D only. */
 export const FUN_PICK_LENGTH = 3;
 
 /** Orthogonal neighbours: N W E S. */
@@ -268,22 +234,34 @@ export const FUN_PICK_FILTERS = [
 
 /**
  * Direction filters for the results list. They classify the path already
- * generated, unlike the Generation Rules direction, which decides which
- * paths the generator walks. Selecting both keeps orthogonal and diagonal
- * paths, so this group uses OR like the other groups.
+ * generated; generation always walks all directions. Horizontal, Vertical,
+ * Diagonal, and the combined Horizontal & Vertical option share this group,
+ * so selecting several keeps their union like the other filter groups.
  */
 export const FUN_PICK_DIRECTION_FILTERS = [
   {
-    value: 'direction-orthogonal',
-    label: 'Horizontal & Vertical',
-    direction: FUN_PICK_DIRECTIONS.orthogonal,
-    hint: 'horizontal or vertical',
+    value: 'direction-horizontal',
+    label: 'Horizontal',
+    movement: 'horizontal',
+    hint: 'horizontal',
+  },
+  {
+    value: 'direction-vertical',
+    label: 'Vertical',
+    movement: 'vertical',
+    hint: 'vertical',
   },
   {
     value: 'direction-diagonal',
     label: 'Diagonal',
     direction: FUN_PICK_DIRECTIONS.diagonal,
     hint: 'diagonal',
+  },
+  {
+    value: 'direction-orthogonal',
+    label: 'Horizontal & Vertical',
+    direction: FUN_PICK_DIRECTIONS.orthogonal,
+    hint: 'horizontal or vertical',
   },
 ];
 
@@ -307,9 +285,35 @@ export const FUN_PICK_SELECTABLE_FILTERS = FUN_PICK_RESULT_FILTER_OPTIONS.filter
 );
 
 /**
- * The step family used by a path, or null for a path that mixes families.
- * Generation keeps one family per path, so the first step already decides;
- * checking every step keeps this safe for any batch handed to the filters.
+ * Movement of a path's first step, or null for an invalid path.
+ *
+ * Generation bends 90 degrees after the first step, so a 3-digit L path has
+ * both horizontal and vertical segments. The result filters split those
+ * paths by the movement that starts them; the existing "Horizontal &
+ * Vertical" filter still matches the whole family.
+ *
+ * @param {Array<{ row: number, column: number }>} path
+ * @returns {'horizontal'|'vertical'|'diagonal'|null}
+ */
+export function getPathMovement(path) {
+  if (!Array.isArray(path) || path.length < 2) return null;
+
+  const first = path[0];
+  const second = path[1];
+  if (!first || !second) return null;
+
+  const rowDistance = Math.abs(second.row - first.row);
+  const columnDistance = Math.abs(second.column - first.column);
+  if (rowDistance === 0 && columnDistance > 0) return 'horizontal';
+  if (columnDistance === 0 && rowDistance > 0) return 'vertical';
+  if (rowDistance > 0 && columnDistance > 0) return 'diagonal';
+  return null;
+}
+
+/**
+ * The generation family used by a path: orthogonal turns include both
+ * horizontal and vertical movements, so this keeps the original
+ * "Horizontal & Vertical" filter working for L-shaped paths.
  *
  * @param {Array<{ row: number, column: number }>} path
  * @returns {'orthogonal'|'diagonal'|null}
@@ -343,13 +347,14 @@ export function getPathDirection(path) {
  * Whether a combination is shown by one filter option.
  *
  * @param {{ digits: string, path: Array<{ row: number, column: number }> }} combination
- * @param {{ digit?: string|null, direction?: string|null, pattern?: string|null }} filter
+ * @param {{ digit?: string|null, direction?: string|null, movement?: string|null, pattern?: string|null }} filter
  * @returns {boolean}
  */
 export function matchesFilter(combination, filter) {
   if (filter.digit != null) {
     return typeof combination.digits === 'string' && combination.digits.includes(filter.digit);
   }
+  if (filter.movement != null) return getPathMovement(combination.path) === filter.movement;
   if (filter.direction != null) return getPathDirection(combination.path) === filter.direction;
   if (filter.pattern != null) return getLPattern(combination.path) === filter.pattern;
   return true;
@@ -466,11 +471,11 @@ export function applyFilters(combinations, selection) {
     );
   }
 
-  const directions = FUN_PICK_DIRECTION_FILTERS.filter((filter) => active[filter.value]).map(
-    (filter) => filter.direction
-  );
-  if (directions.length > 0) {
-    result = result.filter((combination) => directions.includes(getPathDirection(combination.path)));
+  const activeDirectionFilters = FUN_PICK_DIRECTION_FILTERS.filter((filter) => active[filter.value]);
+  if (activeDirectionFilters.length > 0) {
+    result = result.filter((combination) =>
+      activeDirectionFilters.some((filter) => matchesFilter(combination, filter))
+    );
   }
 
   const patterns = FUN_PICK_FILTERS.filter(

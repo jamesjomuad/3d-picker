@@ -25,9 +25,10 @@ const COPY_FEEDBACK_MS = 1600;
  * @param {number[][]} props.grid - the board's digits, read row-major
  * @param {Set<string>} props.selection - selected "row,col" keys
  * @param {Function} [props.onClear] - called when the Clear button is pressed
+ * @param {Function} [props.onFunPick] - called when the Fun Pick button is pressed
  * @param {Object} [props.style] - Additional card styles
  */
-export function SelectedCellsCard({ grid, selection, onClear, style }) {
+export function SelectedCellsCard({ grid, selection, onClear, onFunPick, style }) {
   const theme = useTheme();
   const [copyStatus, setCopyStatus] = useState('idle');
   const resetTimer = useRef(null);
@@ -72,6 +73,11 @@ export function SelectedCellsCard({ grid, selection, onClear, style }) {
       title="Selected Cells"
       trailing={
         <View style={styles.headerActions} pointerEvents="box-none">
+          {onClear && (
+            <Button size="sm" variant="outline" onPress={onClear}>
+              Clear
+            </Button>
+          )}
           <Button
             size="sm"
             variant="outline"
@@ -79,9 +85,9 @@ export function SelectedCellsCard({ grid, selection, onClear, style }) {
             disabled={!summary.hasSelection}>
             {copyLabel}
           </Button>
-          {onClear && (
-            <Button size="sm" variant="outline" onPress={onClear}>
-              Clear
+          {onFunPick && summary.hasSelection && (
+            <Button size="sm" variant="primary" onPress={onFunPick}>
+              Fun Pick
             </Button>
           )}
         </View>

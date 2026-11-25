@@ -73,6 +73,8 @@ function getSymbolName(name) {
     'gearshape': { ios: 'gearshape', android: 'settings', web: 'settings' },
     'square.and.pencil': { ios: 'square.and.pencil', android: 'edit', web: 'edit' },
     'magnifyingglass': { ios: 'magnifyingglass', android: 'search', web: 'search' },
+    'basket': { ios: 'basket.fill', android: 'shopping_basket', web: 'shopping_basket' },
+    'collection': { ios: 'list.bullet.rectangle.fill', android: 'list_alt', web: 'list_alt' },
     'checkmark': { ios: 'checkmark', android: 'check', web: 'check' },
     'info.circle': { ios: 'info.circle', android: 'info', web: 'info' },
   };
