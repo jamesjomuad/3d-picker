@@ -163,7 +163,7 @@ export default function PickerScreen() {
     [plot, board, mode]
   );
 
-  // Plot owns the colour layer while shown; `plotCells` keeps the saved outline.
+  // Plot owns the colour layer while shown; `plotCells` washes the saved cells.
   const highlights = plotHighlights ? plotHighlights.highlights : searchHighlights;
   const matchCount = plotHighlights?.results.length ?? 0;
   const plotHint = !plot

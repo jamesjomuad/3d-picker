@@ -4,8 +4,8 @@
  * Plotting a saved pick reuses the search engine: the saved digits are matched
  * against the board shown now, and every matching path is coloured the same
  * way a typed search colours its results. The saved coordinates remain a
- * separate outline supplied by `plotCells`; this module only builds the colour
- * layer, so the preview and the plotted board agree.
+ * separate background wash supplied by `plotCells`; this module only builds
+ * the colour layer, so the preview and the plotted board agree.
  */
 
 import { searchCombinations } from '@/utils/combination-search';

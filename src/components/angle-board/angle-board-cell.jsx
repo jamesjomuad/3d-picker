@@ -31,7 +31,7 @@ const PLOT_ALPHA = '1F';
  * @param {boolean} [props.isMatch] - a Replace-tool match found in the original
  *   board snapshot; tinted, but weaker than a selection or a search result
  * @param {boolean} [props.isPlotted] - temporary plotted basket-pick cell: a
- *   light wash plus a primary-coloured outline, distinct from a solid selection
+ *   light wash, distinct from a solid selection
  * @param {number} props.cellSize - Size of the cell in pixels
  */
 export const AngleBoardCell = memo(function AngleBoardCell({
@@ -72,8 +72,8 @@ export const AngleBoardCell = memo(function AngleBoardCell({
           width: cellSize,
           height: cellSize,
           backgroundColor,
-          borderColor: isPlotted ? theme.primary : theme.textSecondary + '20',
-          borderWidth: isPlotted ? 2 : 1,
+          borderColor: theme.textSecondary + '20',
+          borderWidth: 1,
         },
       ]}>
       {segments?.map((color, index) => (

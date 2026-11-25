@@ -64,8 +64,8 @@ const NO_PLOT_CELLS = new Set();
  *   tinted, in display and editable mode alike. Selection still wins; kept
  *   separate from `highlights` so search colours and replace tints never mix.
  * @param {Set<string>} [props.plotCells] - temporary "row,col" keys from a
- *   saved basket pick plotted on this board; a subtle outline that is not a
- *   selection and never mutates the grid
+ *   saved basket pick plotted on this board; a light background wash that is
+ *   not a selection and never mutates the grid
  * @param {Object} [props.style] - extra style for the outer wrapper
  */
 export function AngleBoard({
