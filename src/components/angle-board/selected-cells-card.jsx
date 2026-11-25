@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
 import { Button } from '@/components/ui/button';
 import { FoldableCard } from '@/components/ui/foldable-card';
 import { BorderRadius, Fonts, Spacing, Typography } from '@/constants/theme';
@@ -16,7 +17,7 @@ const COPY_FEEDBACK_MS = 1600;
  * Selected cells card
  *
  * Shows the digits, coordinates and range for an Angle Board selection, plus
- * a compact insights row (cell, digit and Fun Pick combination counts). It
+ * a compact bordered insights card (cell, digit and Fun Pick combination counts). It
  * takes the same `grid` + `selection` pair the board takes, so it sits beside
  * the board in any screen and never reads a store or modifies the selection
  * itself.
@@ -121,7 +122,9 @@ export function SelectedCellsCard({ grid, selection, onClear, onFunPick, style }
             </ThemedText>
           </View>
 
-          <View style={styles.insights}>
+          <ThemedView
+            type="background"
+            style={[styles.insights, { borderColor: theme.border }]}>
             <ThemedText themeColor="textSecondary" style={styles.insightsTitle}>
               Insights
             </ThemedText>
@@ -135,7 +138,7 @@ export function SelectedCellsCard({ grid, selection, onClear, onFunPick, style }
                 </View>
               ))}
             </View>
-          </View>
+          </ThemedView>
         </View>
       ) : (
         <ThemedText themeColor="textSecondary" style={styles.emptyText}>
@@ -186,22 +189,26 @@ const styles = StyleSheet.create({
     lineHeight: Typography.lineHeight.caption,
   },
   insights: {
-    gap: Spacing.one,
+    gap: Spacing.two,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.two,
   },
   insightsTitle: {
     fontSize: Typography.size.caption,
     lineHeight: Typography.lineHeight.caption,
+    fontWeight: Typography.weight.semibold,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
   statRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.three,
+    gap: Spacing.two,
   },
   stat: {
     minWidth: 64,
-    gap: 1,
+    gap: Spacing.half,
   },
   statValue: {
     fontFamily: Fonts.mono,
