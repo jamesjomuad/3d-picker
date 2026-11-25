@@ -18,6 +18,9 @@ const NO_HIGHLIGHTS = { cells: new Map() };
 /** Identity-stable stand-in for a board with no Replace-tool matches. */
 const NO_MATCHES = new Set();
 
+/** Identity-stable stand-in for a board with no temporary plot preview. */
+const NO_PLOT_CELLS = new Set();
+
 /**
  * Angle Board — the digit grid with spreadsheet-style selection.
  *
@@ -60,6 +63,9 @@ const NO_MATCHES = new Set();
  *   from the editing session's original snapshot): every "row,col" key is
  *   tinted, in display and editable mode alike. Selection still wins; kept
  *   separate from `highlights` so search colours and replace tints never mix.
+ * @param {Set<string>} [props.plotCells] - temporary "row,col" keys from a
+ *   saved basket pick plotted on this board; a subtle outline that is not a
+ *   selection and never mutates the grid
  * @param {Object} [props.style] - extra style for the outer wrapper
  */
 export function AngleBoard({
@@ -70,6 +76,7 @@ export function AngleBoard({
   onCellChange,
   highlights,
   matchHighlights,
+  plotCells,
   style,
 }) {
   const editing = useAngleBoardEditing({ grid, onCellChange });
@@ -102,6 +109,7 @@ export function AngleBoard({
   const cells = selection ?? NO_SELECTION;
   const marks = highlights ?? NO_HIGHLIGHTS;
   const matches = matchHighlights ?? NO_MATCHES;
+  const plotted = plotCells ?? NO_PLOT_CELLS;
 
   // Which rows and columns the headers should mark: the drag in progress wins
   // while it lasts, then the committed selection keeps its own rows and columns
@@ -124,6 +132,7 @@ export function AngleBoard({
           highlightCells={marks.cells}
           highlightActiveText={marks.activeText}
           matchCells={matches}
+          plotCells={plotted}
           rowHighlights={headerMarks.rows}
           colHighlights={headerMarks.cols}
           editable={editable}

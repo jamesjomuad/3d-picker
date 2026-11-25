@@ -24,6 +24,8 @@ import { AngleBoardColumnHeaders, AngleBoardRowHeader } from './angle-board-head
  *   solid-filled with its active path colour
  * @param {Set<string>} [props.matchCells] - Replace-tool matches, tinted in both
  *   display and editable cells
+ * @param {Set<string>} [props.plotCells] - temporary plotted-pick keys; display
+ *   cells only, since the Picker board is never editable
  * @param {Set<number>} props.rowHighlights
  * @param {Set<number>} props.colHighlights
  * @param {boolean} props.editable
@@ -38,6 +40,7 @@ export function AngleBoardGrid({
   highlightCells,
   highlightActiveText,
   matchCells,
+  plotCells,
   rowHighlights,
   colHighlights,
   editable = false,
@@ -86,6 +89,7 @@ export function AngleBoardGrid({
                 search={highlightCells?.get(`${rowIndex},${colIndex}`) ?? null}
                 searchActiveText={highlightActiveText}
                 isMatch={matchCells?.has(`${rowIndex},${colIndex}`) ?? false}
+                isPlotted={plotCells?.has(`${rowIndex},${colIndex}`) ?? false}
                 cellSize={cellSize}
               />
             )

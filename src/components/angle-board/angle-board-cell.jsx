@@ -10,6 +10,9 @@ const SEGMENT_ALPHA = '59';
 /** Alpha suffix for a Replace-tool match tint: subtle, distinct from a selection. */
 const MATCH_ALPHA = '33';
 
+/** Alpha suffix for a plotted basket pick: a wash, not a solid selection. */
+const PLOT_ALPHA = '1F';
+
 /**
  * Individual cell in the Angle Board grid
  * Displays a single digit (0-9)
@@ -27,6 +30,8 @@ const MATCH_ALPHA = '33';
  *   active cell, chosen by the palette for contrast
  * @param {boolean} [props.isMatch] - a Replace-tool match found in the original
  *   board snapshot; tinted, but weaker than a selection or a search result
+ * @param {boolean} [props.isPlotted] - temporary plotted basket-pick cell: a
+ *   light wash plus a primary-coloured outline, distinct from a solid selection
  * @param {number} props.cellSize - Size of the cell in pixels
  */
 export const AngleBoardCell = memo(function AngleBoardCell({
@@ -35,12 +40,17 @@ export const AngleBoardCell = memo(function AngleBoardCell({
   search = null,
   searchActiveText,
   isMatch = false,
+  isPlotted = false,
   cellSize,
 }) {
   const theme = useTheme();
 
   let backgroundColor = isMatch ? theme.match + MATCH_ALPHA : theme.backgroundElement;
   let textColor = isMatch ? theme.text : theme.textSecondary;
+  if (isPlotted && !isSelected && !search?.activeColor) {
+    backgroundColor = theme.primary + PLOT_ALPHA;
+    textColor = theme.text;
+  }
   if (!isSelected && search?.activeColor) {
     backgroundColor = search.activeColor;
     textColor = searchActiveText ?? theme.primaryText;
@@ -62,7 +72,8 @@ export const AngleBoardCell = memo(function AngleBoardCell({
           width: cellSize,
           height: cellSize,
           backgroundColor,
-          borderColor: theme.textSecondary + '20',
+          borderColor: isPlotted ? theme.primary : theme.textSecondary + '20',
+          borderWidth: isPlotted ? 2 : 1,
         },
       ]}>
       {segments?.map((color, index) => (

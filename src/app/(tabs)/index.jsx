@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AngleBoard, SelectedCellsCard } from '@/components/angle-board';
 import { CombinationSearchBar } from '@/components/search/combination-search-bar';
@@ -14,7 +15,13 @@ import { useScreenInsets } from '@/hooks/use-screen-insets';
 import { useTheme } from '@/hooks/use-theme';
 import { useAngleBoardStore } from '@/store/angleBoardStore';
 import { useLibraryStore } from '@/store/libraryStore';
-import { parseCombinationList, searchCombinations } from '@/utils/combination-search';
+import { MAX_RESULTS, parseCombinationList, searchCombinations } from '@/utils/combination-search';
+import {
+  PLOT_PARAM,
+  parsePlotRequest,
+  validatePlotRequest,
+} from '@/utils/plot-combination';
+import { buildPlotHighlights } from '@/utils/plot-highlights';
 import { assignResultColors, buildSearchHighlights } from '@/utils/search-highlight-utils';
 
 /**
@@ -28,6 +35,15 @@ import { assignResultColors, buildSearchHighlights } from '@/utils/search-highli
  * settled into a query, which result is being shown. None of it belongs in a
  * store — nothing else reads it, and the board only ever receives derived,
  * coloured cell data from `@/utils/search-highlight-utils`.
+ *
+ * A saved basket pick can arrive as a one-shot route param. It is validated
+ * against the board that is active at that moment, then shown as a temporary
+ * cell highlight — never written to the grid, never persisted, and never sent
+ * back to the board the pick originally came from.
+ *
+ * Plotting now reuses the search engine: the saved digits light up every path
+ * that matches them on the active board, while the saved coordinates stay a
+ * separate outline.
  */
 export default function PickerScreen() {
   const theme = useTheme();
@@ -43,20 +59,68 @@ export default function PickerScreen() {
     return state.boards.find((b) => b.id === state.activeBoardId) || state.boards[0] || null;
   });
 
-  useEffect(() => {
-    loadLibrary();
-  }, [loadLibrary]);
+  // One-shot plot request from the Collection tab. The raw param is consumed
+  // once so revisiting this tab never replays an old highlight.
+  const params = useLocalSearchParams();
+  const rawPlot = params[PLOT_PARAM];
+  const consumedPlot = useRef(null);
+  const [plot, setPlot] = useState(null);
 
   // Combination search. `draft` is what the field holds; `query` is what the
   // engine has actually run, once typing pauses or the search key commits it.
   const [draft, setDraft] = useState('');
   const [query, setQuery] = useState('');
   const settledDraft = useDebouncedValue(draft);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const boardId = board?.id ?? null;
+  const scheme = useColorScheme();
+  const mode = scheme === 'dark' ? 'dark' : 'light';
+
+  useEffect(() => {
+    loadLibrary();
+  }, [loadLibrary]);
+
+  // A different board means the old coordinates belong to a different grid.
+  useEffect(() => {
+    setPlot(null);
+  }, [boardId]);
+
+  // Tabs keep screens mounted, so blur is the reliable "exit" signal: a
+  // preview must not still be showing when the user comes back later.
+  useFocusEffect(
+    useCallback(() => {
+      return () => setPlot(null);
+    }, [])
+  );
+
+  useEffect(() => {
+    if (!isLoaded || !board) return;
+    if (rawPlot === undefined || rawPlot === '' || consumedPlot.current === rawPlot) return;
+    consumedPlot.current = rawPlot;
+
+    // Validate again here, on the board actually being displayed: the active
+    // board may have changed since Collection validated the same coordinates.
+    const result = validatePlotRequest(parsePlotRequest(rawPlot), board.grid);
+    if (!result.valid) {
+      Alert.alert('Cannot plot pick', result.error);
+    } else {
+      setPlot({ digits: result.digits, path: result.path, cells: result.cells });
+      // Plot colours take over the board, so clear any older search view
+      // instead of leaving a results card for digits no longer on show.
+      setDraft('');
+      setQuery('');
+      setActiveIndex(0);
+      // A fresh preview should be unobstructed by an older selection.
+      clearSelection();
+    }
+    router.setParams({ [PLOT_PARAM]: '' });
+  }, [board, clearSelection, isLoaded, rawPlot]);
+
   useEffect(() => {
     setQuery(settledDraft);
   }, [settledDraft]);
 
-  const [activeIndex, setActiveIndex] = useState(0);
   useEffect(() => {
     setActiveIndex(0);
   }, [query]);
@@ -76,8 +140,6 @@ export default function PickerScreen() {
 
   // One palette colour per combination, shared by every path it matched,
   // recoloured when the system theme flips so board and list keep agreeing.
-  const scheme = useColorScheme();
-  const mode = scheme === 'dark' ? 'dark' : 'light';
   const groupColors = useMemo(() => assignResultColors(groups.length, mode), [groups.length, mode]);
 
   // The board takes one flat list, each result carrying its combination's
@@ -88,22 +150,50 @@ export default function PickerScreen() {
     [groups, groupColors]
   );
 
-  // The board's colour layer: every crossed cell knows the colours of the
-  // combinations through it, the emphasised result's cells are solid-filled.
-  // Null while nothing matched keeps the board prop-free.
-  const highlights = useMemo(
+  // Search colours, kept separate so a plot can take over the board without
+  // changing the query or the results card.
+  const searchHighlights = useMemo(
     () => buildSearchHighlights(flatResults, activeIndex, mode, resultColors),
     [flatResults, activeIndex, mode, resultColors]
   );
 
+  // A plot runs the same search on the active grid: every matching path gets a
+  // colour, and the saved path is emphasised when it still matches.
+  const plotHighlights = useMemo(
+    () => (plot && board ? buildPlotHighlights(board.grid, plot.digits, plot.path, mode) : null),
+    [plot, board, mode]
+  );
+
+  // Plot owns the colour layer while shown; `plotCells` keeps the saved outline.
+  const highlights = plotHighlights ? plotHighlights.highlights : searchHighlights;
+  const matchCount = plotHighlights?.results.length ?? 0;
+  const plotHint = !plot
+    ? 'Tap or drag to select cells'
+    : matchCount === 0
+      ? `Plotted ${plot.digits} · no matching paths on this board`
+      : `Plotted ${plot.digits} · ${
+          matchCount >= MAX_RESULTS ? `${MAX_RESULTS}+` : matchCount
+        } matching path${matchCount === 1 ? '' : 's'} on this board`;
+
   const handleSearchSubmit = useCallback(() => {
+    setPlot(null);
     setQuery(draft);
   }, [draft]);
 
   const handleSearchClear = useCallback(() => {
+    setPlot(null);
     setDraft('');
     setQuery('');
   }, []);
+
+  // Any new board gesture replaces the preview with the user's own selection.
+  const handleSelectionChange = useCallback(
+    (cells) => {
+      setPlot(null);
+      setSelection(cells);
+    },
+    [setSelection]
+  );
 
   // Feedback while typing: the engine ignores anything that is not digits
   // and commas, so say so instead of quietly showing "no matches".
@@ -130,7 +220,7 @@ export default function PickerScreen() {
         <ThemedView style={styles.headerContainer}>
           <ThemedText type="subtitle">{board.name}</ThemedText>
           <ThemedText themeColor="textSecondary" style={styles.subtitleText}>
-            Tap or drag to select cells
+            {plotHint}
           </ThemedText>
         </ThemedView>
 
@@ -146,8 +236,9 @@ export default function PickerScreen() {
         <AngleBoard
           grid={board.grid}
           selection={selection}
-          onSelectionChange={setSelection}
+          onSelectionChange={handleSelectionChange}
           highlights={highlights}
+          plotCells={plot?.cells}
         />
 
         {query !== '' && isValidQuery && (
@@ -155,7 +246,10 @@ export default function PickerScreen() {
             groups={groups}
             colors={groupColors}
             activeIndex={activeIndex}
-            onSelectResult={setActiveIndex}
+            onSelectResult={(index) => {
+              setPlot(null);
+              setActiveIndex(index);
+            }}
             style={styles.resultsCard}
           />
         )}
