@@ -8,8 +8,8 @@ import { useTheme } from '@/hooks/use-theme';
 /**
  * Combination search field for the Picker screen.
  *
- * Digit combinations separated by commas ("123, 456"): the engine caps the
- * work, not the query. The screen owns the text, debounces it, and decides
+ * Digit combinations separated by commas or spaces ("123, 456"): the engine
+ * caps the work, not the query. The screen owns the text, debounces it, and decides
  * when a submission settles early; this component just reports typing,
  * submitting and clearing.
  *
@@ -43,11 +43,11 @@ export function CombinationSearchBar({ value, onChangeText, onSubmit, onClear, e
           value={value}
           onChangeText={onChangeText}
           onSubmitEditing={onSubmit}
-          placeholder="e.g. 123, 456"
+          placeholder="e.g. 123 456"
           placeholderTextColor={theme.disabledText}
-          // iOS has a digits-and-punctuation pad; Android's number pad has no
-          // comma key, so it gets the normal keyboard and types commas there.
-          keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'}
+          // iOS has a digits-and-punctuation pad with a comma key. Android gets
+          // a numeric pad; spaces also separate combinations there.
+          keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'numeric'}
           returnKeyType="search"
           maxLength={60}
           autoCapitalize="none"

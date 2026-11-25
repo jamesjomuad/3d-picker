@@ -237,8 +237,10 @@ describe('parseCombination', () => {
 });
 
 describe('parseCombinationList', () => {
-  it('splits on commas and trims whitespace around each entry', () => {
+  it('splits on commas or spaces and trims around each entry', () => {
     expect(parseCombinationList('123, 456 ,789')).toEqual(['123', '456', '789']);
+    expect(parseCombinationList('123 456  789')).toEqual(['123', '456', '789']);
+    expect(parseCombinationList('123, 456 789')).toEqual(['123', '456', '789']);
   });
 
   it('ignores empty entries from stray or trailing commas', () => {
@@ -254,7 +256,6 @@ describe('parseCombinationList', () => {
     expect(parseCombinationList('')).toBeNull();
     expect(parseCombinationList(' , ')).toBeNull();
     expect(parseCombinationList('123, abc')).toBeNull();
-    expect(parseCombinationList('12 3')).toBeNull();
     expect(parseCombinationList(null)).toBeNull();
   });
 });

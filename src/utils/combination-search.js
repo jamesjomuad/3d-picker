@@ -54,13 +54,13 @@ export function parseCombination(combination) {
 }
 
 /**
- * Parse a comma-separated search field into individual combinations.
+ * Parse a comma- or whitespace-separated search field into combinations.
  *
- * "123, 456 , 789" → ["123", "456", "789"]. Whitespace around each entry is
- * trimmed and empty entries are ignored, so a trailing comma mid-typing is
- * harmless. Returns null when the field holds no entry or any entry fails
- * `parseCombination`, so the caller rejects the whole query the same way a
- * corrupted single combination is rejected.
+ * "123, 456 , 789" and "123 456 789" both → ["123", "456", "789"]. Repeating
+ * separators make empty entries, which are ignored, so a trailing comma
+ * mid-typing is harmless. Returns null when the field holds no entry or any
+ * entry fails `parseCombination`, so the caller rejects the whole query the
+ * same way a corrupted single combination is rejected.
  *
  * @param {string} query
  * @returns {string[]|null} the valid combination strings, in typed order
@@ -69,8 +69,7 @@ export function parseCombinationList(query) {
   if (typeof query !== 'string') return null;
 
   const parts = query
-    .split(',')
-    .map((part) => part.trim())
+    .split(/[,\s]+/)
     .filter((part) => part.length > 0);
 
   if (parts.length === 0) return null;

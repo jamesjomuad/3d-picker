@@ -195,10 +195,12 @@ export default function PickerScreen() {
     [setSelection]
   );
 
-  // Feedback while typing: the engine ignores anything that is not digits
-  // and commas, so say so instead of quietly showing "no matches".
+  // Feedback while typing: the engine ignores anything that is not digits,
+  // commas or spaces, so say so instead of quietly showing "no matches".
   const searchError =
-    draft !== '' && parseCombinationList(draft) === null ? 'Digits (0-9), separated by commas' : undefined;
+    draft !== '' && parseCombinationList(draft) === null
+      ? 'Digits (0-9), separated by commas or spaces'
+      : undefined;
 
   if (!isLoaded || !board) {
     return (
