@@ -2,6 +2,25 @@ import { InfoLink, InfoScreen } from '@/components/info/info-screen';
 
 const SECTIONS = [
   {
+    title: 'Version 1.3.0 — November 25, 2026',
+    items: [
+      'Backup and restore saved boards and collection with JSON export and import',
+      'In-app pages for What’s New, Privacy Policy and open-source licenses',
+      'Selected Cells Insights grouped in a simple bordered card',
+      {
+        text: 'Changed',
+        detail:
+          'Dark active tab icons use the app primary color. Clear App Data now clears cached draw results too.',
+        icon: 'arrow.clockwise',
+      },
+      {
+        text: 'Fixed',
+        detail: 'Foldable cards and option sheets no longer nest web buttons.',
+        icon: 'checkmark.circle',
+      },
+    ],
+  },
+  {
     title: 'Version 1.2.0 — November 25, 2026',
     items: [
       'JSON board editor with syntax highlighting, line numbers, errors, preview and apply',
@@ -51,8 +70,8 @@ export default function ChangelogScreen() {
       sections={SECTIONS}
       footer={
         <>
-          <InfoLink href="https://github.com/jamesjomuad/3d-picker/releases/tag/v1.2.0">
-            View v1.2.0 release notes
+          <InfoLink href="https://github.com/jamesjomuad/3d-picker/releases/tag/v1.3.0">
+            View v1.3.0 release notes
           </InfoLink>
           <InfoLink href="https://github.com/jamesjomuad/3d-picker/releases">
             View all releases

@@ -3,6 +3,20 @@
 All notable changes to 3D Picker are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [semantic versioning](https://semver.org/).
 
+## [1.3.0] - 2026-11-25
+
+### Added
+- **Backup and restore** — export saved boards and collection as versioned JSON, then import with strict validation and destructive confirmation.
+- **In-app info pages** — What's New, Privacy Policy and open-source licenses are available from Settings.
+
+### Changed
+- Selected Cells Insights now sits in a simple themed bordered card.
+- Active dark-mode tab icons use the app primary color.
+- Clear App Data now clears cached draw results in memory as well as on device.
+
+### Fixed
+- Foldable cards and option sheets no longer nest web buttons, avoiding React hydration warnings on web.
+
 ## [1.2.0] - 2026-11-25
 
 ### Added
@@ -64,6 +78,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Board library** — editable grids, board creation, persistence on-device, boards screen.
 - Reusable UI primitives (button, input, text, confirm dialog) with light/dark theming.
 
+[1.3.0]: https://github.com/jamesjomuad/3d-picker/releases/tag/v1.3.0
 [1.2.0]: https://github.com/jamesjomuad/3d-picker/releases/tag/v1.2.0
 [1.1.0]: https://github.com/jamesjomuad/3d-picker/releases/tag/v1.1.0
 [1.0.0]: https://github.com/jamesjomuad/3d-picker/releases/tag/v1.0.0
