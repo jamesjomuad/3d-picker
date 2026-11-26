@@ -21,7 +21,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BorderRadius, Spacing, Typography } from '@/constants/theme';
+import { BorderRadius, Interaction, Spacing, TouchTarget, Typography } from '@/constants/theme';
 import { useScreenInsets } from '@/hooks/use-screen-insets';
 import { useTheme } from '@/hooks/use-theme';
 import { router } from 'expo-router';
@@ -80,6 +80,7 @@ export default function BoardsScreen() {
   const [jsonErrors, setJsonErrors] = useState([]);
   const [jsonApplying, setJsonApplying] = useState(false);
   const [pendingEditMode, setPendingEditMode] = useState(null);
+  const [pendingClose, setPendingClose] = useState(false);
 
   useEffect(() => {
     loadLibrary();
@@ -120,6 +121,7 @@ export default function BoardsScreen() {
     setJsonErrors([]);
     setJsonApplying(false);
     setPendingEditMode(null);
+    setPendingClose(false);
   }, []);
 
   // The sheet carries its own fill pattern, so it starts clean each time: a
@@ -147,6 +149,16 @@ export default function BoardsScreen() {
     setEditingBoardId(null);
     resetJsonEditor();
   }, [resetJsonEditor]);
+
+  // Closing with unapplied JSON text is data loss. Ask first, same as switching
+  // editor modes does.
+  const requestCloseEditSheet = useCallback(() => {
+    if (editMode === EDIT_MODE_JSON && isJsonDirty) {
+      setPendingClose(true);
+      return;
+    }
+    closeEditSheet();
+  }, [closeEditSheet, editMode, isJsonDirty]);
 
   const openReplaceTool = useCallback(() => {
     setReplaceMatches(null);
@@ -558,12 +570,23 @@ export default function BoardsScreen() {
         onConfirm={handleDiscardJson}
       />
 
+      <ConfirmDialog
+        visible={pendingClose}
+        title="Discard JSON changes?"
+        message="Unapplied JSON edits will be lost. The board stays as it is."
+        confirmLabel="Discard and close"
+        confirmVariant="destructive"
+        cancelLabel="Keep editing"
+        onCancel={() => setPendingClose(false)}
+        onConfirm={closeEditSheet}
+      />
+
       {/* Edit sheet: the same board, in editable mode */}
       <Modal
         visible={!!editingBoard}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={closeEditSheet}>
+        onRequestClose={requestCloseEditSheet}>
         <KeyboardAvoidingView
           behavior="padding"
           style={[styles.editModal, { backgroundColor: theme.background }]}>
@@ -680,49 +703,75 @@ export default function BoardsScreen() {
 
               <View style={styles.editFooterActions}>
                 {editMode === EDIT_MODE_VISUAL ? (
-                  <Button
-                    variant={showReplaceTool ? 'secondary' : 'outline'}
-                    onPress={toggleReplaceTool}
-                    style={styles.footerAction}
-                    icon={showReplaceTool ? 'xmark' : 'swap'}>
-                    {showReplaceTool ? 'Close Replace' : 'Replace'}
-                  </Button>
-                ) : (
-                  <>
-                    <Button
-                      variant="outline"
-                      onPress={handleJsonCancel}
-                      disabled={jsonApplying}
-                      style={styles.footerAction}
-                      icon="xmark">
-                      Cancel
-                    </Button>
+                  <View style={styles.editActionRow}>
                     <Button
                       variant="secondary"
-                      onPress={handleJsonPreview}
-                      disabled={jsonApplying || !jsonText.trim()}
+                      onPress={toggleReplaceTool}
                       style={styles.footerAction}
-                      icon="eye">
-                      Preview Changes
+                      icon={showReplaceTool ? 'xmark' : 'swap'}
+                      accessibilityLabel={showReplaceTool ? 'Close Replace tool' : 'Open Replace tool'}>
+                      {showReplaceTool ? 'Close Replace' : 'Replace'}
                     </Button>
                     <Button
-                      onPress={handleJsonApply}
-                      disabled={!jsonPreview || jsonApplying}
-                      loading={jsonApplying}
+                      variant="primary"
+                      onPress={requestCloseEditSheet}
                       style={styles.footerAction}
-                      icon="checkmark">
-                      Apply Changes
+                      icon="checkmark.circle"
+                      accessibilityLabel="Close board editor"
+                      accessibilityHint="Cell edits are saved as you make them.">
+                      Done
                     </Button>
+                  </View>
+                ) : (
+                  <>
+                    <View style={styles.editActionRow}>
+                      <Button
+                        variant="outline"
+                        onPress={handleJsonCancel}
+                        disabled={jsonApplying}
+                        style={styles.footerAction}
+                        icon="xmark"
+                        accessibilityLabel="Discard JSON changes"
+                        accessibilityHint="Returns to the visual editor without applying JSON edits.">
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onPress={handleJsonPreview}
+                        disabled={jsonApplying || !jsonText.trim()}
+                        style={styles.footerAction}
+                        icon="eye"
+                        accessibilityLabel="Preview JSON changes"
+                        accessibilityHint="Checks the JSON and shows what will change.">
+                        Preview Changes
+                      </Button>
+                    </View>
+                    <View style={styles.editActionRow}>
+                      <Button
+                        variant="secondary"
+                        onPress={requestCloseEditSheet}
+                        style={styles.footerAction}
+                        icon="xmark.circle"
+                        accessibilityLabel="Close board editor"
+                        accessibilityHint={
+                          isJsonDirty ? 'Unapplied JSON edits will be discarded.' : undefined
+                        }>
+                        Close
+                      </Button>
+                      <Button
+                        variant="primary"
+                        onPress={handleJsonApply}
+                        disabled={!jsonPreview || jsonApplying}
+                        loading={jsonApplying}
+                        style={styles.footerAction}
+                        icon="checkmark"
+                        accessibilityLabel="Apply JSON changes"
+                        accessibilityHint="Requires a successful preview.">
+                        Apply Changes
+                      </Button>
+                    </View>
                   </>
                 )}
-
-                <Button
-                  variant="primary"
-                  onPress={closeEditSheet}
-                  style={styles.footerAction}
-                  icon="checkmark.circle">
-                  Done
-                </Button>
               </View>
             </View>
           </View>
@@ -796,7 +845,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     borderRadius: BorderRadius.full,
     borderWidth: StyleSheet.hairlineWidth,
-    minHeight: 44,
+    minHeight: TouchTarget,
     justifyContent: 'center',
   },
   filterText: {
@@ -862,14 +911,16 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   editFooterActions: {
+    gap: Spacing.two,
+  },
+  editActionRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: Spacing.two,
   },
   footerAction: {
-    flexGrow: 1,
+    flex: 1,
     minWidth: 96,
-    minHeight: 48,
+    minHeight: TouchTarget,
   },
   modeSwitch: {
     flexDirection: 'row',
@@ -877,7 +928,7 @@ const styles = StyleSheet.create({
   },
   modeTab: {
     flex: 1,
-    minHeight: 48,
+    minHeight: TouchTarget,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: BorderRadius.md,
@@ -890,6 +941,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   pressed: {
-    opacity: 0.7,
+    opacity: Interaction.pressedOpacity,
   },
 });

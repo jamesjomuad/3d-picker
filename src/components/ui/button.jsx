@@ -1,6 +1,6 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { BorderRadius, Spacing, Typography } from '@/constants/theme';
+import { BorderRadius, Interaction, Spacing, TouchTarget, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { AppIcon } from './app-icon';
 
@@ -18,6 +18,7 @@ import { AppIcon } from './app-icon';
  * @param {Object} [props.style] - Additional container styles
  * @param {string} [props.icon] - Symbol name from app-icon, shown before the label
  * @param {string} [props.accessibilityLabel] - Overrides the spoken label
+ * @param {string} [props.accessibilityHint] - Extra spoken context for the action
  */
 export function Button({
   children,
@@ -29,9 +30,11 @@ export function Button({
   style,
   icon,
   accessibilityLabel,
+  accessibilityHint,
 }) {
   const theme = useTheme();
   const isDisabled = disabled || loading;
+  const label = accessibilityLabel ?? (typeof children === 'string' ? children : undefined);
 
   const colors = getVariantColors(variant, theme);
   const sizeStyles = getSizeStyles(size);
@@ -41,14 +44,15 @@ export function Button({
       onPress={onPress}
       disabled={isDisabled}
       accessibilityRole="button"
-      accessibilityState={{ disabled: isDisabled }}
-      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled: isDisabled, busy: loading }}
+      accessibilityLabel={label}
+      accessibilityHint={accessibilityHint}
       style={({ pressed }) => [
         styles.base,
         sizeStyles,
         { backgroundColor: colors.bg, borderColor: colors.border },
         isDisabled && styles.disabled,
-        pressed && styles.pressed,
+        pressed && !isDisabled && styles.pressed,
         style,
       ]}>
       {loading ? (
@@ -92,14 +96,14 @@ function getSizeStyles(size) {
       return {
         paddingHorizontal: Spacing.two,
         paddingVertical: Spacing.one,
-        minHeight: 32,
+        minHeight: TouchTarget,
         text: { fontSize: Typography.size.body, lineHeight: Typography.lineHeight.body },
       };
     case 'lg':
       return {
         paddingHorizontal: Spacing.four,
         paddingVertical: Spacing.three,
-        minHeight: 52,
+        minHeight: TouchTarget + Spacing.one,
         text: { fontSize: Typography.size.bodyLarge, lineHeight: Typography.lineHeight.bodyLarge },
       };
     case 'md':
@@ -107,7 +111,7 @@ function getSizeStyles(size) {
       return {
         paddingHorizontal: Spacing.three,
         paddingVertical: Spacing.two,
-        minHeight: 44,
+        minHeight: TouchTarget,
         text: { fontSize: Typography.size.bodyLarge, lineHeight: Typography.lineHeight.body },
       };
   }
@@ -128,10 +132,10 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
   },
   disabled: {
-    opacity: 0.5,
+    opacity: Interaction.disabledOpacity,
   },
   pressed: {
-    opacity: 0.7,
+    opacity: Interaction.pressedOpacity,
   },
   text: {
     fontWeight: Typography.weight.semibold,

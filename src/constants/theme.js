@@ -96,6 +96,15 @@ export const Typography = {
   },
 };
 
+/** Minimum touch target by platform. iOS 44pt, Android 48dp. */
+export const TouchTarget = Platform.select({ ios: 44, android: 48, default: 44 });
+
+/** Shared interaction feedback. Opacity-only, so state changes never shift layout. */
+export const Interaction = {
+  pressedOpacity: 0.7,
+  disabledOpacity: 0.5,
+};
+
 /** Icon sizes. Use these instead of ad-hoc pixel values. */
 export const IconSize = {
   inline: 14,
