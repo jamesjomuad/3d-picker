@@ -138,6 +138,7 @@ const styles = StyleSheet.create({
     opacity: Interaction.pressedOpacity,
   },
   text: {
+    flexShrink: 1,
     fontWeight: Typography.weight.semibold,
     textAlign: 'center',
   },

@@ -723,54 +723,54 @@ export default function BoardsScreen() {
                     </Button>
                   </View>
                 ) : (
-                  <>
-                    <View style={styles.editActionRow}>
-                      <Button
-                        variant="outline"
-                        onPress={handleJsonCancel}
-                        disabled={jsonApplying}
-                        style={styles.footerAction}
-                        icon="xmark"
-                        accessibilityLabel="Discard JSON changes"
-                        accessibilityHint="Returns to the visual editor without applying JSON edits.">
-                        Cancel
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onPress={handleJsonPreview}
-                        disabled={jsonApplying || !jsonText.trim()}
-                        style={styles.footerAction}
-                        icon="eye"
-                        accessibilityLabel="Preview JSON changes"
-                        accessibilityHint="Checks the JSON and shows what will change.">
-                        Preview Changes
-                      </Button>
-                    </View>
-                    <View style={styles.editActionRow}>
-                      <Button
-                        variant="secondary"
-                        onPress={requestCloseEditSheet}
-                        style={styles.footerAction}
-                        icon="xmark.circle"
-                        accessibilityLabel="Close board editor"
-                        accessibilityHint={
-                          isJsonDirty ? 'Unapplied JSON edits will be discarded.' : undefined
-                        }>
-                        Close
-                      </Button>
-                      <Button
-                        variant="primary"
-                        onPress={handleJsonApply}
-                        disabled={!jsonPreview || jsonApplying}
-                        loading={jsonApplying}
-                        style={styles.footerAction}
-                        icon="checkmark"
-                        accessibilityLabel="Apply JSON changes"
-                        accessibilityHint="Requires a successful preview.">
-                        Apply Changes
-                      </Button>
-                    </View>
-                  </>
+                  <View style={styles.editActionRow}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onPress={handleJsonCancel}
+                      disabled={jsonApplying}
+                      style={styles.footerAction}
+                      icon="xmark"
+                      accessibilityLabel="Discard JSON changes"
+                      accessibilityHint="Returns to the visual editor without applying JSON edits.">
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onPress={handleJsonPreview}
+                      disabled={jsonApplying || !jsonText.trim()}
+                      style={styles.footerAction}
+                      icon="eye"
+                      accessibilityLabel="Preview JSON changes"
+                      accessibilityHint="Checks the JSON and shows what will change.">
+                      Preview
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onPress={requestCloseEditSheet}
+                      style={styles.footerAction}
+                      icon="xmark.circle"
+                      accessibilityLabel="Close board editor"
+                      accessibilityHint={
+                        isJsonDirty ? 'Unapplied JSON edits will be discarded.' : undefined
+                      }>
+                      Close
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onPress={handleJsonApply}
+                      disabled={!jsonPreview || jsonApplying}
+                      loading={jsonApplying}
+                      style={styles.footerAction}
+                      icon="checkmark"
+                      accessibilityLabel="Apply JSON changes"
+                      accessibilityHint="Requires a successful preview.">
+                      Apply
+                    </Button>
+                  </View>
                 )}
               </View>
             </View>
@@ -919,8 +919,10 @@ const styles = StyleSheet.create({
   },
   footerAction: {
     flex: 1,
-    minWidth: 96,
+    flexShrink: 1,
+    minWidth: TouchTarget,
     minHeight: TouchTarget,
+    paddingHorizontal: Spacing.one,
   },
   modeSwitch: {
     flexDirection: 'row',
