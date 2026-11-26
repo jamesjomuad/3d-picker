@@ -16,6 +16,7 @@ import { AngleBoard } from '@/components/angle-board';
 import { ReplaceTool } from '@/components/angle-board/replace-tool';
 import { BoardCard } from '@/components/library/board-card';
 import { BoardJsonEditor } from '@/components/library/board-json-editor';
+import { GridSizeControl } from '@/components/library/grid-size-control';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
@@ -27,6 +28,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { router } from 'expo-router';
 import { useLibraryStore } from '@/store/libraryStore';
 import { compareBoards, parseBoardJson, serializeBoardJson } from '@/utils/board-json';
+import { resizeGrid as resizeGridData } from '@/utils/board-resize';
 import { AppIcon } from '@/components/ui/app-icon';
 
 const FILTER_ALL = 'all';
@@ -52,6 +54,7 @@ export default function BoardsScreen() {
   const renameBoard = useLibraryStore((s) => s.renameBoard);
   const applyCells = useLibraryStore((s) => s.applyCells);
   const replaceCells = useLibraryStore((s) => s.replaceCells);
+  const resizeBoardGrid = useLibraryStore((s) => s.resizeGrid);
   const applyEditedBoard = useLibraryStore((s) => s.applyEditedBoard);
   const toggleFavorite = useLibraryStore((s) => s.toggleFavorite);
   const duplicateBoard = useLibraryStore((s) => s.duplicateBoard);
@@ -81,6 +84,7 @@ export default function BoardsScreen() {
   const [jsonApplying, setJsonApplying] = useState(false);
   const [pendingEditMode, setPendingEditMode] = useState(null);
   const [pendingClose, setPendingClose] = useState(false);
+  const [pendingResize, setPendingResize] = useState(null); // { rows, columns }
   const editBoardRef = useRef(null);
 
   useEffect(() => {
@@ -135,6 +139,7 @@ export default function BoardsScreen() {
       setEditSelection(null);
       setShowReplaceTool(false);
       setReplaceMatches(null);
+      setPendingResize(null);
       setEditSnapshot(grid ? grid.map((row) => [...row]) : null);
       setEditingBoardId(boardId);
       resetJsonEditor();
@@ -146,6 +151,7 @@ export default function BoardsScreen() {
     setEditSelection(null);
     setShowReplaceTool(false);
     setReplaceMatches(null);
+    setPendingResize(null);
     setEditSnapshot(null);
     setEditingBoardId(null);
     resetJsonEditor();
@@ -281,6 +287,50 @@ export default function BoardsScreen() {
       applyCells(editingBoardId, changes);
     },
     [editingBoardId, applyCells]
+  );
+
+  // Resizing changes the grid itself. Stop editing, clear anything tied to the
+  // old coordinates, and refresh the Replace snapshot from the resized grid.
+  const applyGridResize = useCallback(
+    (rows, columns) => {
+      if (!editingBoardId) return;
+      const result = resizeBoardGrid(editingBoardId, rows, columns);
+      if (!result.success) {
+        Alert.alert('Resize Failed', result.error || 'Could not resize this board.');
+        return;
+      }
+
+      setEditSelection(null);
+      setReplaceMatches(null);
+      setShowReplaceTool(false);
+      setEditSnapshot(result.grid.map((row) => [...row]));
+      setPendingResize(null);
+    },
+    [editingBoardId, resizeBoardGrid]
+  );
+
+  const requestGridResize = useCallback(
+    (rows, columns) => {
+      if (!editingBoardId || !editingBoard) return;
+      commitOpenCellEdit();
+
+      // Read the store again: the commit above may have just written a digit.
+      const board =
+        useLibraryStore.getState().boards.find((b) => b.id === editingBoardId) ?? editingBoard;
+      const result = resizeGridData(board.grid, rows, columns);
+      if (!result.success) {
+        Alert.alert('Invalid Board Size', result.error);
+        return;
+      }
+
+      if (result.shrunk) {
+        setPendingResize({ rows, columns });
+        return;
+      }
+
+      applyGridResize(rows, columns);
+    },
+    [applyGridResize, commitOpenCellEdit, editingBoard, editingBoardId]
   );
 
   // Replace tool: writes every matching cell via replaceCells (persist-first)
@@ -573,6 +623,19 @@ export default function BoardsScreen() {
       />
 
       <ConfirmDialog
+        visible={!!pendingResize}
+        title="Shrink board?"
+        message={`Resizing to ${pendingResize?.rows} rows by ${pendingResize?.columns} columns deletes cells outside the new grid. This cannot be undone.`}
+        confirmLabel="Shrink board"
+        confirmVariant="destructive"
+        cancelLabel="Keep size"
+        onCancel={() => setPendingResize(null)}
+        onConfirm={() => {
+          if (pendingResize) applyGridResize(pendingResize.rows, pendingResize.columns);
+        }}
+      />
+
+      <ConfirmDialog
         visible={!!pendingEditMode}
         title="Discard JSON changes?"
         message="Unapplied JSON edits will be lost. The board stays as it is."
@@ -647,6 +710,14 @@ export default function BoardsScreen() {
                       onReplaceAll={handleReplaceAll}
                       onClose={closeReplaceTool}
                       onMatchesChange={setReplaceMatches}
+                    />
+                  )}
+
+                  {editingBoard && (
+                    <GridSizeControl
+                      rows={editingBoard.grid.length}
+                      columns={editingBoard.grid[0]?.length ?? 0}
+                      onChange={requestGridResize}
                     />
                   )}
                 </>

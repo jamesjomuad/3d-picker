@@ -204,6 +204,45 @@ describe('updateGrid and updateCell', () => {
   });
 });
 
+describe('resizeGrid', () => {
+  let boardId;
+
+  beforeEach(async () => {
+    await useLibraryStore.getState().loadLibrary();
+    const board = useLibraryStore
+      .getState()
+      .createBoard({ name: 'Sized', grid: [[1, 2], [3, 4]] });
+    boardId = board.id;
+  });
+
+  const board = () => useLibraryStore.getState().boards.find((b) => b.id === boardId);
+
+  it('resizes and persists the grid without stored dimensions', () => {
+    const result = useLibraryStore.getState().resizeGrid(boardId, 3, 3);
+
+    expect(result.success).toBe(true);
+    expect(result.grid).toEqual([
+      [1, 2, 0],
+      [3, 4, 0],
+      [0, 0, 0],
+    ]);
+    expect(board().grid).toEqual(result.grid);
+    expect(board().rows).toBeUndefined();
+    expect(board().columns).toBeUndefined();
+    expect(board().dimensions).toBeUndefined();
+    expect(mockStoredLibrary.boards.find((b) => b.id === boardId).grid).toEqual(result.grid);
+  });
+
+  it('reports a shrink without writing invalid dimensions', () => {
+    const result = useLibraryStore.getState().resizeGrid(boardId, 1, 2);
+    expect(result.success).toBe(false);
+    expect(board().grid).toEqual([
+      [1, 2],
+      [3, 4],
+    ]);
+  });
+});
+
 describe('applyCells', () => {
   let boardId;
 

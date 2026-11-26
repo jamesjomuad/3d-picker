@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { loadLibrary, saveLibrary } from '@/services/board-storage';
 import { createBoard } from '@/utils/board-factory';
 import { isValidDigit, validateBoard } from '@/utils/board-validation';
+import { resizeGrid as resizeGridData } from '@/utils/board-resize';
 
 /**
  * Board library store
@@ -131,6 +132,33 @@ export const useLibraryStore = create((set, get) => ({
     }));
     get()._persist();
     return { success: true };
+  },
+
+  /**
+   * Resizes a board's grid, preserving overlapping digits.
+   * Dimensions stay derived from the grid; nothing else is stored.
+   *
+   * @param {string} boardId
+   * @param {number} rows
+   * @param {number} columns
+   * @returns {{ success: boolean, grid?: number[][], shrunk?: boolean, error?: string }}
+   */
+  resizeGrid: (boardId, rows, columns) => {
+    const board = get().boards.find((b) => b.id === boardId);
+    if (!board) return { success: false, error: 'Board not found' };
+
+    const result = resizeGridData(board.grid, rows, columns);
+    if (!result.success) return result;
+
+    set((state) => ({
+      boards: state.boards.map((b) =>
+        b.id === boardId
+          ? { ...b, grid: result.grid, updatedAt: new Date().toISOString() }
+          : b
+      ),
+    }));
+    get()._persist();
+    return { success: true, grid: result.grid, shrunk: result.shrunk };
   },
 
   /**

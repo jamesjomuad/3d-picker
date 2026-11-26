@@ -175,6 +175,7 @@ It contains exactly one board object:
 - Do **not** add a redundant `dimensions` property.
 - Derive `rows` using `grid.length`.
 - Derive `columns` using `grid[0].length`.
+- Boards may have configurable rectangular grids. Never persist explicit row or column counts.
 - Preserve zero (`0`) as a valid digit. It is not empty or null.
 - Validate that all rows have equal lengths.
 - Validate that all cells contain integers from 0 through 9.
