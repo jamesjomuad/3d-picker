@@ -1,28 +1,11 @@
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-  useWindowDimensions,
-} from 'react-native';
-import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
-import {
-  Animated,
-  Extrapolation,
-  interpolate,
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
+import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { InputClearButton } from '@/components/ui/input-clear-button';
@@ -51,12 +34,8 @@ import { AppIcon } from '@/components/ui/app-icon';
 
 const COPY_FEEDBACK_MS = 1600;
 const RENDER_BATCH = 50;
-const SHEET_DETENTS = [0.5, 0.75, 1];
-const DEFAULT_DETENT_INDEX = 1;
-const SHEET_SPRING = { damping: 24, stiffness: 240, mass: 0.9 };
-const DISMISS_DURATION_MS = 180;
-const DRAG_ACTIVATION = 10;
-const DRAG_SLOP = 16;
+const FUN_PICK_SNAP_POINTS = [0.5, 0.75, 1];
+const FUN_PICK_INITIAL_SNAP_INDEX = 1;
 
 const DIGIT_FILTERS = FUN_PICK_FILTERS.filter((filter) => filter.digit !== null);
 const PATTERN_FILTERS = FUN_PICK_FILTERS.filter((filter) => filter.pattern !== null);
@@ -80,11 +59,6 @@ const COMPACT_FILTER_LABELS = {
 export function FunPickScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { height: windowHeight } = useWindowDimensions();
-  const sheetY = useSharedValue((1 - SHEET_DETENTS[DEFAULT_DETENT_INDEX]) * windowHeight);
-  const detentIndex = useSharedValue(DEFAULT_DETENT_INDEX);
-  const dragStartY = useSharedValue(0);
-  const dragStartDetent = useSharedValue(DEFAULT_DETENT_INDEX);
 
   const board = useLibraryStore((state) =>
     state.boards.find((item) => item.id === state.activeBoardId) || state.boards[0] || null
@@ -116,10 +90,6 @@ export function FunPickScreen() {
     },
     []
   );
-
-  useEffect(() => {
-    sheetY.set((1 - SHEET_DETENTS[detentIndex.get()]) * windowHeight);
-  }, [detentIndex, sheetY, windowHeight]);
 
   useEffect(() => {
     setVisibleCount(RENDER_BATCH);
@@ -232,81 +202,9 @@ export function FunPickScreen() {
     setVisibleCount((current) => current + RENDER_BATCH);
   }, []);
 
-  const snapToIndex = useCallback(
-    (index) => {
-      const nextIndex = Math.max(0, Math.min(SHEET_DETENTS.length - 1, index));
-      detentIndex.set(nextIndex);
-      sheetY.set(withSpring((1 - SHEET_DETENTS[nextIndex]) * windowHeight, SHEET_SPRING));
-    },
-    [detentIndex, sheetY, windowHeight]
-  );
-
-  const closeSheet = useCallback(() => {
+  const handleClose = useCallback(() => {
     router.back();
   }, []);
-
-  const dismissSheet = useCallback(() => {
-    sheetY.set(
-      withTiming(windowHeight, { duration: DISMISS_DURATION_MS }, () => {
-        runOnJS(closeSheet)();
-      })
-    );
-  }, [closeSheet, sheetY, windowHeight]);
-
-  const panGesture = usePanGesture({
-    activeOffsetY: [-DRAG_ACTIVATION, DRAG_ACTIVATION],
-    failOffsetX: [-DRAG_SLOP, DRAG_SLOP],
-    shouldCancelWhenOutside: false,
-    onActivate: () => {
-      'worklet';
-      dragStartY.set(sheetY.get());
-      dragStartDetent.set(detentIndex.get());
-    },
-    onUpdate: (event) => {
-      'worklet';
-      const maxY = windowHeight * (1 - SHEET_DETENTS[0]);
-      const nextY = dragStartY.get() + event.translationY;
-      sheetY.set(Math.min(maxY, Math.max(0, nextY)));
-    },
-    onDeactivate: (event) => {
-      'worklet';
-      const current = dragStartDetent.get();
-      if (event.canceled) {
-        runOnJS(snapToIndex)(current);
-        return;
-      }
-      if (event.translationY > DRAG_ACTIVATION) {
-        if (current === 0) {
-          runOnJS(dismissSheet)();
-        } else {
-          runOnJS(snapToIndex)(current - 1);
-        }
-        return;
-      }
-      if (event.translationY < -DRAG_ACTIVATION) {
-        runOnJS(snapToIndex)(Math.min(current + 1, SHEET_DETENTS.length - 1));
-        return;
-      }
-      runOnJS(snapToIndex)(current);
-    },
-  });
-
-  const sheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: sheetY.get() }],
-  }));
-
-  const backdropStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(
-      sheetY.get(),
-      [0, windowHeight * (1 - SHEET_DETENTS[1])],
-      [0.35, 0],
-      Extrapolation.CLAMP
-    ),
-  }));
-
-  const closeStyle = useAnimatedStyle(() => ({
-    bottom: sheetY.get() + insets.bottom + Spacing.three,
-  }));
 
   const emptyText = !hasGenerated
     ? 'Generate combinations from the selected cells.'
@@ -315,36 +213,15 @@ export function FunPickScreen() {
       : '';
 
   return (
-    <View style={styles.root}>
-      <Animated.View style={[styles.backdrop, backdropStyle]}>
-        <Pressable
-          style={styles.backdropPress}
-          onPress={closeSheet}
-          accessibilityLabel="Close Fun Pick"
-        />
-      </Animated.View>
-
-      <Animated.View
-        style={[
-          styles.sheet,
-          {
-            height: windowHeight,
-            backgroundColor: theme.background,
-            borderTopColor: theme.border,
-            paddingTop: insets.top + Spacing.two,
-            paddingLeft: insets.left + Spacing.three,
-            paddingRight: insets.right + Spacing.three,
-            paddingBottom: insets.bottom,
-          },
-          sheetStyle,
-        ]}>
-        <GestureDetector gesture={panGesture}>
-          <View style={styles.handleArea} importantForAccessibility="no">
-            <View style={[styles.handleBar, { backgroundColor: theme.border }]} />
-          </View>
-        </GestureDetector>
-
-        <View style={styles.header}>
+    <BottomSheet
+      snapPoints={FUN_PICK_SNAP_POINTS}
+      initialSnapIndex={FUN_PICK_INITIAL_SNAP_INDEX}
+      onClose={handleClose}
+      dismissOnBackdropPress
+      dismissOnBackPress
+      showCloseButton
+      closeButtonLabel="Close Fun Pick">
+      <View style={styles.header}>
           <View style={styles.headerTitle}>
             <ThemedText type="smallBold">Fun Pick</ThemedText>
             <ThemedText themeColor="textSecondary" style={styles.headerSubtitle}>
@@ -373,8 +250,14 @@ export function FunPickScreen() {
         </View>
 
         <ScrollView
-          style={[styles.controlsScroll, { maxHeight: windowHeight * 0.25 }]}
-          contentContainerStyle={styles.controls}
+          style={styles.contentScroll}
+          contentContainerStyle={[
+            styles.content,
+            {
+              paddingBottom:
+                Spacing.three + (insets.bottom > 0 ? 0 : Spacing.two) + Spacing.six,
+            },
+          ]}
           keyboardShouldPersistTaps="handled"
           nestedScrollEnabled={false}>
           <View style={[styles.filtersHeader, { borderColor: theme.border }]}>
@@ -483,25 +366,13 @@ export function FunPickScreen() {
               Not in basket: {missingPreview}
             </ThemedText>
           )}
-        </ScrollView>
 
-        <View style={styles.resultsViewport}>
           {emptyText ? (
             <ThemedText themeColor="textSecondary" style={styles.emptyText}>
               {emptyText}
             </ThemedText>
           ) : (
-            <ScrollView
-              style={styles.resultsScroll}
-              contentContainerStyle={[
-                styles.resultsContent,
-                {
-                  paddingBottom:
-                    Spacing.three + (insets.bottom > 0 ? 0 : Spacing.two) + Spacing.six,
-                },
-              ]}
-              keyboardShouldPersistTaps="handled"
-              nestedScrollEnabled={false}>
+            <>
               <View style={styles.resultRows}>
                 {renderedCombinations.map((combination) => (
                   <CombinationRow
@@ -522,27 +393,10 @@ export function FunPickScreen() {
                   Show {hiddenCount} more
                 </Button>
               )}
-            </ScrollView>
+            </>
           )}
-        </View>
-      </Animated.View>
-
-      <Animated.View pointerEvents="box-none" style={[styles.floatingClose, closeStyle]}>
-        <View
-          style={[
-            styles.floatingCloseSurface,
-            { backgroundColor: theme.backgroundElement, shadowColor: theme.border },
-          ]}>
-          <IconButton
-            symbol="xmark"
-            size="md"
-            variant="filled"
-            onPress={closeSheet}
-            accessibilityLabel="Close Fun Pick"
-          />
-        </View>
-      </Animated.View>
-    </View>
+        </ScrollView>
+      </BottomSheet>
   );
 }
 
@@ -628,38 +482,6 @@ const CombinationRow = memo(function CombinationRow({ combination, isSaved, onTo
 });
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  backdropPress: {
-    flex: 1,
-  },
-  sheet: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderTopLeftRadius: BorderRadius.lg,
-    borderTopRightRadius: BorderRadius.lg,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    overflow: 'hidden',
-    gap: Spacing.two,
-  },
-  handleArea: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 48,
-    paddingTop: Spacing.one,
-    paddingBottom: Spacing.two,
-  },
-  handleBar: {
-    width: 36,
-    height: 4,
-    borderRadius: BorderRadius.full,
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -694,34 +516,10 @@ const styles = StyleSheet.create({
     lineHeight: Typography.lineHeight.caption,
     fontWeight: Typography.weight.bold,
   },
-  floatingClose: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 2,
-  },
-  floatingCloseSurface: {
-    borderRadius: BorderRadius.full,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  controlsScroll: {
-    flexGrow: 0,
-  },
-  controls: {
-    gap: Spacing.two,
-  },
-  resultsViewport: {
-    flex: 1,
-    minHeight: 0,
-  },
-  resultsScroll: {
+  contentScroll: {
     flex: 1,
   },
-  resultsContent: {
+  content: {
     gap: Spacing.two,
   },
   filtersHeader: {
