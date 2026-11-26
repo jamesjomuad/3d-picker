@@ -4,10 +4,15 @@ import TestRenderer from 'react-test-renderer';
 
 import { AngleBoard } from '../angle-board';
 import { useAngleBoardEditing } from '../hooks/use-angle-board-editing';
-import { getGestureOutcome } from '../hooks/use-angle-board-gestures';
+import {
+  exceedsTapTolerance,
+  getGestureOutcome,
+  isDoubleTap,
+} from '../hooks/use-angle-board-gestures';
 import { SelectedCellsCard } from '../selected-cells-card';
 
 import { computeFill } from '@/utils/board-fill';
+import { HEADER_HEIGHT, HEADER_WIDTH } from '@/utils/board-layout';
 
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn(() => Promise.resolve()) }));
 
@@ -65,6 +70,61 @@ const printedText = (tree) => {
     return walk(node.children);
   };
   return walk(tree.toJSON());
+};
+
+const CELL_SIZE = 50;
+
+/** Measure the board so touch coordinates map to known cells. */
+const layoutBoard = (tree) => {
+  act(() => {
+    hostRows(tree).wrapper.props.onLayout({
+      nativeEvent: { layout: { width: HEADER_WIDTH + COLS * CELL_SIZE, height: 300 } },
+    });
+  });
+  return hostRows(tree).container.props;
+};
+
+/** Center of a grid cell, in container coordinates. */
+const cellPoint = (row, col) => ({
+  x: HEADER_WIDTH + col * CELL_SIZE + CELL_SIZE / 2,
+  y: HEADER_HEIGHT + row * CELL_SIZE + CELL_SIZE / 2,
+});
+
+/** Center of a row-header or column-header cell. */
+const rowHeaderPoint = (row) => ({ x: HEADER_WIDTH / 2, y: cellPoint(row, 0).y });
+const colHeaderPoint = (col) => ({ x: cellPoint(0, col).x, y: HEADER_HEIGHT / 2 });
+
+/** PanResponder event with the touch history its wrappers expect. */
+const touchEvent = ({ x, y }, timestamp = 1) => {
+  const touch = { identifier: 0, locationX: x, locationY: y, pageX: x, pageY: y, target: null };
+  return {
+    nativeEvent: { locationX: x, locationY: y, touches: [touch], changedTouches: [touch] },
+    touchHistory: {
+      numberActiveTouches: 1,
+      indexOfSingleActiveTouch: 0,
+      mostRecentTimeStamp: timestamp,
+      touchBank: [{
+        touchActive: true,
+        currentTimeStamp: timestamp,
+        currentPageX: x,
+        currentPageY: y,
+        previousPageX: x,
+        previousPageY: y,
+        startPageX: x,
+        startPageY: y,
+        startTimeStamp: timestamp,
+      }],
+    },
+  };
+};
+
+/** Call a responder callback that may update React state. */
+const fire = (handler, event) => {
+  let result;
+  act(() => {
+    result = handler(event);
+  });
+  return result;
 };
 
 describe('AngleBoard — read-only mode', () => {
@@ -221,6 +281,141 @@ describe('AngleBoard — editable mode', () => {
   });
 });
 
+describe('double-tap activation', () => {
+  const pendingTap = { key: 'cell:1:2', time: 1000, x: 40, y: 60 };
+
+  it('accepts a second tap on the same target inside the window', () => {
+    expect(isDoubleTap(pendingTap, 'cell:1:2', 1200)).toBe(true);
+  });
+
+  it('rejects different targets and taps outside the window', () => {
+    expect(isDoubleTap(pendingTap, 'cell:1:3', 1200)).toBe(false);
+    expect(isDoubleTap(pendingTap, 'cell:1:2', 1400)).toBe(false);
+    expect(isDoubleTap(null, 'cell:1:2', 1200)).toBe(false);
+  });
+
+  it('treats small movement as a tap and larger movement as a scroll', () => {
+    expect(exceedsTapTolerance({ x: 40, y: 60 }, { x: 45, y: 60 })).toBe(false);
+    expect(exceedsTapTolerance({ x: 40, y: 60 }, { x: 60, y: 60 })).toBe(true);
+  });
+});
+
+describe('AngleBoard — gesture negotiation', () => {
+  let nowSpy;
+
+  beforeEach(() => {
+    nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1000);
+  });
+
+  afterEach(() => {
+    nowSpy.mockRestore();
+  });
+
+  it('leaves a single tap to the scroll parent without selecting', () => {
+    const onSelectionChange = jest.fn();
+    const tree = render({ grid: GRID, onSelectionChange });
+    const props = layoutBoard(tree);
+
+    expect(fire(props.onStartShouldSetResponderCapture, touchEvent(cellPoint(0, 0)))).toBe(false);
+    expect(onSelectionChange).not.toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  it('cancels a pending tap when the touch moves like a scroll', () => {
+    const onSelectionChange = jest.fn();
+    const tree = render({ grid: GRID, onSelectionChange });
+    const props = layoutBoard(tree);
+    const start = cellPoint(0, 0);
+
+    fire(props.onStartShouldSetResponderCapture, touchEvent(start, 1));
+    fire(
+      props.onMoveShouldSetResponderCapture,
+      touchEvent({ x: start.x + 30, y: start.y + 10 }, 2)
+    );
+
+    expect(fire(props.onStartShouldSetResponderCapture, touchEvent(start, 3))).toBe(false);
+    expect(onSelectionChange).not.toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  it('selects one cell on the second tap', () => {
+    const onSelectionChange = jest.fn();
+    const tree = render({ grid: GRID, onSelectionChange });
+    const props = layoutBoard(tree);
+    const event = touchEvent(cellPoint(1, 2));
+
+    expect(fire(props.onStartShouldSetResponderCapture, event)).toBe(false);
+    expect(fire(props.onStartShouldSetResponderCapture, event)).toBe(true);
+    fire(props.onResponderGrant, event);
+    fire(props.onResponderRelease, event);
+
+    expect(onSelectionChange).toHaveBeenLastCalledWith(new Set(['1,2']));
+    act(() => tree.unmount());
+  });
+
+  it('extends a double tap into a rectangular selection', () => {
+    const onSelectionChange = jest.fn();
+    const tree = render({ grid: GRID, onSelectionChange });
+    const props = layoutBoard(tree);
+    const start = touchEvent(cellPoint(0, 0), 1);
+
+    fire(props.onStartShouldSetResponderCapture, start);
+    fire(props.onStartShouldSetResponderCapture, start);
+    fire(props.onResponderGrant, start);
+    fire(props.onResponderMove, touchEvent(cellPoint(1, 1), 2));
+    fire(props.onResponderRelease, touchEvent(cellPoint(1, 1), 3));
+
+    expect(onSelectionChange).toHaveBeenLastCalledWith(
+      new Set(['0,0', '0,1', '1,0', '1,1'])
+    );
+    act(() => tree.unmount());
+  });
+
+  it('selects a whole row or column from a header double tap', () => {
+    const onSelectionChange = jest.fn();
+    const tree = render({ grid: GRID, onSelectionChange });
+    const props = layoutBoard(tree);
+    const row = touchEvent(rowHeaderPoint(1), 1);
+
+    fire(props.onStartShouldSetResponderCapture, row);
+    fire(props.onStartShouldSetResponderCapture, row);
+    fire(props.onResponderGrant, row);
+    fire(props.onResponderRelease, row);
+
+    expect(onSelectionChange).toHaveBeenLastCalledWith(
+      new Set(['1,0', '1,1', '1,2', '1,3'])
+    );
+
+    const col = touchEvent(colHeaderPoint(2), 4);
+    fire(props.onStartShouldSetResponderCapture, col);
+    fire(props.onStartShouldSetResponderCapture, col);
+    fire(props.onResponderGrant, col);
+    fire(props.onResponderRelease, col);
+
+    expect(onSelectionChange).toHaveBeenLastCalledWith(
+      new Set(['0,2', '1,2', '2,2'])
+    );
+    act(() => tree.unmount());
+  });
+
+  it('opens the editor on an editable double tap', () => {
+    const tree = render({ grid: GRID, editable: true, onCellChange: jest.fn() });
+    const props = layoutBoard(tree);
+    const event = touchEvent(cellPoint(1, 2));
+
+    fire(props.onStartShouldSetResponderCapture, event);
+    fire(props.onStartShouldSetResponderCapture, event);
+    fire(props.onResponderGrant, event);
+    fire(props.onResponderRelease, event);
+
+    const editing = findAllByName(tree, 'AngleBoardEditCell').find(
+      (cell) => cell.props.isEditing
+    );
+    expect(editing.props.value).toBe(GRID[1][2]);
+    act(() => tree.unmount());
+  });
+});
+
 describe('AngleBoard — editing the selected cell', () => {
   // The editor lives in a hook the board owns, and its only door is the gesture,
   // so this drives the hook directly through a render-less harness.
@@ -343,7 +538,7 @@ describe('SelectedCellsCard', () => {
     const tree = renderCard({ grid: GRID, selection: new Set() });
     const text = printedText(tree);
 
-    expect(text).toContain('Tap or drag on the board to select cells.');
+    expect(text).toContain('Double-tap or double-tap and drag on the board to select cells.');
     expect(text).not.toContain('Range: ');
     tree.unmount();
   });
@@ -367,7 +562,7 @@ describe('SelectedCellsCard', () => {
     expect(text).toContain('Range: ');
     expect(text).toContain('A1:D1');
     expect(text).toContain('Entire row');
-    expect(text).not.toContain('Tap or drag on the board to select cells.');
+    expect(text).not.toContain('Double-tap or double-tap and drag on the board to select cells.');
     tree.unmount();
   });
 });

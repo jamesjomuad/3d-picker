@@ -142,7 +142,7 @@ export function SelectedCellsCard({ grid, selection, onClear, onFunPick, style }
         </View>
       ) : (
         <ThemedText themeColor="textSecondary" style={styles.emptyText}>
-          Tap or drag on the board to select cells.
+          Double-tap or double-tap and drag on the board to select cells.
         </ThemedText>
       )}
     </FoldableCard>

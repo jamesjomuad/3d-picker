@@ -17,6 +17,9 @@ import {
   touchToDragState,
 } from '@/utils/selection';
 
+const DOUBLE_TAP_INTERVAL_MS = 350;
+const TAP_TOLERANCE = 12;
+
 /**
  * What a finished drag means, given how the board is being used.
  *
@@ -63,6 +66,31 @@ export function getGestureOutcome({ grid, selection, drag, editable }) {
 }
 
 /**
+ * Whether a second tap lands on the same target inside the double-tap window.
+ * Pure so activation timing can be tested without firing native touches.
+ */
+export function isDoubleTap(pendingTap, key, now) {
+  if (!pendingTap || !key) return false;
+  const elapsed = now - pendingTap.time;
+  return pendingTap.key === key && elapsed >= 0 && elapsed <= DOUBLE_TAP_INTERVAL_MS;
+}
+
+/**
+ * Whether a touch moved far enough to be a scroll rather than a tap.
+ * Squared distance avoids a square root on every move event.
+ */
+export function exceedsTapTolerance(start, current) {
+  const dx = current.x - start.x;
+  const dy = current.y - start.y;
+  return dx * dx + dy * dy > TAP_TOLERANCE * TAP_TOLERANCE;
+}
+
+/** Identity used to decide whether two taps hit the same cell, row, or column. */
+function getDragKey(drag) {
+  return `${drag.mode}:${drag.startRow}:${drag.startCol}`;
+}
+
+/**
  * The pieces a drag needs that must survive a render without becoming React
  * state. The PanResponder is created once (a new responder per render would
  * re-attach native responders and interrupt a drag in progress), so instead of
@@ -84,6 +112,11 @@ export function getGestureOutcome({ grid, selection, drag, editable }) {
  *
  * The contract holds in editable mode too, which is why taps and fills are read
  * from the gesture rather than from a touch handler on each cell.
+ *
+ * Gesture negotiation: the first tap is recorded but never claimed, so a swipe
+ * stays with the parent ScrollView. A second tap on the same target inside
+ * DOUBLE_TAP_INTERVAL_MS claims the responder and starts the existing drag
+ * engine. Dragging from that second tap extends the selection before release.
  */
 function createAngleBoardGesture() {
   /** Latest props and measurements, as of the most recent commit. */
@@ -99,12 +132,70 @@ function createAngleBoardGesture() {
     setDragState: () => {},
   };
 
+  let pendingTap = null;
+  let activationDrag = null;
+  let activating = false;
+
   /** Board dimensions as of the current touch, never a stale snapshot. */
   const getDimensions = () => getGridDimensions(latest.grid);
+
+  const getDragAt = (evt) => {
+    const { totalRows, totalCols } = getDimensions();
+    const { locationX, locationY } = evt.nativeEvent;
+    return touchToDragState(
+      locationX,
+      locationY,
+      HEADER_WIDTH,
+      HEADER_HEIGHT,
+      latest.cellSize,
+      totalRows,
+      totalCols
+    );
+  };
 
   const setDrag = (next) => {
     latest.drag = next;
     latest.setDragState(next);
+  };
+
+  const handleStart = (evt) => {
+    const drag = getDragAt(evt);
+    if (!drag) {
+      pendingTap = null;
+      return false;
+    }
+
+    const key = getDragKey(drag);
+    const now = Date.now();
+    if (isDoubleTap(pendingTap, key, now)) {
+      pendingTap = null;
+      activationDrag = drag;
+      activating = true;
+      return true;
+    }
+
+    pendingTap = {
+      key,
+      time: now,
+      x: evt.nativeEvent.locationX,
+      y: evt.nativeEvent.locationY,
+    };
+    return false;
+  };
+
+  const handleMoveRequest = (evt) => {
+    if (activating || latest.drag) return true;
+    if (!pendingTap) return false;
+
+    if (
+      exceedsTapTolerance(
+        { x: pendingTap.x, y: pendingTap.y },
+        { x: evt.nativeEvent.locationX, y: evt.nativeEvent.locationY }
+      )
+    ) {
+      pendingTap = null;
+    }
+    return false;
   };
 
   /**
@@ -130,27 +221,24 @@ function createAngleBoardGesture() {
     else latest.onSelectionChange?.(outcome.cells);
   };
 
+  const finishGesture = () => {
+    activationDrag = null;
+    activating = false;
+    finishDrag();
+  };
+
   const panResponder = PanResponder.create({
-    // Capture phase: claim touches BEFORE a ScrollView can intercept them.
-    onStartShouldSetPanResponderCapture: () => true,
-    onMoveShouldSetPanResponderCapture: () => true,
+    // Claim only the second tap of a double tap. The first tap stays available
+    // to the parent ScrollView, so a swipe scrolls instead of selecting.
+    onStartShouldSetPanResponderCapture: handleStart,
+    onMoveShouldSetPanResponderCapture: handleMoveRequest,
+    onStartShouldSetPanResponder: () => activating,
+    onMoveShouldSetPanResponder: handleMoveRequest,
 
-    // Bubble phase fallback.
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
-
-    onPanResponderGrant: (evt) => {
-      const { totalRows, totalCols } = getDimensions();
-      const { locationX, locationY } = evt.nativeEvent;
-      const drag = touchToDragState(
-        locationX,
-        locationY,
-        HEADER_WIDTH,
-        HEADER_HEIGHT,
-        latest.cellSize,
-        totalRows,
-        totalCols
-      );
+    onPanResponderGrant: () => {
+      const drag = activationDrag;
+      activationDrag = null;
+      activating = false;
       if (!drag) return;
 
       if (!latest.editable) {
@@ -198,13 +286,16 @@ function createAngleBoardGesture() {
       setDrag({ ...drag, endRow: cell.row, endCol: cell.col });
     },
 
-    onPanResponderRelease: () => finishDrag(),
+    onPanResponderRelease: finishGesture,
 
     // A forced termination (parent navigator, native modal) must not leave the
     // gesture stuck in a half-finished state.
-    onPanResponderTerminate: () => finishDrag(),
+    onPanResponderTerminate: () => {
+      pendingTap = null;
+      finishGesture();
+    },
 
-    // Prevent ScrollView from terminating our gesture.
+    // While a double-tap drag is active, keep it from being stolen mid-gesture.
     onPanResponderTerminationRequest: () => false,
   });
 
@@ -224,6 +315,10 @@ function createAngleBoardGesture() {
 /**
  * Drag selection for the Angle Board: measures the board, tracks the gesture,
  * and reports what the drag meant — a new selection, a fill, or a tap.
+ *
+ * Selection starts on a double tap. The second tap may continue into a drag to
+ * select or fill a range. A single tap does nothing, which leaves swipes to the
+ * parent ScrollView.
  *
  * Nothing here is store- or screen-aware. The transient bits (`cellSize`,
  * `dragState`) stay component state on purpose — they only matter while a finger

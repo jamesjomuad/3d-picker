@@ -29,17 +29,18 @@ const NO_PLOT_CELLS = new Set();
  * `onSelectionChange`; the board keeps only what dies with the gesture (drag
  * rectangle, measured cell size, open editor).
  *
- * Read-only (the default): tap a cell, or drag a rectangle, a row or a column the
- * way a spreadsheet does. `onSelectionChange` fires once when the gesture commits,
- * so a drag across ten cells is one update, not ten.
+ * Read-only (the default): double-tap a cell, row, or column to select it. The
+ * second tap can continue into a drag, selecting a rectangle, row range, or column
+ * range the way a spreadsheet does. `onSelectionChange` fires once on commit, so
+ * a drag across ten cells is one update, not ten. A single tap does nothing, which
+ * leaves swipes free to scroll the page.
  *
- * Editable (`editable`): the same gestures mean something else. A drag that stays
- * on one cell opens that cell's single-digit field. A drag across a block is a
- * fill handle: it copies a pattern over the dragged area and reports the changed
- * cells through `onCellChange({ "row,col": digit })`. The pattern is the current
- * selection when the drag touches it, which is why an editable owner that wants
- * filling should also pass `selection` and `onSelectionChange` — select a block,
- * then drag past it.
+ * Editable (`editable`): double-tapping one cell opens its single-digit field.
+ * Double-tap and drag across a block is a fill handle: it copies a pattern over the
+ * dragged area and reports changed cells through `onCellChange({ "row,col": digit })`.
+ * The pattern is the current selection when the drag touches it, which is why an
+ * editable owner that wants filling should also pass `selection` and
+ * `onSelectionChange` — select a block, then double-tap and drag past it.
  *
  * The grid must be rectangular digits 0–9 (`validateGrid` in
  * `@/utils/board-validation` checks a board before it gets here).
