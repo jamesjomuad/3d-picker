@@ -414,6 +414,41 @@ describe('AngleBoard — gesture negotiation', () => {
     expect(editing.props.editValue).toBe('');
     act(() => tree.unmount());
   });
+
+  it('commits the open cell through the exposed ref', () => {
+    const onCellChange = jest.fn();
+    let ref = null;
+    let tree;
+
+    act(() => {
+      tree = TestRenderer.create(
+        <AngleBoard
+          ref={(instance) => {
+            ref = instance;
+          }}
+          grid={GRID}
+          editable
+          onCellChange={onCellChange}
+        />
+      );
+    });
+    const props = layoutBoard(tree);
+    const event = touchEvent(cellPoint(1, 2));
+
+    fire(props.onStartShouldSetResponderCapture, event);
+    fire(props.onStartShouldSetResponderCapture, event);
+    fire(props.onResponderGrant, event);
+    fire(props.onResponderRelease, event);
+
+    const editing = findAllByName(tree, 'AngleBoardEditCell').find(
+      (cell) => cell.props.isEditing
+    );
+    act(() => editing.props.onChangeText('5'));
+    act(() => ref.commitEdit());
+
+    expect(onCellChange).toHaveBeenCalledWith({ '1,2': 5 });
+    act(() => tree.unmount());
+  });
 });
 
 describe('AngleBoard — editing the selected cell', () => {
@@ -452,6 +487,22 @@ describe('AngleBoard — editing the selected cell', () => {
 
     expect(onCellChange).toHaveBeenCalledWith({ '0,0': 9 });
     expect(editor.editingCell).toBeNull();
+    tree.unmount();
+  });
+
+  it('ignores a stale second commit from the field blur handler', () => {
+    const onCellChange = jest.fn();
+    const tree = openEditor({ grid: GRID, onCellChange });
+
+    act(() => editor.beginEdit(0, 0));
+    act(() => editor.setEditValue('7'));
+    const staleCommit = editor.commitEdit;
+
+    act(() => editor.commitEdit());
+    act(() => staleCommit());
+
+    expect(onCellChange).toHaveBeenCalledTimes(1);
+    expect(onCellChange).toHaveBeenCalledWith({ '0,0': 7 });
     tree.unmount();
   });
 

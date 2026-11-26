@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -81,6 +81,7 @@ export default function BoardsScreen() {
   const [jsonApplying, setJsonApplying] = useState(false);
   const [pendingEditMode, setPendingEditMode] = useState(null);
   const [pendingClose, setPendingClose] = useState(false);
+  const editBoardRef = useRef(null);
 
   useEffect(() => {
     loadLibrary();
@@ -150,20 +151,28 @@ export default function BoardsScreen() {
     resetJsonEditor();
   }, [resetJsonEditor]);
 
+  // Footer and mode taps keep keyboard focus, so the field's blur handler may
+  // never fire. Ask the board to commit its open cell before leaving it.
+  const commitOpenCellEdit = useCallback(() => {
+    editBoardRef.current?.commitEdit();
+  }, []);
+
   // Closing with unapplied JSON text is data loss. Ask first, same as switching
   // editor modes does.
   const requestCloseEditSheet = useCallback(() => {
+    commitOpenCellEdit();
     if (editMode === EDIT_MODE_JSON && isJsonDirty) {
       setPendingClose(true);
       return;
     }
     closeEditSheet();
-  }, [closeEditSheet, editMode, isJsonDirty]);
+  }, [closeEditSheet, commitOpenCellEdit, editMode, isJsonDirty]);
 
   const openReplaceTool = useCallback(() => {
+    commitOpenCellEdit();
     setReplaceMatches(null);
     setShowReplaceTool(true);
-  }, []);
+  }, [commitOpenCellEdit]);
 
   const closeReplaceTool = useCallback(() => {
     setShowReplaceTool(false);
@@ -291,8 +300,12 @@ export default function BoardsScreen() {
       if (mode === editMode) return;
 
       if (mode === EDIT_MODE_JSON) {
-        if (!editingBoard) return;
-        const serialized = serializeBoardJson(editingBoard);
+        commitOpenCellEdit();
+        // Read the store again: the commit above may have just written a digit.
+        const board =
+          useLibraryStore.getState().boards.find((b) => b.id === editingBoardId) ?? editingBoard;
+        if (!board) return;
+        const serialized = serializeBoardJson(board);
         setJsonText(serialized);
         setJsonBaseline(serialized);
         setJsonPreview(null);
@@ -310,7 +323,7 @@ export default function BoardsScreen() {
       setJsonErrors([]);
       setEditMode(mode);
     },
-    [editMode, editingBoard, isJsonDirty]
+    [commitOpenCellEdit, editMode, editingBoard, editingBoardId, isJsonDirty]
   );
 
   const handleDiscardJson = useCallback(() => {
@@ -617,6 +630,7 @@ export default function BoardsScreen() {
                 <>
                   {editingBoard && (
                     <AngleBoard
+                      ref={editBoardRef}
                       grid={editingBoard.grid}
                       selection={editSelection}
                       onSelectionChange={setEditSelection}
@@ -762,12 +776,12 @@ export default function BoardsScreen() {
                       size="sm"
                       variant="primary"
                       onPress={handleJsonApply}
-                      disabled={!jsonPreview || jsonApplying}
+                      disabled={!jsonText.trim() || jsonApplying}
                       loading={jsonApplying}
                       style={styles.footerAction}
                       icon="checkmark"
                       accessibilityLabel="Apply JSON changes"
-                      accessibilityHint="Requires a successful preview.">
+                      accessibilityHint="Validates and saves the JSON to this board.">
                       Apply
                     </Button>
                   </View>

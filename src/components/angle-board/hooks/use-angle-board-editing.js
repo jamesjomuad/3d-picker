@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
 import { parseDigit } from '@/utils/board-validation';
@@ -22,8 +22,12 @@ import { parseDigit } from '@/utils/board-validation';
 export function useAngleBoardEditing({ onCellChange }) {
   const [editingCell, setEditingCell] = useState(null);
   const [editValue, setEditValue] = useState('');
+  // Both the field and the screen can commit the same edit. Guard against a
+  // stale blur handler writing an already-finished edit a second time.
+  const committed = useRef(true);
 
   const closeEditor = useCallback(() => {
+    committed.current = true;
     setEditingCell(null);
     setEditValue('');
   }, []);
@@ -34,6 +38,7 @@ export function useAngleBoardEditing({ onCellChange }) {
    * @param {number} col
    */
   const beginEdit = useCallback((row, col) => {
+    committed.current = false;
     setEditingCell({ row, col });
     setEditValue('');
   }, []);
@@ -43,7 +48,8 @@ export function useAngleBoardEditing({ onCellChange }) {
    * touching the grid, so the old digit stays.
    */
   const commitEdit = useCallback(() => {
-    if (!editingCell) return;
+    if (!editingCell || committed.current) return;
+    committed.current = true;
 
     const digit = parseDigit(editValue);
     if (digit === null) {

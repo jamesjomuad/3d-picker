@@ -41,6 +41,14 @@ describe('serializeBoardJson', () => {
     JSON.parse(json).grid[0][0] = 8;
     expect(board.grid[0][0]).toBe(1);
   });
+
+  it('keeps each grid row on one line', () => {
+    const board = makeBoard();
+    const json = serializeBoardJson(board);
+
+    expect(json).toContain('"grid": [\n    [1, 2],\n    [0, 9]\n  ]');
+    expect(parseBoardJson(json, board).success).toBe(true);
+  });
 });
 
 describe('parseBoardJson', () => {

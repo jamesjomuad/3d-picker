@@ -325,7 +325,27 @@ export function serializeBoardJson(board) {
   for (const key of BOARD_JSON_PROPERTIES) {
     ordered[key] = key === 'grid' && board.grid ? cloneGrid(board.grid) : board[key];
   }
-  return JSON.stringify(ordered, null, 2);
+
+  // Keep one grid row per line. Pretty-printing every digit makes a 10x10
+  // board over a hundred lines long and buries the fields around it.
+  if (!Array.isArray(ordered.grid)) return JSON.stringify(ordered, null, 2);
+
+  const gridRows = ordered.grid
+    .map((row) => `    [${row.map((cell) => JSON.stringify(cell)).join(', ')}]`)
+    .join(',\n');
+
+  return [
+    '{',
+    `  "id": ${JSON.stringify(ordered.id)},`,
+    `  "name": ${JSON.stringify(ordered.name)},`,
+    `  "isFavorite": ${JSON.stringify(ordered.isFavorite)},`,
+    '  "grid": [',
+    ...(gridRows ? [gridRows] : []),
+    '  ],',
+    `  "createdAt": ${JSON.stringify(ordered.createdAt)},`,
+    `  "updatedAt": ${JSON.stringify(ordered.updatedAt)}`,
+    '}',
+  ].join('\n');
 }
 
 export function parseBoardJson(text, originalBoard) {

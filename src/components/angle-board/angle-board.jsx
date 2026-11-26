@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { forwardRef, useCallback, useImperativeHandle, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AngleBoardGrid } from './angle-board-grid';
@@ -68,8 +68,10 @@ const NO_PLOT_CELLS = new Set();
  *   saved basket pick plotted on this board; a light background wash that is
  *   not a selection and never mutates the grid
  * @param {Object} [props.style] - extra style for the outer wrapper
+ * @param {React.Ref} [ref] - exposes commitEdit(), so the owner can save an
+ *   open cell before it closes the editor or unmounts this board
  */
-export function AngleBoard({
+export const AngleBoard = forwardRef(function AngleBoard({
   grid,
   selection,
   onSelectionChange,
@@ -79,9 +81,11 @@ export function AngleBoard({
   matchHighlights,
   plotCells,
   style,
-}) {
+}, ref) {
   const editing = useAngleBoardEditing({ grid, onCellChange });
   const { beginEdit, cancelEdit } = editing;
+
+  useImperativeHandle(ref, () => ({ commitEdit: editing.commitEdit }), [editing.commitEdit]);
 
   // A fill writes digits, so any open field is finished first: its value would
   // otherwise be committed over the cell the fill just set.
@@ -151,7 +155,7 @@ export function AngleBoard({
       </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   // Stretches to the screen's content width; measured to size the cells.
