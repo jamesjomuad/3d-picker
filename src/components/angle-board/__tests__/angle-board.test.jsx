@@ -411,7 +411,7 @@ describe('AngleBoard — gesture negotiation', () => {
     const editing = findAllByName(tree, 'AngleBoardEditCell').find(
       (cell) => cell.props.isEditing
     );
-    expect(editing.props.value).toBe(GRID[1][2]);
+    expect(editing.props.editValue).toBe('');
     act(() => tree.unmount());
   });
 });
@@ -444,8 +444,8 @@ describe('AngleBoard — editing the selected cell', () => {
 
     act(() => editor.beginEdit(0, 0));
     expect(editor.editingCell).toEqual({ row: 0, col: 0 });
-    // The field opens pre-filled with what the board already holds.
-    expect(editor.editValue).toBe('6');
+    // The field opens empty so typing replaces the digit directly.
+    expect(editor.editValue).toBe('');
 
     act(() => editor.setEditValue('9'));
     act(() => editor.commitEdit());

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Alert } from 'react-native';
 
 import { parseDigit } from '@/utils/board-validation';
@@ -14,22 +14,14 @@ import { parseDigit } from '@/utils/board-validation';
  * so a committed edit can never put an off-board value into the grid.
  *
  * @param {Object} options
- * @param {number[][]} options.grid - read at press time to seed the field
  * @param {(changes: Object<string, number>) => void} [options.onCellChange] -
  *   receives the same map of `"row,col" -> digit` a fill does, so one edit and a
  *   hundred look the same to the owner
  * @returns {{ editingCell: {row: number, col: number}|null, editValue: string, setEditValue: Function, beginEdit: Function, commitEdit: Function, cancelEdit: Function }}
  */
-export function useAngleBoardEditing({ grid, onCellChange }) {
+export function useAngleBoardEditing({ onCellChange }) {
   const [editingCell, setEditingCell] = useState(null);
   const [editValue, setEditValue] = useState('');
-
-  // Read through a ref so `beginEdit` keeps a stable identity while the grid
-  // object changes on every committed edit.
-  const gridRef = useRef(grid);
-  useEffect(() => {
-    gridRef.current = grid;
-  }, [grid]);
 
   const closeEditor = useCallback(() => {
     setEditingCell(null);
@@ -37,13 +29,13 @@ export function useAngleBoardEditing({ grid, onCellChange }) {
   }, []);
 
   /**
-   * Open the field on a cell, seeded with its current digit.
+   * Open an empty field on a cell so typing replaces the current digit.
    * @param {number} row
    * @param {number} col
    */
   const beginEdit = useCallback((row, col) => {
     setEditingCell({ row, col });
-    setEditValue(String(gridRef.current[row][col]));
+    setEditValue('');
   }, []);
 
   /**
