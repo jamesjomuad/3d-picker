@@ -1,5 +1,5 @@
 import * as Clipboard from 'expo-clipboard';
-import { router, useNavigation } from 'expo-router';
+import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
 import {
   Pressable,
@@ -9,10 +9,20 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
+import {
+  Animated,
+  Extrapolation,
+  interpolate,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { InputClearButton } from '@/components/ui/input-clear-button';
@@ -42,6 +52,11 @@ import { AppIcon } from '@/components/ui/app-icon';
 const COPY_FEEDBACK_MS = 1600;
 const RENDER_BATCH = 50;
 const SHEET_DETENTS = [0.5, 0.75, 1];
+const DEFAULT_DETENT_INDEX = 1;
+const SHEET_SPRING = { damping: 24, stiffness: 240, mass: 0.9 };
+const DISMISS_DURATION_MS = 180;
+const DRAG_ACTIVATION = 10;
+const DRAG_SLOP = 16;
 
 const DIGIT_FILTERS = FUN_PICK_FILTERS.filter((filter) => filter.digit !== null);
 const PATTERN_FILTERS = FUN_PICK_FILTERS.filter((filter) => filter.pattern !== null);
@@ -65,9 +80,11 @@ const COMPACT_FILTER_LABELS = {
 export function FunPickScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
   const { height: windowHeight } = useWindowDimensions();
-  const [detentIndex, setDetentIndex] = useState(2);
+  const sheetY = useSharedValue((1 - SHEET_DETENTS[DEFAULT_DETENT_INDEX]) * windowHeight);
+  const detentIndex = useSharedValue(DEFAULT_DETENT_INDEX);
+  const dragStartY = useSharedValue(0);
+  const dragStartDetent = useSharedValue(DEFAULT_DETENT_INDEX);
 
   const board = useLibraryStore((state) =>
     state.boards.find((item) => item.id === state.activeBoardId) || state.boards[0] || null
@@ -101,11 +118,8 @@ export function FunPickScreen() {
   );
 
   useEffect(() => {
-    const unsubscribe = navigation.addListener('sheetDetentChange', ({ data }) => {
-      setDetentIndex(data.index);
-    });
-    return unsubscribe;
-  }, [navigation]);
+    sheetY.set((1 - SHEET_DETENTS[detentIndex.get()]) * windowHeight);
+  }, [detentIndex, sheetY, windowHeight]);
 
   useEffect(() => {
     setVisibleCount(RENDER_BATCH);
@@ -154,8 +168,6 @@ export function FunPickScreen() {
   );
 
   const copyLabel = copyStatus === 'copied' ? 'Copied' : copyStatus === 'error' ? 'Failed' : 'Copy';
-  const sheetFraction = SHEET_DETENTS[detentIndex] ?? SHEET_DETENTS[SHEET_DETENTS.length - 1];
-  const floatingCloseBottom = (1 - sheetFraction) * windowHeight + insets.bottom + Spacing.three;
 
   const handleToggleFilter = useCallback((value) => {
     setFilters((current) => toggleFilterSelection(current, value));
@@ -220,6 +232,82 @@ export function FunPickScreen() {
     setVisibleCount((current) => current + RENDER_BATCH);
   }, []);
 
+  const snapToIndex = useCallback(
+    (index) => {
+      const nextIndex = Math.max(0, Math.min(SHEET_DETENTS.length - 1, index));
+      detentIndex.set(nextIndex);
+      sheetY.set(withSpring((1 - SHEET_DETENTS[nextIndex]) * windowHeight, SHEET_SPRING));
+    },
+    [detentIndex, sheetY, windowHeight]
+  );
+
+  const closeSheet = useCallback(() => {
+    router.back();
+  }, []);
+
+  const dismissSheet = useCallback(() => {
+    sheetY.set(
+      withTiming(windowHeight, { duration: DISMISS_DURATION_MS }, () => {
+        runOnJS(closeSheet)();
+      })
+    );
+  }, [closeSheet, sheetY, windowHeight]);
+
+  const panGesture = usePanGesture({
+    activeOffsetY: [-DRAG_ACTIVATION, DRAG_ACTIVATION],
+    failOffsetX: [-DRAG_SLOP, DRAG_SLOP],
+    shouldCancelWhenOutside: false,
+    onActivate: () => {
+      'worklet';
+      dragStartY.set(sheetY.get());
+      dragStartDetent.set(detentIndex.get());
+    },
+    onUpdate: (event) => {
+      'worklet';
+      const maxY = windowHeight * (1 - SHEET_DETENTS[0]);
+      const nextY = dragStartY.get() + event.translationY;
+      sheetY.set(Math.min(maxY, Math.max(0, nextY)));
+    },
+    onDeactivate: (event) => {
+      'worklet';
+      const current = dragStartDetent.get();
+      if (event.canceled) {
+        runOnJS(snapToIndex)(current);
+        return;
+      }
+      if (event.translationY > DRAG_ACTIVATION) {
+        if (current === 0) {
+          runOnJS(dismissSheet)();
+        } else {
+          runOnJS(snapToIndex)(current - 1);
+        }
+        return;
+      }
+      if (event.translationY < -DRAG_ACTIVATION) {
+        runOnJS(snapToIndex)(Math.min(current + 1, SHEET_DETENTS.length - 1));
+        return;
+      }
+      runOnJS(snapToIndex)(current);
+    },
+  });
+
+  const sheetStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: sheetY.get() }],
+  }));
+
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      sheetY.get(),
+      [0, windowHeight * (1 - SHEET_DETENTS[1])],
+      [0.35, 0],
+      Extrapolation.CLAMP
+    ),
+  }));
+
+  const closeStyle = useAnimatedStyle(() => ({
+    bottom: sheetY.get() + insets.bottom + Spacing.three,
+  }));
+
   const emptyText = !hasGenerated
     ? 'Generate combinations from the selected cells.'
     : visibleCombinations.length === 0
@@ -227,195 +315,219 @@ export function FunPickScreen() {
       : '';
 
   return (
-    <ThemedView
-      style={[
-        styles.screen,
-        {
-          paddingTop: insets.top + Spacing.two,
-          paddingLeft: insets.left + Spacing.three,
-          paddingRight: insets.right + Spacing.three,
-          paddingBottom: insets.bottom,
-        },
-      ]}>
-      <View style={styles.handleArea} importantForAccessibility="no">
-        <View style={[styles.handleBar, { backgroundColor: theme.border }]} />
-      </View>
-      <View style={styles.header}>
-        <View style={styles.headerTitle}>
-          <ThemedText type="smallBold">Fun Pick</ThemedText>
-          <ThemedText themeColor="textSecondary" style={styles.headerSubtitle}>
-            {FUN_PICK_LENGTH}D
-          </ThemedText>
-        </View>
-        <View style={styles.basketWrap}>
-          <IconButton
-            symbol="collection"
-            size="sm"
-            variant="outline"
-            onPress={() => router.navigate('/collection')}
-            accessibilityLabel={`Collection, ${basketCount} picks`}
-          />
-          {basketCount > 0 && (
-            <View style={[styles.basketBadge, { backgroundColor: theme.primary }]}>
-              <ThemedText themeColor="primaryText" style={styles.basketBadgeText}>
-                {basketCount}
-              </ThemedText>
-            </View>
-          )}
-        </View>
-        <Button size="sm" onPress={handleGenerate} disabled={selection.size === 0} icon="sparkles">
-          Generate
-        </Button>
-      </View>
+    <View style={styles.root}>
+      <Animated.View style={[styles.backdrop, backdropStyle]}>
+        <Pressable
+          style={styles.backdropPress}
+          onPress={closeSheet}
+          accessibilityLabel="Close Fun Pick"
+        />
+      </Animated.View>
 
-      <ScrollView
-        style={styles.sheetScroll}
-        contentContainerStyle={[
-          styles.sheetContent,
+      <Animated.View
+        style={[
+          styles.sheet,
           {
-            paddingBottom:
-              Spacing.three + (insets.bottom > 0 ? 0 : Spacing.two) + Spacing.six,
+            height: windowHeight,
+            backgroundColor: theme.background,
+            borderTopColor: theme.border,
+            paddingTop: insets.top + Spacing.two,
+            paddingLeft: insets.left + Spacing.three,
+            paddingRight: insets.right + Spacing.three,
+            paddingBottom: insets.bottom,
           },
-        ]}
-        keyboardShouldPersistTaps="handled"
-        nestedScrollEnabled={false}>
-        <View style={[styles.filtersHeader, { borderColor: theme.border }]}>
-          <ThemedText type="smallBold">Filters</ThemedText>
-          <Button size="sm" variant="ghost" onPress={handleClearAll} icon="trash">
-            Clear All
+          sheetStyle,
+        ]}>
+        <GestureDetector gesture={panGesture}>
+          <View style={styles.handleArea} importantForAccessibility="no">
+            <View style={[styles.handleBar, { backgroundColor: theme.border }]} />
+          </View>
+        </GestureDetector>
+
+        <View style={styles.header}>
+          <View style={styles.headerTitle}>
+            <ThemedText type="smallBold">Fun Pick</ThemedText>
+            <ThemedText themeColor="textSecondary" style={styles.headerSubtitle}>
+              {FUN_PICK_LENGTH}D
+            </ThemedText>
+          </View>
+          <View style={styles.basketWrap}>
+            <IconButton
+              symbol="collection"
+              size="sm"
+              variant="outline"
+              onPress={() => router.navigate('/collection')}
+              accessibilityLabel={`Collection, ${basketCount} picks`}
+            />
+            {basketCount > 0 && (
+              <View style={[styles.basketBadge, { backgroundColor: theme.primary }]}>
+                <ThemedText themeColor="primaryText" style={styles.basketBadgeText}>
+                  {basketCount}
+                </ThemedText>
+              </View>
+            )}
+          </View>
+          <Button size="sm" onPress={handleGenerate} disabled={selection.size === 0} icon="sparkles">
+            Generate
           </Button>
         </View>
-        <View style={styles.filterColumns}>
-          <View style={styles.filterColumn}>
-            <FilterSection
-              title="Digits"
-              options={DIGIT_FILTERS}
-              counts={countByValue}
-              filters={filters}
-              onToggle={handleToggleFilter}
-            />
-            <FilterSection
-              title="L-pattern"
-              options={PATTERN_FILTERS}
-              counts={countByValue}
-              filters={filters}
-              onToggle={handleToggleFilter}
-            />
-          </View>
-          <View style={styles.filterColumn}>
-            <FilterSection
-              title="Direction"
-              options={FUN_PICK_DIRECTION_FILTERS}
-              counts={countByValue}
-              filters={filters}
-              onToggle={handleToggleFilter}
-            />
-            <FilterSection
-              title="Other"
-              options={[FUN_PICK_DISTINCT_FILTER]}
-              counts={countByValue}
-              filters={filters}
-              onToggle={handleToggleFilter}
-              helper="Hide combinations with the same digits in a different order."
-            />
-          </View>
-        </View>
 
-        <View style={[styles.searchBlock, { borderColor: theme.border }]}>
-          <ThemedText type="smallBold">Search</ThemedText>
-          <View style={styles.searchField}>
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder="e.g. 12,4"
-              placeholderTextColor={theme.textSecondary}
-              keyboardType="default"
-              returnKeyType="search"
-              maxLength={60}
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={[
-                styles.searchInput,
+        <ScrollView
+          style={[styles.controlsScroll, { maxHeight: windowHeight * 0.25 }]}
+          contentContainerStyle={styles.controls}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled={false}>
+          <View style={[styles.filtersHeader, { borderColor: theme.border }]}>
+            <ThemedText type="smallBold">Filters</ThemedText>
+            <Button size="sm" variant="ghost" onPress={handleClearAll} icon="trash">
+              Clear All
+            </Button>
+          </View>
+          <View style={styles.filterColumns}>
+            <View style={styles.filterColumn}>
+              <FilterSection
+                title="Digits"
+                options={DIGIT_FILTERS}
+                counts={countByValue}
+                filters={filters}
+                onToggle={handleToggleFilter}
+              />
+              <FilterSection
+                title="L-pattern"
+                options={PATTERN_FILTERS}
+                counts={countByValue}
+                filters={filters}
+                onToggle={handleToggleFilter}
+              />
+            </View>
+            <View style={styles.filterColumn}>
+              <FilterSection
+                title="Direction"
+                options={FUN_PICK_DIRECTION_FILTERS}
+                counts={countByValue}
+                filters={filters}
+                onToggle={handleToggleFilter}
+              />
+              <FilterSection
+                title="Other"
+                options={[FUN_PICK_DISTINCT_FILTER]}
+                counts={countByValue}
+                filters={filters}
+                onToggle={handleToggleFilter}
+                helper="Hide combinations with the same digits in a different order."
+              />
+            </View>
+          </View>
+
+          <View style={[styles.searchBlock, { borderColor: theme.border }]}>
+            <ThemedText type="smallBold">Search</ThemedText>
+            <View style={styles.searchField}>
+              <TextInput
+                value={search}
+                onChangeText={setSearch}
+                placeholder="e.g. 12,4"
+                placeholderTextColor={theme.textSecondary}
+                keyboardType="default"
+                returnKeyType="search"
+                maxLength={60}
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={[
+                  styles.searchInput,
+                  {
+                    color: theme.text,
+                    backgroundColor: theme.backgroundElement,
+                    borderColor: theme.border,
+                  },
+                ]}
+              />
+              {search.length > 0 && <InputClearButton onPress={() => setSearch('')} />}
+            </View>
+            {!searchQuery.valid && (
+              <ThemedText style={styles.searchError}>Digits (0-9), separated by commas</ThemedText>
+            )}
+          </View>
+
+          <View style={styles.resultsHeader}>
+            <ThemedText type="smallBold">Results</ThemedText>
+            <ThemedText themeColor="textSecondary" style={styles.resultsCount}>
+              {visibleCombinations.length} of {combinations.length}
+            </ThemedText>
+          </View>
+
+          <View style={styles.resultActions}>
+            <Button
+              size="sm"
+              variant="outline"
+              onPress={handleAddVisible}
+              disabled={missingCombinations.length === 0}>
+              Add visible
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onPress={handleCopy}
+              disabled={combinations.length === 0}>
+              {copyLabel}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onPress={handleClearResults}
+              disabled={!hasGenerated}>
+              Clear
+            </Button>
+          </View>
+          {missingPreview.length > 0 && (
+            <ThemedText themeColor="textSecondary" style={styles.addHint} numberOfLines={1}>
+              Not in basket: {missingPreview}
+            </ThemedText>
+          )}
+        </ScrollView>
+
+        <View style={styles.resultsViewport}>
+          {emptyText ? (
+            <ThemedText themeColor="textSecondary" style={styles.emptyText}>
+              {emptyText}
+            </ThemedText>
+          ) : (
+            <ScrollView
+              style={styles.resultsScroll}
+              contentContainerStyle={[
+                styles.resultsContent,
                 {
-                  color: theme.text,
-                  backgroundColor: theme.backgroundElement,
-                  borderColor: theme.border,
+                  paddingBottom:
+                    Spacing.three + (insets.bottom > 0 ? 0 : Spacing.two) + Spacing.six,
                 },
               ]}
-            />
-            {search.length > 0 && <InputClearButton onPress={() => setSearch('')} />}
-          </View>
-          {!searchQuery.valid && (
-            <ThemedText style={styles.searchError}>Digits (0-9), separated by commas</ThemedText>
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled={false}>
+              <View style={styles.resultRows}>
+                {renderedCombinations.map((combination) => (
+                  <CombinationRow
+                    key={getPathKey(combination)}
+                    combination={combination}
+                    isSaved={basketDigits.has(combination.digits)}
+                    onToggle={handleToggleBasket}
+                  />
+                ))}
+              </View>
+              {hiddenCount > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onPress={handleShowMore}
+                  style={styles.moreButton}
+                  icon="chevron.down">
+                  Show {hiddenCount} more
+                </Button>
+              )}
+            </ScrollView>
           )}
         </View>
+      </Animated.View>
 
-        <View style={styles.resultsHeader}>
-          <ThemedText type="smallBold">Results</ThemedText>
-          <ThemedText themeColor="textSecondary" style={styles.resultsCount}>
-            {visibleCombinations.length} of {combinations.length}
-          </ThemedText>
-        </View>
-
-        <View style={styles.resultActions}>
-          <Button
-            size="sm"
-            variant="outline"
-            onPress={handleAddVisible}
-            disabled={missingCombinations.length === 0}>
-            Add visible
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onPress={handleCopy}
-            disabled={combinations.length === 0}>
-            {copyLabel}
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onPress={handleClearResults}
-            disabled={!hasGenerated}>
-            Clear
-          </Button>
-        </View>
-        {missingPreview.length > 0 && (
-          <ThemedText themeColor="textSecondary" style={styles.addHint} numberOfLines={1}>
-            Not in basket: {missingPreview}
-          </ThemedText>
-        )}
-        {emptyText ? (
-          <ThemedText themeColor="textSecondary" style={styles.emptyText}>
-            {emptyText}
-          </ThemedText>
-        ) : (
-          <View style={styles.resultRows}>
-            {renderedCombinations.map((combination) => (
-              <CombinationRow
-                key={getPathKey(combination)}
-                combination={combination}
-                isSaved={basketDigits.has(combination.digits)}
-                onToggle={handleToggleBasket}
-              />
-            ))}
-          </View>
-        )}
-        {hiddenCount > 0 && (
-          <Button
-            size="sm"
-            variant="outline"
-            onPress={handleShowMore}
-            style={styles.moreButton}
-            icon="chevron.down">
-            Show {hiddenCount} more
-          </Button>
-        )}
-      </ScrollView>
-
-      <View
-        pointerEvents="box-none"
-        style={[styles.floatingClose, { bottom: floatingCloseBottom }]}>
+      <Animated.View pointerEvents="box-none" style={[styles.floatingClose, closeStyle]}>
         <View
           style={[
             styles.floatingCloseSurface,
@@ -425,12 +537,12 @@ export function FunPickScreen() {
             symbol="xmark"
             size="md"
             variant="filled"
-            onPress={() => router.back()}
+            onPress={closeSheet}
             accessibilityLabel="Close Fun Pick"
           />
         </View>
-      </View>
-    </ThemedView>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -516,11 +628,30 @@ const CombinationRow = memo(function CombinationRow({ combination, isSaved, onTo
 });
 
 const styles = StyleSheet.create({
-  screen: {
+  root: {
     flex: 1,
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  backdropPress: {
+    flex: 1,
+  },
+  sheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopLeftRadius: BorderRadius.lg,
+    borderTopRightRadius: BorderRadius.lg,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+    gap: Spacing.two,
   },
   handleArea: {
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
     paddingTop: Spacing.one,
     paddingBottom: Spacing.two,
   },
@@ -577,10 +708,20 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  sheetScroll: {
+  controlsScroll: {
+    flexGrow: 0,
+  },
+  controls: {
+    gap: Spacing.two,
+  },
+  resultsViewport: {
+    flex: 1,
+    minHeight: 0,
+  },
+  resultsScroll: {
     flex: 1,
   },
-  sheetContent: {
+  resultsContent: {
     gap: Spacing.two,
   },
   filtersHeader: {

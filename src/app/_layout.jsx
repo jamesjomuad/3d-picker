@@ -1,9 +1,11 @@
 import { Stack, ThemeProvider, DarkTheme, DefaultTheme } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
+import { StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import { BorderRadius, Colors, Typography } from '@/constants/theme';
+import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useImmersiveStatusBar } from '@/hooks/use-immersive-status-bar';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -30,35 +32,35 @@ export default function RootLayout() {
   };
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen
-          name="fun-pick"
-          options={{
-            presentation: 'formSheet',
-            sheetAllowedDetents: [0.5, 0.75, 1],
-            sheetInitialDetentIndex: 2,
-            sheetGrabberVisible: false,
-            sheetCornerRadius: BorderRadius.lg,
-            sheetLargestUndimmedDetentIndex: 1,
-            sheetExpandsWhenScrolledToEdge: false,
-          }}
-        />
-        <Stack.Screen
-          name="changelog"
-          options={{ ...infoScreenOptions, title: "What's New" }}
-        />
-        <Stack.Screen
-          name="privacy-policy"
-          options={{ ...infoScreenOptions, title: 'Privacy Policy' }}
-        />
-        <Stack.Screen
-          name="licenses"
-          options={{ ...infoScreenOptions, title: 'Open-Source Licenses' }}
-        />
-      </Stack>
-    </ThemeProvider>
+    <GestureHandlerRootView style={styles.root}>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <AnimatedSplashOverlay />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen
+            name="fun-pick"
+            options={{ presentation: 'transparentModal', headerShown: false }}
+          />
+          <Stack.Screen
+            name="changelog"
+            options={{ ...infoScreenOptions, title: "What's New" }}
+          />
+          <Stack.Screen
+            name="privacy-policy"
+            options={{ ...infoScreenOptions, title: 'Privacy Policy' }}
+          />
+          <Stack.Screen
+            name="licenses"
+            options={{ ...infoScreenOptions, title: 'Open-Source Licenses' }}
+          />
+        </Stack>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+});
