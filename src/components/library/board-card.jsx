@@ -11,18 +11,17 @@ import { AppIcon } from '@/components/ui/app-icon';
  * Board card in the library list
  *
  * One surface, one primary action: tapping anywhere on the card opens the
- * board. The secondary verbs live in a compact row — Edit, and a ⋯ menu
- * that carries the rare and dangerous ones (Rename, Duplicate, Delete)
- * into a bottom sheet, with Delete styled destructive. The sheet dismisses
- * on an outside tap, the hardware back gesture, its header row or Cancel,
- * so it can never trap the list behind it. The favorite star sits on the
- * title row where it reads as a property of the board rather than an
- * action competing with it.
+ * board actions sheet. That sheet carries Set Board, Edit, Rename, Duplicate,
+ * favorite and Delete, with Delete styled destructive. The compact row keeps
+ * Edit one tap away. The sheet dismisses on an outside tap, the hardware back
+ * gesture or Cancel, so it can never trap the list behind it. The favorite
+ * star sits on the title row where it reads as a property of the board rather
+ * than an action competing with it.
  *
  * @param {Object} props
  * @param {Object} props.board - Board object
  * @param {boolean} props.isActive - Whether this is the active board
- * @param {(id: string) => void} props.onOpen - Open board handler
+ * @param {(id: string) => void} props.onSetBoard - Set active board and open it handler
  * @param {(board: Object) => void} props.onEdit - Edit board handler
  * @param {(board: Object) => void} props.onRename - Rename board handler
  * @param {(board: Object) => void} props.onDuplicate - Duplicate board handler
@@ -32,7 +31,7 @@ import { AppIcon } from '@/components/ui/app-icon';
 export const BoardCard = memo(function BoardCard({
   board,
   isActive,
-  onOpen,
+  onSetBoard,
   onEdit,
   onRename,
   onDuplicate,
@@ -53,9 +52,9 @@ export const BoardCard = memo(function BoardCard({
   return (
     <>
       <Pressable
-      onPress={() => onOpen(board.id)}
+      onPress={() => setShowMore(true)}
       accessibilityRole="button"
-      accessibilityLabel={`Open ${board.name}${isActive ? ', active board' : ''}`}
+      accessibilityLabel={`More options for ${board.name}${isActive ? ', active board' : ''}`}
       style={({ pressed }) => [
         styles.card,
         {
@@ -130,7 +129,7 @@ export const BoardCard = memo(function BoardCard({
         visible={showMore}
         board={board}
         onHide={() => setShowMore(false)}
-        onOpen={onOpen}
+        onSetBoard={onSetBoard}
         onEdit={onEdit}
         onRename={onRename}
         onDuplicate={onDuplicate}
@@ -179,7 +178,7 @@ function BoardActionsSheet({
   visible,
   board,
   onHide,
-  onOpen,
+  onSetBoard,
   onEdit,
   onRename,
   onDuplicate,
@@ -215,7 +214,7 @@ function BoardActionsSheet({
             </ThemedText>
           </View>
 
-          <SheetRow label="Open board" icon="arrow.right" onPress={pick(() => onOpen(board.id))} theme={theme} />
+          <SheetRow label="Set Board" icon="checkmark.circle" onPress={pick(() => onSetBoard(board.id))} theme={theme} />
           <SheetRow label="Edit board" icon="square.and.pencil" onPress={pick(() => onEdit(board))} theme={theme} />
           <SheetRow label="Rename" icon="text.cursor" onPress={pick(() => onRename(board))} theme={theme} />
           <SheetRow label="Duplicate" icon="doc.on.doc" onPress={pick(() => onDuplicate(board))} theme={theme} />

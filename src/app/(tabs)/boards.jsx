@@ -20,12 +20,12 @@ import { GridSizeControl } from '@/components/library/grid-size-control';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
+import { Toast } from '@/components/ui/toast';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BorderRadius, Interaction, Spacing, TouchTarget, Typography } from '@/constants/theme';
 import { useScreenInsets } from '@/hooks/use-screen-insets';
 import { useTheme } from '@/hooks/use-theme';
-import { router } from 'expo-router';
 import { useLibraryStore } from '@/store/libraryStore';
 import { compareBoards, parseBoardJson, serializeBoardJson } from '@/utils/board-json';
 import { resizeGrid as resizeGridData } from '@/utils/board-resize';
@@ -85,6 +85,7 @@ export default function BoardsScreen() {
   const [pendingEditMode, setPendingEditMode] = useState(null);
   const [pendingClose, setPendingClose] = useState(false);
   const [pendingResize, setPendingResize] = useState(null); // { rows, columns }
+  const [toast, setToast] = useState(null); // { id, message }
   const editBoardRef = useRef(null);
 
   useEffect(() => {
@@ -208,12 +209,21 @@ export default function BoardsScreen() {
     openEditSheet(newBoard.id, newBoard.grid);
   }, [createValue, createBoard, openEditSheet]);
 
-  const handleOpen = useCallback(
+  const showToast = useCallback((message) => {
+    setToast({ id: Date.now(), message });
+  }, []);
+
+  const hideToast = useCallback(() => {
+    setToast(null);
+  }, []);
+
+  // Sheet action: set the active board without leaving the Boards page.
+  const handleSetBoard = useCallback(
     (boardId) => {
       setActiveBoard(boardId);
-      router.navigate('/');
+      showToast('Board set successfully');
     },
-    [setActiveBoard]
+    [setActiveBoard, showToast]
   );
 
   const handleEdit = useCallback(
@@ -529,7 +539,7 @@ export default function BoardsScreen() {
                   key={board.id}
                   board={board}
                   isActive={board.id === activeBoardId}
-                  onOpen={handleOpen}
+                  onSetBoard={handleSetBoard}
                   onEdit={handleEdit}
                   onRename={handleRename}
                   onDuplicate={handleDuplicate}
@@ -862,6 +872,7 @@ export default function BoardsScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      {toast ? <Toast key={toast.id} message={toast.message} onHide={hideToast} /> : null}
     </View>
   );
 }
