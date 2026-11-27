@@ -142,4 +142,33 @@ describe('basketStore', () => {
     expect(saveBasket).toHaveBeenCalledTimes(writesBefore);
     expect(useBasketStore.getState().entries).toHaveLength(1);
   });
+
+  it('removeMany removes only listed digits and persists once', async () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 10, 23, 20, 35));
+    useBasketStore.getState().add(combination('074'));
+    useBasketStore.getState().add(combination('638'));
+    useBasketStore.getState().add(combination('129'));
+    await flush();
+    const firstKept = useBasketStore.getState().entries[1];
+    const writesBefore = saveBasket.mock.calls.length;
+
+    useBasketStore.getState().removeMany(['074', '129', 'missing']);
+    await flush();
+
+    expect(useBasketStore.getState().entries).toEqual([firstKept]);
+    expect(useBasketStore.getState().entries[0]).toBe(firstKept);
+    expect(saveBasket).toHaveBeenCalledTimes(writesBefore + 1);
+  });
+
+  it('removeMany with nothing to remove does not write storage', async () => {
+    useBasketStore.getState().add(combination('074'));
+    await flush();
+    const writesBefore = saveBasket.mock.calls.length;
+
+    useBasketStore.getState().removeMany(['missing']);
+    await flush();
+
+    expect(saveBasket).toHaveBeenCalledTimes(writesBefore);
+    expect(useBasketStore.getState().entries).toHaveLength(1);
+  });
 });

@@ -2,7 +2,7 @@
  * Tests for the Selection Basket display/share formatting
  */
 
-import { buildBasketShareText, formatAddedAt } from '@/utils/basket-format';
+import { buildBasketShareText, formatAddedAt, formatAddedTime } from '@/utils/basket-format';
 
 describe('formatAddedAt', () => {
   it('formats an ISO timestamp in local time', () => {
@@ -32,6 +32,18 @@ describe('formatAddedAt', () => {
     expect(formatAddedAt('')).toBe('');
     expect(formatAddedAt('not a date')).toBe('');
     expect(formatAddedAt({})).toBe('');
+  });
+});
+
+describe('formatAddedTime', () => {
+  it('returns the local time only', () => {
+    expect(formatAddedTime(new Date(2026, 10, 23, 20, 35).toISOString())).toBe('8:35 PM');
+    expect(formatAddedTime(new Date(2026, 6, 4, 0, 5).getTime())).toBe('12:05 AM');
+  });
+
+  it('returns an empty string for unusable timestamps', () => {
+    expect(formatAddedTime(null)).toBe('');
+    expect(formatAddedTime('not a date')).toBe('');
   });
 });
 

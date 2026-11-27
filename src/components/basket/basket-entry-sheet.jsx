@@ -2,7 +2,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensio
 
 import { AngleBoard } from '@/components/angle-board';
 import { ThemedText } from '@/components/themed-text';
-import { BorderRadius, Spacing, Typography } from '@/constants/theme';
+import { BorderRadius, Spacing, TouchTarget, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { formatAddedAt } from '@/utils/basket-format';
 import { MIN_CELL_SIZE, getBoardSize } from '@/utils/board-layout';
@@ -16,9 +16,9 @@ import { AppIcon } from '@/components/ui/app-icon';
  * Opens when a Collection row is tapped and carries the exact entry chosen by
  * the caller — digits are the basket's stable identity, so several rows can
  * never be confused. The active board is embedded as a read-only preview with
- * the saved cells marked. Tapping that embedded board plots the pick; the
- * sheet has no Plot or Remove buttons. Removal stays on the Collection row.
- * Plotting is delegated upward, and the only sheet action is Close. It follows
+ * the saved cells marked. Tapping that embedded board plots the pick, and the
+ * explicit Plot action does the same. Remove is delegated upward so the
+ * Collection screen owns its confirmation dialog. It follows
  * the existing Modal/backdrop pattern used by the board actions sheet, with a
  * bubble-phase guard so backdrop taps and Android back both dismiss safely.
  *
@@ -31,7 +31,8 @@ import { AppIcon } from '@/components/ui/app-icon';
  *   layer for every path matching the saved digits
  * @param {string|null} [props.plotError] - why this pick cannot be plotted
  * @param {() => void} props.onClose
- * @param {() => void} props.onPlot - called when the embedded board is tapped
+ * @param {() => void} props.onPlot - called by the embedded board and Plot action
+ * @param {() => void} props.onRemove - asks the screen to confirm removal
  */
 export function BasketEntrySheet({
   visible,
@@ -41,6 +42,7 @@ export function BasketEntrySheet({
   plotError,
   onClose,
   onPlot,
+  onRemove,
 }) {
   const theme = useTheme();
   const { width, height } = useWindowDimensions();
@@ -125,6 +127,14 @@ export function BasketEntrySheet({
             ) : null}
 
             <View style={[styles.divider, { backgroundColor: theme.border }]} />
+            <SheetAction label="Plot on Active Board" icon="swap" onPress={onPlot} theme={theme} />
+            <SheetAction
+              label="Remove from Basket"
+              icon="trash"
+              destructive
+              onPress={() => onRemove(entry.digits)}
+              theme={theme}
+            />
             <SheetAction label="Close" icon="xmark" onPress={onClose} theme={theme} />
           </ScrollView>
         </View>
@@ -133,8 +143,8 @@ export function BasketEntrySheet({
   );
 }
 
-/** One full-width sheet action; 48dp tall so it is easy to hit deliberately. */
-function SheetAction({ label, onPress, theme, icon }) {
+/** One full-width sheet action, sized to the platform touch-target token. */
+function SheetAction({ label, onPress, theme, icon, destructive = false }) {
   return (
     <Pressable
       onPress={onPress}
@@ -142,12 +152,20 @@ function SheetAction({ label, onPress, theme, icon }) {
       accessibilityLabel={label}
       style={({ pressed }) => [
         styles.action,
-        { borderColor: theme.border },
+        { borderColor: destructive ? theme.destructive : theme.border },
         pressed && styles.pressed,
       ]}>
       <View style={styles.actionContent}>
-        {icon ? <AppIcon name={icon} size="small" tone="text" /> : null}
-        <Text style={[styles.actionText, { color: theme.text }]}>{label}</Text>
+        {icon ? (
+          <AppIcon name={icon} size="small" tone={destructive ? 'destructive' : 'text'} />
+        ) : null}
+        <Text
+          style={[
+            styles.actionText,
+            { color: destructive ? theme.destructive : theme.text },
+          ]}>
+          {label}
+        </Text>
       </View>
     </Pressable>
   );
@@ -214,7 +232,7 @@ const styles = StyleSheet.create({
     lineHeight: Typography.lineHeight.body,
   },
   action: {
-    minHeight: 48,
+    minHeight: TouchTarget,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: Spacing.three,

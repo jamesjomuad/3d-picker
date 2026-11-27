@@ -1,19 +1,30 @@
 import { router } from 'expo-router';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, Pressable, Share, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, FlatList, Share, StyleSheet, View } from 'react-native';
 
 import { BasketEntrySheet } from '@/components/basket/basket-entry-sheet';
+import { CollectionGroupCard } from '@/components/basket/collection-group-card';
+import { CollectionSearchField } from '@/components/basket/collection-search-field';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { BorderRadius, Spacing, Typography } from '@/constants/theme';
+import { closeAllSwipeActions } from '@/components/ui/swipe-action-row';
+import { Spacing, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useScreenInsets } from '@/hooks/use-screen-insets';
 import { useTheme } from '@/hooks/use-theme';
 import { useBasketStore } from '@/store/basketStore';
 import { useLibraryStore } from '@/store/libraryStore';
-import { buildBasketShareText, formatAddedAt } from '@/utils/basket-format';
-import { getPathReference } from '@/utils/cell-reference';
+import { buildBasketShareText } from '@/utils/basket-format';
+import { groupBasketEntries } from '@/utils/basket-grouping';
+import {
+  areAllVisibleSelected,
+  pruneSelectedIds,
+  removeSelectedIds,
+  selectVisibleIds,
+  toggleSelectedId,
+} from '@/utils/basket-selection';
+import { filterBasketEntries } from '@/utils/basket-search';
 import { buildPlotHighlights } from '@/utils/plot-highlights';
 import {
   PLOT_PARAM,
@@ -24,24 +35,34 @@ import {
 /**
  * Collection tab — the Selection Basket
  *
- * The dedicated collection view for the picks saved from Fun Pick: every
- * combination with its board reference and the local date and time it was
- * added, a per-row Remove, header Share, and a confirm-to-clear action.
+ * The dedicated collection view for the picks saved from Fun Pick. Picks sit
+ * in permanently expanded groups by the local date they were added, newest
+ * date first and newest pick first inside a day. A fixed search field filters
+ * the visible list in memory by digits or cell coordinates; it never edits
+ * the persisted basket or the store.
+ *
  * It reads and writes only the basket store, so nothing here — sharing,
- * clearing, switching tabs — touches Fun Pick's generation, search or
- * filter state, and the counts on both sides update from the same source.
+ * searching, clearing, switching tabs — touches Fun Pick's generation, search
+ * or filter state, and the counts on both sides update from the same source.
  *
- * The rows live in a FlatList rather than a ScrollView: "Add to Collection"
- * can save a whole generated batch at once, so the basket can grow far
- * beyond the number of rows it is sensible to mount at one time.
+ * The list virtualises date groups rather than individual rows: "Add to
+ * Collection" can save a whole generated batch at once, so the basket can grow
+ * far beyond the number of rows it is sensible to mount at one time. Each
+ * group is one always-expanded card with its header outside; there is no
+ * collapse control.
  *
- * Tapping a row opens its detail sheet; tapping the active-board preview in
- * that sheet plots the pick. Plotting sends only the saved digits and
+ * Tapping a row opens its detail sheet; the sheet's Plot action and embedded
+ * board preview plot the pick. Plotting sends only the saved digits and
  * coordinates to the Picker, which validates them against whichever board is
  * active *then* — the Collection never switches boards or edits a grid.
  *
  * The preview uses the same search-style colour layer as the plotted board,
  * so every matching path is visible before the tap.
+ *
+ * Browse mode also offers a deliberate left swipe on a row to reveal Remove.
+ * Select mode replaces that gesture with a checkbox and keeps its temporary
+ * digit IDs outside the persisted basket. Select All limits itself to the
+ * currently displayed search results; hidden picks are never bulk removed.
  */
 export default function CollectionScreen() {
   const theme = useTheme();
@@ -52,6 +73,7 @@ export default function CollectionScreen() {
   const isLoaded = useBasketStore((state) => state.isLoaded);
   const load = useBasketStore((state) => state.load);
   const remove = useBasketStore((state) => state.remove);
+  const removeMany = useBasketStore((state) => state.removeMany);
   const clear = useBasketStore((state) => state.clear);
 
   const boards = useLibraryStore((state) => state.boards);
@@ -60,12 +82,38 @@ export default function CollectionScreen() {
   const activeBoard =
     boards.find((board) => board.id === activeBoardId) || boards[0] || null;
 
+  const [query, setQuery] = useState('');
   const [showClearDialog, setShowClearDialog] = useState(false);
+  const [pendingRemoveDigits, setPendingRemoveDigits] = useState(null);
   // Digits are the basket's stable identity, so the sheet always resolves the
   // current entry from the store even if the list changes while it is open.
   const [selectedDigits, setSelectedDigits] = useState(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [showBulkRemoveDialog, setShowBulkRemoveDialog] = useState(false);
+
+  const filteredEntries = useMemo(
+    () => filterBasketEntries(entries, query),
+    [entries, query]
+  );
+  const sections = useMemo(() => groupBasketEntries(filteredEntries), [filteredEntries]);
+  const visibleIds = useMemo(
+    () => filteredEntries.map((entry) => entry.digits),
+    [filteredEntries]
+  );
+  const selectedCount = selectedIds.size;
+  const allVisibleSelected = useMemo(
+    () => areAllVisibleSelected(selectedIds, visibleIds),
+    [selectedIds, visibleIds]
+  );
+  const selectionSignature = useMemo(
+    () => [...selectedIds].sort().join('|'),
+    [selectedIds]
+  );
 
   const selectedEntry = entries.find((entry) => entry.digits === selectedDigits) ?? null;
+  const pendingRemoveEntry =
+    entries.find((entry) => entry.digits === pendingRemoveDigits) ?? null;
   const plotPreview = selectedEntry
     ? validatePlotRequest(selectedEntry, activeBoard?.grid)
     : null;
@@ -85,8 +133,19 @@ export default function CollectionScreen() {
     loadLibrary();
   }, [loadLibrary]);
 
+  useEffect(() => {
+    setSelectedIds((current) => {
+      const availableIds = entries.map((entry) => entry.digits);
+      const next = pruneSelectedIds(current, availableIds);
+      return next.size === current.size ? current : next;
+    });
+  }, [entries]);
+
+  const closeOpenSwipes = useCallback(() => closeAllSwipeActions(), []);
+
   const handleShare = async () => {
     if (entries.length === 0) return;
+    closeOpenSwipes();
     try {
       await Share.share({
         title: '3D Picker – Selection Basket',
@@ -100,9 +159,95 @@ export default function CollectionScreen() {
   };
 
   // Zustand actions are stable, so these handlers stay referentially stable
-  // and memoised rows only re-render when their own entry or index changes.
-  const handleRemove = useCallback((digits) => remove(digits), [remove]);
-  const handleSelect = useCallback((digits) => setSelectedDigits(digits), []);
+  // and memoised rows only re-render when their own entry changes.
+  const handleSelect = useCallback(
+    (digits) => {
+      closeOpenSwipes();
+      setSelectedDigits(digits);
+    },
+    [closeOpenSwipes]
+  );
+
+  const handleQueryChange = useCallback(
+    (nextQuery) => {
+      closeOpenSwipes();
+      setQuery(nextQuery);
+    },
+    [closeOpenSwipes]
+  );
+
+  const handleClearQuery = useCallback(() => {
+    closeOpenSwipes();
+    setQuery('');
+  }, [closeOpenSwipes]);
+
+  const handleRequestRemove = useCallback(
+    (digits) => {
+      closeOpenSwipes();
+      setPendingRemoveDigits(digits);
+    },
+    [closeOpenSwipes]
+  );
+  const handleCancelRemove = useCallback(() => setPendingRemoveDigits(null), []);
+  const handleConfirmRemove = useCallback(() => {
+    if (pendingRemoveDigits === null) return;
+    remove(pendingRemoveDigits);
+    setSelectedIds((current) => removeSelectedIds(current, [pendingRemoveDigits]));
+    setSelectedDigits(null);
+    setPendingRemoveDigits(null);
+  }, [pendingRemoveDigits, remove]);
+
+  const handleStartSelection = useCallback(() => {
+    closeOpenSwipes();
+    setSelectedDigits(null);
+    setSelectedIds(new Set());
+    setSelectionMode(true);
+  }, [closeOpenSwipes]);
+
+  const handleCancelSelection = useCallback(() => {
+    closeOpenSwipes();
+    setSelectedIds(new Set());
+    setSelectionMode(false);
+  }, [closeOpenSwipes]);
+
+  const handleToggleSelected = useCallback(
+    (digits) => {
+      if (!selectionMode) return;
+      setSelectedIds((current) => toggleSelectedId(current, digits));
+    },
+    [selectionMode]
+  );
+
+  const handleSelectAll = useCallback(() => {
+    if (visibleIds.length === 0 || allVisibleSelected) return;
+    setSelectedIds((current) => selectVisibleIds(current, visibleIds));
+  }, [allVisibleSelected, visibleIds]);
+
+  const handleOpenBulkRemove = useCallback(() => {
+    if (selectedCount === 0) return;
+    closeOpenSwipes();
+    setShowBulkRemoveDialog(true);
+  }, [closeOpenSwipes, selectedCount]);
+
+  const handleCancelBulkRemove = useCallback(() => setShowBulkRemoveDialog(false), []);
+
+  const handleConfirmBulkRemove = useCallback(() => {
+    if (selectedIds.size === 0) return;
+    closeOpenSwipes();
+    removeMany([...selectedIds]);
+    setSelectedIds(new Set());
+    setSelectionMode(false);
+    setShowBulkRemoveDialog(false);
+  }, [closeOpenSwipes, removeMany, selectedIds]);
+
+  const handleConfirmClear = useCallback(() => {
+    closeOpenSwipes();
+    clear();
+    setSelectedDigits(null);
+    setSelectedIds(new Set());
+    setSelectionMode(false);
+    setShowClearDialog(false);
+  }, [clear, closeOpenSwipes]);
 
   const handlePlot = useCallback(() => {
     if (!selectedEntry) return;
@@ -124,50 +269,157 @@ export default function CollectionScreen() {
   }, [activeBoard, selectedEntry]);
 
   const renderItem = useCallback(
-    ({ item, index }) => (
-      <BasketRow
-        entry={item}
-        index={index}
+    ({ item }) => (
+      <CollectionGroupCard
+        section={item}
         width={contentWidth}
+        selectedDigits={selectedDigits}
+        selectedIds={selectedIds}
+        selectionMode={selectionMode}
         onSelect={handleSelect}
-        onRemove={handleRemove}
+        onToggleSelected={handleToggleSelected}
+        onRequestRemove={handleRequestRemove}
       />
     ),
-    [contentWidth, handleSelect, handleRemove]
+    [
+      contentWidth,
+      selectedDigits,
+      selectedIds,
+      selectionMode,
+      handleSelect,
+      handleToggleSelected,
+      handleRequestRemove,
+    ]
   );
 
+  const headerPadding = {
+    paddingTop: contentPadding.paddingTop,
+    paddingLeft: contentPadding.paddingLeft,
+    paddingRight: contentPadding.paddingRight,
+  };
+  const listPadding = { paddingBottom: contentPadding.paddingBottom };
+
   const header = (
-    <View style={[styles.column, styles.headerContainer, { width: contentWidth }]}>
-      <View style={styles.headerTop}>
-        <View style={styles.headerTitle}>
-          <ThemedText type="default" style={styles.headerTitleText}>
-            Collection
-          </ThemedText>
-          <ThemedText themeColor="textSecondary" style={styles.countText}>
-            {entries.length} {entries.length === 1 ? 'pick' : 'picks'} saved
-          </ThemedText>
+    <View
+      style={[
+        styles.header,
+        headerPadding,
+        { backgroundColor: theme.background, borderBottomColor: theme.border },
+      ]}>
+      <View style={[styles.headerInner, { width: contentWidth }]}>
+        <View style={styles.headerTop}>
+          <View style={styles.headerTitle}>
+            <ThemedText type="default" style={styles.headerTitleText}>
+              Collection
+            </ThemedText>
+            <ThemedText themeColor="textSecondary" style={styles.countText}>
+              {selectionMode
+                ? `${selectedCount} selected`
+                : `${entries.length} ${entries.length === 1 ? 'pick' : 'picks'} saved`}
+            </ThemedText>
+          </View>
+          <View style={styles.headerActions}>
+            {selectionMode ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  style={styles.touchTarget}
+                  onPress={handleCancelSelection}
+                  icon="xmark">
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  style={styles.touchTarget}
+                  onPress={handleSelectAll}
+                  disabled={visibleIds.length === 0 || allVisibleSelected}
+                  icon="checkmark">
+                  Select All
+                </Button>
+              </>
+            ) : (
+              <>
+                {entries.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    style={styles.touchTarget}
+                    onPress={handleStartSelection}
+                    icon="checkmark">
+                    Select
+                  </Button>
+                )}
+                {entries.length > 0 && (
+                  <Button
+                    size="sm"
+                    style={styles.touchTarget}
+                    onPress={handleShare}
+                    icon="square.and.arrow.up">
+                    Share
+                  </Button>
+                )}
+              </>
+            )}
+          </View>
         </View>
-        {entries.length > 0 && (
-          <Button size="sm" style={styles.touchTarget} onPress={handleShare} icon="square.and.arrow.up">
-            Share
-          </Button>
+        <CollectionSearchField
+          value={query}
+          onChangeText={handleQueryChange}
+          onClear={handleClearQuery}
+        />
+        {selectionMode && selectedCount > 0 && (
+          <View style={styles.selectionToolbar}>
+            <ThemedText themeColor="textSecondary" style={styles.selectedText}>
+              {selectedCount} {selectedCount === 1 ? 'pick' : 'picks'} selected
+            </ThemedText>
+            <Button
+              size="sm"
+              variant="destructive"
+              style={styles.touchTarget}
+              onPress={handleOpenBulkRemove}
+              icon="trash">
+              Remove Selected
+            </Button>
+          </View>
         )}
       </View>
     </View>
   );
 
+  const hasQuery = query.trim().length > 0;
   const emptyState = isLoaded ? (
     <View style={[styles.column, styles.emptyState, { width: contentWidth }]}>
-      <ThemedText themeColor="textSecondary" style={styles.emptyText}>
-        The basket is empty. Generate combinations in Fun Pick and tap Add on the
-        ones worth keeping — they collect here and stay saved.
-      </ThemedText>
-      <Button
-        size="sm"
-        style={styles.touchTarget}
-        onPress={() => router.navigate('/')} icon="sparkles">
-        Go to Fun Pick
-      </Button>
+      {hasQuery ? (
+        <>
+          <ThemedText themeColor="textSecondary" style={styles.emptyText}>
+            No saved picks match that search. Try a shorter digit sequence or a cell
+            reference like A1.
+          </ThemedText>
+          <Button
+            size="sm"
+            style={styles.touchTarget}
+            onPress={handleClearQuery}
+            icon="xmark.circle">
+            Clear search
+          </Button>
+        </>
+      ) : (
+        <>
+          <ThemedText themeColor="textSecondary" style={styles.emptyText}>
+            The basket is empty. Generate combinations in Fun Pick and tap Add on the
+            ones worth keeping — they collect here and stay saved.
+          </ThemedText>
+          <Button
+            size="sm"
+            style={styles.touchTarget}
+            onPress={() => router.navigate('/')}
+            icon="sparkles">
+            Go to Fun Pick
+          </Button>
+        </>
+      )}
     </View>
   ) : null;
 
@@ -184,16 +436,20 @@ export default function CollectionScreen() {
   );
 
   return (
-    <View style={[styles.screen, { backgroundColor: theme.background }]}>
+    <View
+      style={[styles.screen, { backgroundColor: theme.background }]}
+      onTouchStart={closeOpenSwipes}>
+      {header}
       <FlatList
         style={styles.list}
-        contentContainerStyle={[styles.contentContainer, contentPadding]}
-        data={entries}
+        contentContainerStyle={[styles.contentContainer, listPadding]}
+        data={sections}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
-        ListHeaderComponent={header}
         ListEmptyComponent={emptyState}
         ListFooterComponent={footer}
+        onScrollBeginDrag={closeOpenSwipes}
+        extraData={`${selectedDigits ?? ''}|${query}|${selectionMode ? '1' : '0'}|${selectionSignature}`}
       />
 
       <BasketEntrySheet
@@ -213,6 +469,29 @@ export default function CollectionScreen() {
         plotError={plotPreview && !plotPreview.valid ? plotPreview.error : null}
         onClose={() => setSelectedDigits(null)}
         onPlot={handlePlot}
+        onRemove={handleRequestRemove}
+      />
+
+      <ConfirmDialog
+        visible={pendingRemoveEntry !== null}
+        title="Remove Pick"
+        message={`Remove ${pendingRemoveEntry?.digits ?? ''} from the basket? This cannot be undone.`}
+        confirmLabel="Remove"
+        confirmVariant="destructive"
+        icon="trash"
+        onCancel={handleCancelRemove}
+        onConfirm={handleConfirmRemove}
+      />
+
+      <ConfirmDialog
+        visible={showBulkRemoveDialog}
+        title="Remove Selected"
+        message={`Remove ${selectedCount} selected ${selectedCount === 1 ? 'pick' : 'picks'} from the basket? This cannot be undone.`}
+        confirmLabel="Remove"
+        confirmVariant="destructive"
+        icon="trash"
+        onCancel={handleCancelBulkRemove}
+        onConfirm={handleConfirmBulkRemove}
       />
 
       <ConfirmDialog
@@ -223,86 +502,30 @@ export default function CollectionScreen() {
         confirmVariant="destructive"
         icon="trash"
         onCancel={() => setShowClearDialog(false)}
-        onConfirm={() => {
-          clear();
-          setShowClearDialog(false);
-        }}
+        onConfirm={handleConfirmClear}
       />
-
     </View>
   );
 }
 
 /**
- * Digits identify basket entries (the store refuses duplicates), so they
- * make a stable key across removals and reordering.
+ * Local date keys identify groups, so each card keeps its identity when a
+ * search narrows or widens the visible list.
  */
-function keyExtractor(entry) {
-  return entry.digits;
+function keyExtractor(section) {
+  return section.key;
 }
-
-/**
- * One saved pick. Memoised so adding or removing another entry never
- * reformats this row's path or timestamp. The text area opens the detail
- * sheet; Remove stays a sibling button so there are no nested Pressables.
- */
-const BasketRow = memo(function BasketRow({ entry, index, width, onSelect, onRemove }) {
-  const addedAt = formatAddedAt(entry.addedAt);
-
-  return (
-    <View style={[styles.column, styles.row, { width }]}>
-      <Pressable
-        onPress={() => onSelect(entry.digits)}
-        accessibilityRole="button"
-        accessibilityLabel={`Open details for ${entry.digits}`}
-        style={({ pressed }) => [styles.rowText, pressed && styles.rowTextPressed]}>
-        <ThemedText type="smallBold" style={styles.digits}>
-          {index + 1}. {entry.digits}
-        </ThemedText>
-        <ThemedText type="small" themeColor="textSecondary" style={styles.metaText}>
-          {getPathReference(entry.path)}
-        </ThemedText>
-        {addedAt ? (
-          <ThemedText type="small" themeColor="textSecondary" style={styles.metaText}>
-            Added {addedAt}
-          </ThemedText>
-        ) : null}
-      </Pressable>
-      <Button
-        size="sm"
-        variant="outline"
-        style={styles.touchTarget}
-        accessibilityLabel={`Remove ${entry.digits} from basket`}
-        onPress={() => onRemove(entry.digits)} icon="trash">
-        Remove
-      </Button>
-    </View>
-  );
-});
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
   },
-  list: {
-    flex: 1,
+  header: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  contentContainer: {
-    alignItems: 'center',
-    flexGrow: 1,
-  },
-  column: {
-    flexShrink: 1,
-  },
-  // Scoped to this screen: the shared Button's `sm` size is 32dp tall, but
-  // every Collection control needs the project's 44dp minimum touch target.
-  touchTarget: {
-    minHeight: 44,
-    minWidth: 44,
-    paddingVertical: Spacing.two,
-  },
-  headerContainer: {
-    marginBottom: Spacing.three,
+  headerInner: {
+    alignSelf: 'center',
+    paddingBottom: Spacing.two,
   },
   headerTop: {
     flexDirection: 'row',
@@ -322,29 +545,38 @@ const styles = StyleSheet.create({
   countText: {
     fontSize: Typography.size.body,
   },
-  row: {
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  selectionToolbar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: Spacing.two,
-    paddingVertical: Spacing.two,
+    marginTop: Spacing.two,
   },
-  rowText: {
-    flex: 1,
+  selectedText: {
     flexShrink: 1,
-    gap: 2,
+    fontSize: Typography.size.body,
   },
-  rowTextPressed: {
-    opacity: 0.7,
+  list: {
+    flex: 1,
   },
-  digits: {
-    fontSize: Typography.size.title,
-    lineHeight: Typography.lineHeight.title,
-    fontVariant: ['tabular-nums'],
+  contentContainer: {
+    alignItems: 'center',
+    flexGrow: 1,
   },
-  metaText: {
-    fontSize: Typography.size.caption,
-    lineHeight: Typography.lineHeight.caption,
+  column: {
+    flexShrink: 1,
+  },
+  // Scoped to this screen: the shared Button's `sm` size is 32dp tall, but
+  // every Collection control needs the project's minimum touch target.
+  touchTarget: {
+    minHeight: 44,
+    minWidth: 44,
+    paddingVertical: Spacing.two,
   },
   actions: {
     marginTop: Spacing.three,
@@ -353,7 +585,6 @@ const styles = StyleSheet.create({
     padding: Spacing.four,
     alignItems: 'center',
     gap: Spacing.three,
-    borderRadius: BorderRadius.md,
   },
   emptyText: {
     textAlign: 'center',

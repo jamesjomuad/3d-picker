@@ -88,6 +88,22 @@ export const useBasketStore = create((set, get) => ({
     get()._persist();
   },
 
+  /**
+   * Removes several entries, identified by digits, in one update.
+   * A no-op match set never writes storage; kept entries keep their exact
+   * timestamps and coordinates.
+   * @param {Array<string>} digitsList
+   */
+  removeMany: (digitsList) => {
+    if (!Array.isArray(digitsList) || digitsList.length === 0) return;
+    const targets = new Set(digitsList);
+    const { entries } = get();
+    const remaining = entries.filter((entry) => !targets.has(entry.digits));
+    if (remaining.length === entries.length) return;
+    set({ entries: remaining });
+    get()._persist();
+  },
+
   /** Empties the basket. */
   clear: () => {
     set({ entries: [] });

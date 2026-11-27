@@ -23,6 +23,21 @@ const MONTHS = [
 ];
 
 /**
+ * Parse a basket timestamp without throwing or inventing a date.
+ *
+ * Every date consumer shares this guard so legacy entries and corrupt values
+ * are treated the same way across the list, detail sheet and share text.
+ *
+ * @param {string|number|null|undefined} value
+ * @returns {Date|null} local `Date`, or null when unusable
+ */
+export function parseAddedAt(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/**
  * Format an `addedAt` timestamp for display, in the device's local time.
  *
  * "Nov 23, 2026 · 8:35 PM". Entries saved before timestamps existed (and
@@ -33,9 +48,8 @@ const MONTHS = [
  * @returns {string} the formatted line, or '' when there is no usable timestamp
  */
 export function formatAddedAt(value) {
-  if (value === null || value === undefined || value === '') return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
+  const date = parseAddedAt(value);
+  if (!date) return '';
 
   const hours = date.getHours();
   const period = hours < 12 ? 'AM' : 'PM';
@@ -43,6 +57,24 @@ export function formatAddedAt(value) {
   const minutes = String(date.getMinutes()).padStart(2, '0');
 
   return `${MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} · ${hour12}:${minutes} ${period}`;
+}
+
+/**
+ * Time-only version of `formatAddedAt` for compact grouped rows: "8:35 PM".
+ *
+ * @param {string|number|null|undefined} value
+ * @returns {string} local time, or '' when there is no usable timestamp
+ */
+export function formatAddedTime(value) {
+  const date = parseAddedAt(value);
+  if (!date) return '';
+
+  const hours = date.getHours();
+  const period = hours < 12 ? 'AM' : 'PM';
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+
+  return `${hour12}:${minutes} ${period}`;
 }
 
 /**
