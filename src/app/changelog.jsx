@@ -2,6 +2,27 @@ import { InfoLink, InfoScreen } from '@/components/info/info-screen';
 
 const SECTIONS = [
   {
+    title: 'Version 1.4.0 — November 27, 2026',
+    items: [
+      'Configurable rectangular grids: 2–20 rows and 2–12 columns in the visual editor',
+      'Angle Board selection uses double tap; double tap and drag extends the range',
+      'Editable cells open with an empty field on double tap',
+      'Tap a board card to open More options, Set Board with a toast, or read-only Preview',
+      {
+        text: 'Changed',
+        detail:
+          'Edit board actions use one compact row. JSON board output keeps each grid row on one line.',
+        icon: 'arrow.clockwise',
+      },
+      {
+        text: 'Fixed',
+        detail:
+          'Visual edits save before closing or switching editors. JSON Apply validates current text without requiring Preview.',
+        icon: 'checkmark.circle',
+      },
+    ],
+  },
+  {
     title: 'Version 1.3.0 — November 25, 2026',
     items: [
       'Backup and restore saved boards and collection with JSON export and import',
@@ -70,8 +91,8 @@ export default function ChangelogScreen() {
       sections={SECTIONS}
       footer={
         <>
-          <InfoLink href="https://github.com/jamesjomuad/3d-picker/releases/tag/v1.3.0">
-            View v1.3.0 release notes
+          <InfoLink href="https://github.com/jamesjomuad/3d-picker/releases/tag/v1.4.0">
+            View v1.4.0 release notes
           </InfoLink>
           <InfoLink href="https://github.com/jamesjomuad/3d-picker/releases">
             View all releases

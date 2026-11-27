@@ -3,6 +3,25 @@
 All notable changes to 3D Picker are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [semantic versioning](https://semver.org/).
 
+## [1.4.0] - 2026-11-27
+
+### Added
+- **Configurable grid size** — resize boards from 2–20 rows and 2–12 columns in the visual editor.
+- **Board card options** — tap a board card to open More options instead of switching boards.
+- **Set Board** — choose the active board from the Boards page and see a success toast.
+- **Board preview** — open a read-only grid preview from board options.
+
+### Changed
+- Angle Board selection now requires a double tap; double tap and drag extends the range.
+- Editable cells open with an empty field on double tap.
+- Edit board action buttons share one compact row in both editor modes.
+
+### Fixed
+- JSON Apply validates the current text without requiring Preview first.
+- JSON board output keeps each grid row on one line.
+- Visual cell edits save before closing the sheet, switching editors, or opening Replace.
+- Toast uses a valid Android accessibility role.
+
 ## [1.3.0] - 2026-11-25
 
 ### Added
@@ -78,6 +97,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Board library** — editable grids, board creation, persistence on-device, boards screen.
 - Reusable UI primitives (button, input, text, confirm dialog) with light/dark theming.
 
+[1.4.0]: https://github.com/jamesjomuad/3d-picker/releases/tag/v1.4.0
 [1.3.0]: https://github.com/jamesjomuad/3d-picker/releases/tag/v1.3.0
 [1.2.0]: https://github.com/jamesjomuad/3d-picker/releases/tag/v1.2.0
 [1.1.0]: https://github.com/jamesjomuad/3d-picker/releases/tag/v1.1.0
