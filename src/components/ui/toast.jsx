@@ -51,7 +51,7 @@ export function Toast({ message, onHide }) {
   return (
     <Animated.View
       pointerEvents="none"
-      accessibilityRole="status"
+      accessibilityRole="alert"
       accessibilityLiveRegion="polite"
       style={[
         styles.toast,

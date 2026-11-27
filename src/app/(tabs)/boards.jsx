@@ -16,6 +16,7 @@ import { AngleBoard } from '@/components/angle-board';
 import { ReplaceTool } from '@/components/angle-board/replace-tool';
 import { BoardCard } from '@/components/library/board-card';
 import { BoardJsonEditor } from '@/components/library/board-json-editor';
+import { BoardPreviewModal } from '@/components/library/board-preview-modal';
 import { GridSizeControl } from '@/components/library/grid-size-control';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -86,6 +87,7 @@ export default function BoardsScreen() {
   const [pendingClose, setPendingClose] = useState(false);
   const [pendingResize, setPendingResize] = useState(null); // { rows, columns }
   const [toast, setToast] = useState(null); // { id, message }
+  const [previewBoardId, setPreviewBoardId] = useState(null);
   const editBoardRef = useRef(null);
 
   useEffect(() => {
@@ -115,6 +117,10 @@ export default function BoardsScreen() {
   const editingBoard = useMemo(
     () => boards.find((b) => b.id === editingBoardId) ?? null,
     [boards, editingBoardId]
+  );
+  const previewBoard = useMemo(
+    () => boards.find((b) => b.id === previewBoardId) ?? null,
+    [boards, previewBoardId]
   );
 
   const isJsonDirty = jsonText !== jsonBaseline;
@@ -208,6 +214,14 @@ export default function BoardsScreen() {
     // Jump to edit the new board immediately
     openEditSheet(newBoard.id, newBoard.grid);
   }, [createValue, createBoard, openEditSheet]);
+
+  const handlePreview = useCallback((board) => {
+    setPreviewBoardId(board.id);
+  }, []);
+
+  const closePreview = useCallback(() => {
+    setPreviewBoardId(null);
+  }, []);
 
   const showToast = useCallback((message) => {
     setToast({ id: Date.now(), message });
@@ -539,6 +553,7 @@ export default function BoardsScreen() {
                   key={board.id}
                   board={board}
                   isActive={board.id === activeBoardId}
+                  onPreview={handlePreview}
                   onSetBoard={handleSetBoard}
                   onEdit={handleEdit}
                   onRename={handleRename}
@@ -872,6 +887,7 @@ export default function BoardsScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      {previewBoard ? <BoardPreviewModal board={previewBoard} onClose={closePreview} /> : null}
       {toast ? <Toast key={toast.id} message={toast.message} onHide={hideToast} /> : null}
     </View>
   );

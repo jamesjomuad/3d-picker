@@ -11,8 +11,8 @@ import { AppIcon } from '@/components/ui/app-icon';
  * Board card in the library list
  *
  * One surface, one primary action: tapping anywhere on the card opens the
- * board actions sheet. That sheet carries Set Board, Edit, Rename, Duplicate,
- * favorite and Delete, with Delete styled destructive. The compact row keeps
+ * board actions sheet. That sheet carries Preview, Set Board, Edit, Rename,
+ * Duplicate, favorite and Delete, with Delete styled destructive. The compact row keeps
  * Edit one tap away. The sheet dismisses on an outside tap, the hardware back
  * gesture or Cancel, so it can never trap the list behind it. The favorite
  * star sits on the title row where it reads as a property of the board rather
@@ -21,6 +21,7 @@ import { AppIcon } from '@/components/ui/app-icon';
  * @param {Object} props
  * @param {Object} props.board - Board object
  * @param {boolean} props.isActive - Whether this is the active board
+ * @param {(board: Object) => void} props.onPreview - Preview board handler
  * @param {(id: string) => void} props.onSetBoard - Set active board and open it handler
  * @param {(board: Object) => void} props.onEdit - Edit board handler
  * @param {(board: Object) => void} props.onRename - Rename board handler
@@ -31,6 +32,7 @@ import { AppIcon } from '@/components/ui/app-icon';
 export const BoardCard = memo(function BoardCard({
   board,
   isActive,
+  onPreview,
   onSetBoard,
   onEdit,
   onRename,
@@ -129,6 +131,7 @@ export const BoardCard = memo(function BoardCard({
         visible={showMore}
         board={board}
         onHide={() => setShowMore(false)}
+        onPreview={onPreview}
         onSetBoard={onSetBoard}
         onEdit={onEdit}
         onRename={onRename}
@@ -178,6 +181,7 @@ function BoardActionsSheet({
   visible,
   board,
   onHide,
+  onPreview,
   onSetBoard,
   onEdit,
   onRename,
@@ -214,6 +218,7 @@ function BoardActionsSheet({
             </ThemedText>
           </View>
 
+          <SheetRow label="Preview" icon="eye" onPress={pick(() => onPreview(board))} theme={theme} />
           <SheetRow label="Set Board" icon="checkmark.circle" onPress={pick(() => onSetBoard(board.id))} theme={theme} />
           <SheetRow label="Edit board" icon="square.and.pencil" onPress={pick(() => onEdit(board))} theme={theme} />
           <SheetRow label="Rename" icon="text.cursor" onPress={pick(() => onRename(board))} theme={theme} />
