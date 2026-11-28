@@ -31,7 +31,7 @@ export const CollectionGroupCard = memo(function CollectionGroupCard({
   onToggleFavorite,
 }) {
   const theme = useTheme();
-  const rowWidth = width == null ? undefined : Math.max(0, width - Spacing.three * 2);
+  const rowWidth = width == null ? undefined : Math.max(0, width - 2);
 
   return (
     <View style={[styles.group, { width }]}>
@@ -67,7 +67,6 @@ const styles = StyleSheet.create({
   card: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.half,
   },
 });

@@ -55,8 +55,8 @@ import {
  *
  * Browse mode also offers a deliberate left swipe on a row to reveal Remove.
  * Select mode replaces that gesture with a checkbox and keeps its temporary
- * entry IDs outside the persisted basket. Select All limits itself to the
- * currently displayed results; hidden picks are never bulk removed.
+ * entry IDs outside the persisted basket. Select All / Deselect All limits
+ * itself to the currently displayed results; hidden picks are never changed.
  */
 export default function CollectionScreen() {
   const theme = useTheme();
@@ -213,8 +213,13 @@ export default function CollectionScreen() {
   }, [closeOpenSwipes]);
 
   const handleSelectAll = useCallback(() => {
-    if (visibleIds.length === 0 || allVisibleSelected) return;
-    useCollectionSelectionStore.getState().selectVisible(visibleIds);
+    if (visibleIds.length === 0) return;
+    const store = useCollectionSelectionStore.getState();
+    if (allVisibleSelected) {
+      store.removeSelected(visibleIds);
+      return;
+    }
+    store.selectVisible(visibleIds);
   }, [allVisibleSelected, visibleIds]);
 
   const handleOpenBulkRemove = useCallback(() => {
@@ -317,9 +322,9 @@ export default function CollectionScreen() {
                   variant="secondary"
                   style={styles.touchTarget}
                   onPress={handleSelectAll}
-                  disabled={visibleIds.length === 0 || allVisibleSelected}
-                  icon="checkmark">
-                  Select All
+                  disabled={visibleIds.length === 0}
+                  icon={allVisibleSelected ? 'xmark' : 'checkmark'}>
+                  {allVisibleSelected ? 'Deselect All' : 'Select All'}
                 </Button>
               </>
             ) : (

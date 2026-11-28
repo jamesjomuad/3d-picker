@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.half,
+    paddingHorizontal: Spacing.three + Spacing.half,
   },
   divider: {
     borderTopWidth: StyleSheet.hairlineWidth,
