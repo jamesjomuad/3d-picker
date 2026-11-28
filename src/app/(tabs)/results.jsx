@@ -9,8 +9,11 @@ import {
   View,
 } from 'react-native';
 
-import { ResultsCard } from '@/components/results/results-card';
 import { ResultsDetailSheet } from '@/components/results/results-detail-sheet';
+import {
+  ResultsHistoryHeader,
+  ResultsHistoryRow,
+} from '@/components/results/results-history-row';
 import { AppIcon } from '@/components/ui/app-icon';
 import { Button } from '@/components/ui/button';
 import { ThemedText } from '@/components/themed-text';
@@ -18,6 +21,7 @@ import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useScreenInsets } from '@/hooks/use-screen-insets';
 import { useTheme } from '@/hooks/use-theme';
 import { useResultsStore } from '@/store/resultsStore';
+import { groupRecordsByDrawDate } from '@/utils/results-history';
 
 const FILTER_ALL = 'all';
 
@@ -67,6 +71,11 @@ export default function ResultsScreen() {
     return records.filter((record) => record.drawDate === dateFilter);
   }, [records, dateFilter]);
 
+  const visibleRows = useMemo(
+    () => groupRecordsByDrawDate(visibleRecords),
+    [visibleRecords]
+  );
+
   const handleRefresh = useCallback(() => {
     if (isRefreshing) return;
     refresh();
@@ -80,14 +89,16 @@ export default function ResultsScreen() {
 
   const renderItem = useCallback(
     ({ item }) => (
-      <View style={[styles.row, { width: contentWidth }]}>
-        <ResultsCard record={item} onPress={() => setSelectedRecord(item)} />
-      </View>
+      <ResultsHistoryRow
+        group={item}
+        width={contentWidth}
+        onSelectRecord={setSelectedRecord}
+      />
     ),
     [contentWidth]
   );
 
-  const keyExtractor = useCallback((item) => item.id, []);
+  const keyExtractor = useCallback((item) => item.date, []);
 
   const header = (
     <View style={[styles.header, { width: contentWidth }]}>
@@ -165,6 +176,8 @@ export default function ResultsScreen() {
           )}
         </View>
       )}
+
+      {visibleRows.length > 0 && <ResultsHistoryHeader width={contentWidth} />}
     </View>
   );
 
@@ -210,7 +223,7 @@ export default function ResultsScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: theme.background }]}>
       <FlatList
-        data={visibleRecords}
+        data={visibleRows}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
         ListHeaderComponent={header}
@@ -293,9 +306,6 @@ const styles = StyleSheet.create({
   clearFilterText: {
     fontSize: Typography.size.body,
     fontWeight: Typography.weight.semibold,
-  },
-  row: {
-    marginBottom: Spacing.two,
   },
   footer: {
     paddingVertical: Spacing.three,

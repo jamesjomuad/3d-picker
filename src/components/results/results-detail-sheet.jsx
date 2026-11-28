@@ -8,6 +8,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 
+import { LotteryCombination } from '@/components/results/lottery-combination';
 import { ThemedText } from '@/components/themed-text';
 import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -81,13 +82,11 @@ export function ResultsDetailSheet({ visible, record, onClose }) {
               {record.lottery === '3DL' ? '3D Lotto' : record.lottery} · {record.drawDate}
             </ThemedText>
 
-            <View style={styles.digitsRow}>
-              {record.result.map((digit, index) => (
-                <Text key={index} style={[styles.digit, { color: theme.text }]}>
-                  {digit}
-                </Text>
-              ))}
-            </View>
+            <LotteryCombination
+              result={record.result}
+              size={30}
+              gap={Spacing.two}
+            />
             <Text style={[styles.combination, { color: theme.textSecondary }]}>
               Winning combination {formatCombination(record.result)}
             </Text>
@@ -186,16 +185,6 @@ const styles = StyleSheet.create({
     lineHeight: Typography.lineHeight.caption,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
-  },
-  digitsRow: {
-    flexDirection: 'row',
-    gap: Spacing.four,
-  },
-  digit: {
-    fontSize: Typography.size.hero,
-    lineHeight: Typography.lineHeight.hero,
-    fontWeight: Typography.weight.bold,
-    fontVariant: ['tabular-nums'],
   },
   combination: {
     fontSize: Typography.size.body,
