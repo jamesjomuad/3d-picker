@@ -1,186 +1,258 @@
+import {
+  THREE_D_GAME_FAMILY,
+  THREE_D_NUMBER_COUNT,
+  SUPPORTED_LOTTERIES,
+} from '@/constants/lottery';
+
 /**
- * Draw result normalization and validation
+ * Normalizers for PCSO Lotto API v2 payloads.
  *
- * The API sends winning combinations as digit strings (`["0","3","7"]`).
- * They are NEVER converted to integers: `037` must survive as `037`.
- * Every raw record passes through here before it reaches state or storage.
+ * The UI keeps its existing normalized record model. Winning numbers stay as
+ * single-digit strings, so leading zeros survive storage, search and sharing.
+ * Draw dates and server times are copied verbatim; no UTC conversion is done.
  */
 
-/**
- * @typedef {Object} DrawRecord
- * @property {string} id - API record id, the unique key for a draw
- * @property {string} lottery - lottery id, e.g. "3DL"
- * @property {string} drawNumber - provider draw number, may be empty
- * @property {string[]} result - winning digits as strings, leading zeros kept
- * @property {string} drawDate - original date string, e.g. "2026-11-24"
- * @property {string} drawTime - original time string, e.g. "21:00:00+08"
- * @property {string|null} jackpot - raw jackpot string, never parsed to a number
- * @property {string|null} totalWinners - raw winner count string
- * @property {boolean|null} provisional - provider provisional flag
- * @property {string|null} lastVerifiedAt - verification timestamp when present
- * @property {string|null} lastSuccessfulCaptureAt - capture timestamp when present
- * @property {string|null} collectedAt - collection timestamp when present
- * @property {string[]} sources - endpoints that reported this record
- * @property {boolean} conflict - true when sources disagree on the result
- * @property {Array<Object>} conflictSnapshots - losing snapshots kept for review
- */
+const DRAW_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const SERVER_TIME_PATTERN = /T(\d{2}:\d{2}(?::\d{2})?)/;
+const THREE_D_GAME_NAME = '3D Lotto';
+const WINNERS_STATUSES = ['pending', 'final', 'unknown'];
 
-function asDigitString(value) {
+function isObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function optionalString(value) {
+  if (typeof value !== 'string' || value.trim().length === 0) return null;
+  return value;
+}
+
+function optionalFiniteString(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return optionalString(value);
+}
+
+/** Accept one digit as a string or integer. Never coerce a multi-digit number. */
+export function asDigitString(value) {
   if (typeof value === 'string' && /^[0-9]$/.test(value)) return value;
   if (Number.isInteger(value) && value >= 0 && value <= 9) return String(value);
   return null;
 }
 
-function optionalString(value) {
-  return typeof value === 'string' && value ? value : null;
+/** Read active 3D Lotto codes from the real `/games` response. */
+export function discoverThreeDGameCodes(payload) {
+  if (!isObject(payload)) return [];
+  const items = Array.isArray(payload.items) ? payload.items : [];
+  const codes = [];
+
+  for (const item of items) {
+    if (!isObject(item) || item.isActive === false) continue;
+
+    const code = optionalString(item.code) ?? optionalString(item.gameCode);
+    if (!code) continue;
+
+    const family = optionalString(item.family);
+    const name = optionalString(item.name) ?? optionalString(item.gameName);
+    const isThreeD =
+      family === THREE_D_GAME_FAMILY ||
+      name === THREE_D_GAME_NAME ||
+      code.startsWith(`${THREE_D_GAME_FAMILY}_lotto_`);
+    if (!isThreeD) continue;
+
+    if (
+      item.numberCount !== undefined &&
+      item.numberCount !== THREE_D_NUMBER_COUNT
+    ) {
+      continue;
+    }
+    if (!codes.includes(code)) codes.push(code);
+  }
+
+  return codes;
+}
+
+export function isThreeDGame(game) {
+  if (!isObject(game)) return false;
+  const code = optionalString(game.gameCode) ?? '';
+  const name = optionalString(game.gameName) ?? '';
+  return (
+    code.startsWith(`${THREE_D_GAME_FAMILY}_lotto_`) || name === THREE_D_GAME_NAME
+  );
+}
+
+function normalizeWinnersStatus(value) {
+  return WINNERS_STATUSES.includes(value) ? value : null;
+}
+
+function provisionalFromStatus(status) {
+  if (status === 'final') return false;
+  if (status === 'pending' || status === 'unknown') return true;
+  return null;
+}
+
+function drawTimeFromServerTime(serverTime) {
+  if (!serverTime) return '';
+  const match = SERVER_TIME_PATTERN.exec(serverTime);
+  return match ? match[1] : '';
+}
+
+function stableId(gameCode, sourceId, drawDate, drawTime, digits) {
+  const gameSourceId = optionalFiniteString(sourceId);
+  if (gameSourceId) return `v2-${gameSourceId}`;
+
+  const parts = [gameCode, drawDate, drawTime, digits.join('')].filter(Boolean);
+  return `v2-${parts.join('-')}`;
 }
 
 /**
- * Normalize one raw API item. Returns null when the item is malformed —
- * malformed records are dropped and counted, never repaired silently.
- *
- * @param {Object} raw
- * @param {string} source - 'latest' or 'history'
- * @param {number} [collectedAt] - epoch ms of this fetch
- * @returns {DrawRecord|null}
+ * Convert one v2 game entry into the app's normalized draw record.
+ * Returns null when required data is missing or malformed.
  */
-export function normalizeDrawRecord(raw, source, collectedAt = Date.now()) {
-  if (!raw || typeof raw !== 'object') return null;
+export function normalizeV2Game(draw, game, source, collectedAt, envelope = {}) {
+  if (!isObject(draw) || !isObject(game) || !isThreeDGame(game)) return null;
 
-  const { id, lottery, result } = raw;
-  if (typeof id !== 'string' || !id) return null;
-  if (typeof lottery !== 'string' || !lottery) return null;
-  if (!Array.isArray(result) || result.length === 0) return null;
+  const gameCode = optionalString(game.gameCode);
+  const numbers = Array.isArray(game.numbers) ? game.numbers : null;
+  if (!gameCode || !numbers || numbers.length !== THREE_D_NUMBER_COUNT) {
+    return null;
+  }
 
-  const digits = result.map(asDigitString);
+  const digits = numbers.map(asDigitString);
   if (digits.some((digit) => digit === null)) return null;
 
-  const drawDate = optionalString(raw.drawDate);
-  if (!drawDate) return null;
+  const drawDate =
+    optionalString(game.drawDate) ?? optionalString(draw.drawDate) ?? '';
+  if (!DRAW_DATE_PATTERN.test(drawDate)) return null;
+
+  const serverTime =
+    optionalString(game.serverTime) ?? optionalString(draw.serverTime) ?? '';
+  const drawTime = drawTimeFromServerTime(serverTime);
+  const winnersStatus = normalizeWinnersStatus(game.winnersStatus);
+  const lastSuccessfulCaptureAt =
+    optionalString(envelope.updatedAt) ??
+    optionalString(envelope.transformedAt) ??
+    null;
 
   return {
-    id,
-    lottery,
-    drawNumber: optionalString(raw.drawNumber) ?? '',
+    id: stableId(gameCode, game.sourceId, drawDate, drawTime, digits),
+    lottery: SUPPORTED_LOTTERIES[0],
+    drawNumber: optionalString(game.slot) ?? gameCode,
     result: digits,
     drawDate,
-    drawTime: optionalString(raw.drawTime) ?? '',
-    jackpot: optionalString(raw.jackpot),
-    totalWinners: optionalString(raw.totalWinners),
-    provisional: typeof raw.provisional === 'boolean' ? raw.provisional : null,
-    lastVerifiedAt: optionalString(raw.lastVerifiedAt),
-    lastSuccessfulCaptureAt: optionalString(raw.lastSuccessfulCaptureAt),
-    collectedAt: optionalString(raw.collectedAt),
+    drawTime,
+    jackpot: optionalFiniteString(game.prizeAmount),
+    currency: optionalString(game.currency),
+    totalWinners: optionalFiniteString(game.winnersCount),
+    winnersStatus,
+    provisional: provisionalFromStatus(winnersStatus),
+    lastVerifiedAt: null,
+    lastSuccessfulCaptureAt,
+    collectedAt: new Date(collectedAt).toISOString(),
     sources: [source],
     conflict: false,
     conflictSnapshots: [],
     fetchedAt: new Date(collectedAt).toISOString(),
+    gameCode,
+    gameName: optionalString(game.gameName),
+    slot: optionalString(game.slot),
+    sourceId: optionalFiniteString(game.sourceId),
+    serverTime: serverTime || null,
+    drawId: optionalFiniteString(draw.id),
+    timezone: optionalString(envelope.timezone),
   };
 }
 
-/**
- * Normalize a `latest` response: an array of items, all lottery types.
- *
- * @param {unknown} payload
- * @param {string[]} supported - lottery ids to keep
- * @returns {{ records: DrawRecord[], dropped: number, total: number }}
- */
-export function normalizeLatestPayload(payload, supported) {
-  const items = Array.isArray(payload) ? payload : [];
-  return normalizeItems(items, supported, 'latest');
-}
-
-/**
- * Normalize a history page response `{ items, pageInfo }`.
- *
- * @param {unknown} payload
- * @param {string[]} supported
- * @returns {{ records: DrawRecord[], dropped: number, total: number, pageInfo: Object }}
- */
-export function normalizeHistoryPayload(payload, supported) {
-  const items = payload && !Array.isArray(payload) && Array.isArray(payload.items)
-    ? payload.items
-    : [];
-  const page = normalizeItems(items, supported, 'history');
-  const rawInfo = payload && !Array.isArray(payload) ? payload.pageInfo : null;
-
-  return {
-    ...page,
-    pageInfo: normalizePageInfo(rawInfo),
-  };
-}
-
-function normalizeItems(items, supported, source) {
+function flattenV2Draws(items, source, collectedAt, envelope) {
   const records = [];
   let dropped = 0;
+  let total = 0;
 
-  for (const item of items) {
-    const record = normalizeDrawRecord(item, source);
-    if (!record) {
-      dropped += 1;
-      continue;
+  for (const draw of items) {
+    if (!isObject(draw)) continue;
+    const games = Array.isArray(draw.games) ? draw.games : [];
+    for (const game of games) {
+      if (!isThreeDGame(game)) continue;
+      total += 1;
+      const record = normalizeV2Game(draw, game, source, collectedAt, envelope);
+      if (record) records.push(record);
+      else dropped += 1;
     }
-    if (!supported.includes(record.lottery)) continue;
-    records.push(record);
   }
 
-  return { records, dropped, total: items.length };
+  return { records: sortRecordsNewestFirst(records), dropped, total };
 }
 
-/**
- * Page info as the provider's own site treats it: `hasNextPage` only counts
- * when a non-null `nextCursor` exists, because a cursor is the only way to
- * ask for the next page.
- *
- * @param {unknown} rawInfo
- * @returns {{ hasNextPage: boolean, nextCursor: string|null }}
- */
-export function normalizePageInfo(rawInfo) {
-  const info = rawInfo && typeof rawInfo === 'object' ? rawInfo : {};
-  const nextCursor = typeof info.nextCursor === 'string' && info.nextCursor
-    ? info.nextCursor
-    : null;
+/** Normalize a `/results` envelope. */
+export function normalizeV2LatestPayload(payload, source = 'latest', collectedAt = Date.now()) {
+  const envelope = isObject(payload) ? payload : {};
+  const draws = Array.isArray(envelope.draws) ? envelope.draws : [];
+  const { records, dropped, total } = flattenV2Draws(
+    draws,
+    source,
+    collectedAt,
+    envelope
+  );
 
   return {
-    hasNextPage: info.hasNextPage === true && nextCursor !== null,
-    nextCursor,
+    records,
+    dropped,
+    total,
+    timezone: optionalString(envelope.timezone),
+    updatedAt: optionalString(envelope.updatedAt),
+    transformedAt: optionalString(envelope.transformedAt),
   };
 }
 
-/**
- * Sort newest first by the provider's own ordering: drawDate + drawTime
- * string comparison, which keeps the supplied timezone offsets untouched.
- *
- * @param {DrawRecord[]} records
- * @returns {DrawRecord[]}
- */
+/** Normalize a `/draws` envelope. */
+export function normalizeV2HistoryPayload(payload, source = 'history', collectedAt = Date.now()) {
+  const envelope = isObject(payload) ? payload : {};
+  const items = Array.isArray(envelope.items) ? envelope.items : [];
+  const { records, dropped, total } = flattenV2Draws(
+    items,
+    source,
+    collectedAt,
+    envelope
+  );
+
+  return {
+    records,
+    dropped,
+    total,
+    pageInfo: normalizePageInfo(envelope.pageInfo),
+    timezone: optionalString(envelope.timezone),
+    transformedAt: optionalString(envelope.transformedAt),
+  };
+}
+
+/** Cursors are opaque strings; numeric cursors keep their exact text. */
+export function normalizePageInfo(rawInfo) {
+  if (!isObject(rawInfo)) return { nextCursor: null, hasNextPage: false };
+
+  let nextCursor = null;
+  const cursor = rawInfo.nextCursor;
+  if (typeof cursor === 'string' && cursor.trim().length > 0) nextCursor = cursor;
+  else if (typeof cursor === 'number' && Number.isFinite(cursor) && cursor >= 0) {
+    nextCursor = String(cursor);
+  }
+
+  return {
+    nextCursor,
+    hasNextPage: rawInfo.hasNextPage === true && nextCursor !== null,
+  };
+}
+
 export function sortRecordsNewestFirst(records) {
   return [...records].sort((a, b) =>
     `${b.drawDate} ${b.drawTime}`.localeCompare(`${a.drawDate} ${a.drawTime}`)
   );
 }
 
-/**
- * Display string for a winning combination. Digits stay strings, so a
- * leading zero is never lost.
- *
- * @param {string[]} result
- * @returns {string}
- */
 export function formatCombination(result) {
   return Array.isArray(result) ? result.join('') : '';
 }
 
-/**
- * Human status for a record. Follows the actual metadata: provisional
- * stays provisional, `provisional: false` alone never becomes "Verified".
- *
- * @param {DrawRecord} record
- * @returns {'Conflicting'|'Provisional'|'Verified'|'Pending verification'}
- */
 export function getRecordStatus(record) {
-  if (record.conflict) return 'Conflicting';
-  if (record.provisional === true) return 'Provisional';
-  if (record.lastVerifiedAt) return 'Verified';
+  if (record?.conflict) return 'Conflicting';
+  if (record?.provisional) return 'Provisional';
+  if (record?.lastVerifiedAt) return 'Verified';
   return 'Pending verification';
 }

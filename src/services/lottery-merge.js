@@ -40,8 +40,17 @@ function mergePair(existing, incoming) {
         existing.lastSuccessfulCaptureAt ?? incoming.lastSuccessfulCaptureAt,
       collectedAt: existing.collectedAt ?? incoming.collectedAt,
       jackpot: existing.jackpot ?? incoming.jackpot,
+      currency: existing.currency ?? incoming.currency,
       totalWinners: existing.totalWinners ?? incoming.totalWinners,
+      winnersStatus: existing.winnersStatus ?? incoming.winnersStatus,
       provisional: existing.provisional ?? incoming.provisional,
+      gameCode: existing.gameCode ?? incoming.gameCode,
+      gameName: existing.gameName ?? incoming.gameName,
+      slot: existing.slot ?? incoming.slot,
+      sourceId: existing.sourceId ?? incoming.sourceId,
+      serverTime: existing.serverTime ?? incoming.serverTime,
+      drawId: existing.drawId ?? incoming.drawId,
+      timezone: existing.timezone ?? incoming.timezone,
     };
   }
 

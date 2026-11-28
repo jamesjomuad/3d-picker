@@ -1,19 +1,34 @@
 import { mergeRecords } from '../lottery-merge';
-import { normalizeDrawRecord } from '../lottery-normalize';
 
 function record(overrides = {}, source = 'history') {
-  return normalizeDrawRecord(
-    {
-      id: '3DLS0002220',
-      lottery: '3DL',
-      result: ['0', '3', '7'],
-      drawDate: '2026-11-24',
-      drawTime: '21:00:00+08',
-      jackpot: '4500.0000',
-      ...overrides,
-    },
-    source
-  );
+  return {
+    id: 'v2-3DLS0002220',
+    lottery: '3DL',
+    drawNumber: '9PM Draw',
+    result: ['0', '3', '7'],
+    drawDate: '2026-11-24',
+    drawTime: '21:00:00',
+    jackpot: '4500',
+    currency: 'PHP',
+    totalWinners: '27',
+    winnersStatus: 'final',
+    provisional: false,
+    lastVerifiedAt: null,
+    lastSuccessfulCaptureAt: null,
+    collectedAt: '2026-11-25T00:00:00.000Z',
+    sources: [source],
+    conflict: false,
+    conflictSnapshots: [],
+    fetchedAt: '2026-11-25T00:00:00.000Z',
+    gameCode: '3d_lotto_9pm',
+    gameName: '3D Lotto',
+    slot: '9PM Draw',
+    sourceId: '3DLS0002220',
+    serverTime: '2026-11-24T21:00:00+08:00',
+    drawId: '3DLS0002220',
+    timezone: 'Asia/Manila',
+    ...overrides,
+  };
 }
 
 describe('mergeRecords', () => {
@@ -27,9 +42,9 @@ describe('mergeRecords', () => {
     expect(merged.records.map((item) => item.id)).toEqual(['newer', 'older']);
   });
 
-  it('stores a record once when both endpoints report it, unioning sources', () => {
-    const fromHistory = record({}, 'history');
-    const fromLatest = record({}, 'latest');
+  it('stores a stable game result once and unions sources', () => {
+    const fromHistory = record({ sourceId: '123' }, 'history');
+    const fromLatest = record({ sourceId: '123' }, 'latest');
 
     const merged = mergeRecords([fromHistory], [fromLatest]);
 
@@ -64,14 +79,24 @@ describe('mergeRecords', () => {
   });
 
   it('merges metadata from a second source without conflict', () => {
-    const sparse = record({ jackpot: undefined, provisional: undefined }, 'history');
-    const rich = record({ totalWinners: '27', provisional: false }, 'latest');
+    const sparse = record(
+      {
+        jackpot: null,
+        totalWinners: null,
+        winnersStatus: null,
+        provisional: null,
+        currency: null,
+      },
+      'history'
+    );
+    const rich = record({ winnersStatus: 'final', provisional: false }, 'latest');
 
     const merged = mergeRecords([sparse], [rich]);
 
     expect(merged.records[0].totalWinners).toBe('27');
+    expect(merged.records[0].winnersStatus).toBe('final');
     expect(merged.records[0].provisional).toBe(false);
-    expect(merged.records[0].jackpot).toBe('4500.0000');
+    expect(merged.records[0].jackpot).toBe('4500');
     expect(merged.records[0].conflict).toBe(false);
   });
 });

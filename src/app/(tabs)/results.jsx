@@ -22,7 +22,7 @@ import { useResultsStore } from '@/store/resultsStore';
 const FILTER_ALL = 'all';
 
 /**
- * Results tab: Philippine 3D Lotto draw results from LottoMatik.
+ * Results tab: Philippine 3D Lotto draw results from PCSO Lotto API v2.
  * Cached records render immediately; refresh updates them in the background
  * and a failed request keeps everything already on screen.
  */

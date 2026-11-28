@@ -52,6 +52,11 @@ export function ResultsDetailSheet({ visible, record, onClose }) {
   const sources = record.sources
     .map((source) => SOURCE_LABELS[source] ?? source)
     .join(', ');
+  const jackpot = record.jackpot
+    ? record.currency && record.currency !== 'PHP'
+      ? `${record.currency} ${record.jackpot}`
+      : `₱${record.jackpot}`
+    : null;
 
   return (
     <Modal
@@ -92,8 +97,10 @@ export function ResultsDetailSheet({ visible, record, onClose }) {
             <DetailRow label="Draw number" value={record.drawNumber} theme={theme} />
             <DetailRow label="Draw date" value={record.drawDate} theme={theme} />
             <DetailRow label="Draw time" value={record.drawTime} theme={theme} />
-            <DetailRow label="Jackpot" value={record.jackpot ? `₱${record.jackpot}` : null} theme={theme} />
+            <DetailRow label="Draw session" value={record.slot} theme={theme} />
+            <DetailRow label="Jackpot" value={jackpot} theme={theme} />
             <DetailRow label="Total winners" value={record.totalWinners} theme={theme} />
+            <DetailRow label="Winners status" value={record.winnersStatus} theme={theme} />
             <DetailRow label="Status" value={status} theme={theme} />
             <DetailRow
               label="Provisional"
