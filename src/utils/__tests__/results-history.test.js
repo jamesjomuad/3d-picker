@@ -1,6 +1,8 @@
 import {
+  DRAW_DISPLAY_STATES,
   DRAW_SESSIONS,
   formatDrawDate,
+  getDrawDisplayState,
   getDrawSession,
   groupRecordsByDrawDate,
 } from '@/utils/results-history';
@@ -54,9 +56,15 @@ describe('results history helpers', () => {
     expect(groups[0].sessions['9pm'].result).toEqual(['1', '2', '3']);
   });
 
-  it('keeps missing sessions empty and ignores unknown sessions', () => {
+  it('retains all three sessions when a date has missing results', () => {
     const [group] = groupRecordsByDrawDate([
-      record({ id: 'known', gameCode: '3d_lotto_5pm', slot: null }),
+      record({
+        id: 'known',
+        gameCode: '3d_lotto_5pm',
+        slot: null,
+        drawNumber: '5PM Draw',
+        drawTime: '17:00:00+08:00',
+      }),
       record({
         id: 'unknown',
         gameCode: 'other_game',
@@ -66,6 +74,7 @@ describe('results history helpers', () => {
       }),
     ]);
 
+    expect(Object.keys(group.sessions)).toEqual(['2pm', '5pm', '9pm']);
     expect(group.sessions['2pm']).toBeNull();
     expect(group.sessions['5pm'].id).toBe('known');
     expect(group.sessions['9pm']).toBeNull();
@@ -79,5 +88,106 @@ describe('results history helpers', () => {
 
     expect(group.sessions['2pm'].id).toBe('first');
     expect(group.sessions['2pm'].result).toEqual(['0', '3', '7']);
+  });
+
+  it('treats valid numbers as available regardless of winners status or time', () => {
+    expect(
+      getDrawDisplayState({
+        record: record({
+          drawDate: '2026-11-28',
+          winnersStatus: 'pending',
+        }),
+        sessionKey: '2pm',
+        date: '2026-11-28',
+        now: '2026-11-27T20:00:00.000Z',
+      })
+    ).toBe(DRAW_DISPLAY_STATES.AVAILABLE);
+  });
+
+  it('uses the Asia/Manila schedule for upcoming and pending states', () => {
+    const date = '2026-11-28';
+
+    expect(
+      getDrawDisplayState({
+        sessionKey: '2pm',
+        date,
+        now: '2026-11-28T05:59:00.000Z',
+      })
+    ).toBe(DRAW_DISPLAY_STATES.UPCOMING);
+    expect(
+      getDrawDisplayState({
+        sessionKey: '2pm',
+        date,
+        now: '2026-11-28T06:00:00.000Z',
+      })
+    ).toBe(DRAW_DISPLAY_STATES.PENDING);
+    expect(
+      getDrawDisplayState({
+        sessionKey: '9pm',
+        date,
+        now: '2026-11-28T12:59:00.000Z',
+      })
+    ).toBe(DRAW_DISPLAY_STATES.UPCOMING);
+    expect(
+      getDrawDisplayState({
+        sessionKey: '9pm',
+        date,
+        now: '2026-11-28T13:00:00.000Z',
+      })
+    ).toBe(DRAW_DISPLAY_STATES.PENDING);
+  });
+
+  it('uses the record session when winning numbers are unavailable', () => {
+    const pendingRecord = record({
+      id: 'no-numbers',
+      drawDate: '2026-11-28',
+      result: [],
+      gameCode: '3d_lotto_9pm',
+      slot: '9PM Draw',
+      drawNumber: '9PM Draw',
+      drawTime: '21:00:00+08:00',
+      winnersStatus: 'pending',
+    });
+
+    expect(
+      getDrawDisplayState({
+        record: pendingRecord,
+        sessionKey: '9pm',
+        date: '2026-11-28',
+        now: '2026-11-28T12:59:00.000Z',
+      })
+    ).toBe(DRAW_DISPLAY_STATES.UPCOMING);
+    expect(
+      getDrawDisplayState({
+        record: pendingRecord,
+        sessionKey: '9pm',
+        date: '2026-11-28',
+        now: '2026-11-28T13:00:00.000Z',
+      })
+    ).toBe(DRAW_DISPLAY_STATES.PENDING);
+  });
+
+  it('returns unknown when date, session, or clock cannot be determined', () => {
+    expect(
+      getDrawDisplayState({
+        sessionKey: '2pm',
+        date: 'bad-date',
+        now: '2026-11-28T06:00:00.000Z',
+      })
+    ).toBe(DRAW_DISPLAY_STATES.UNKNOWN);
+    expect(
+      getDrawDisplayState({
+        sessionKey: 'unknown',
+        date: '2026-11-28',
+        now: '2026-11-28T06:00:00.000Z',
+      })
+    ).toBe(DRAW_DISPLAY_STATES.UNKNOWN);
+    expect(
+      getDrawDisplayState({
+        sessionKey: '2pm',
+        date: '2026-11-28',
+        now: 'not-a-time',
+      })
+    ).toBe(DRAW_DISPLAY_STATES.UNKNOWN);
   });
 });

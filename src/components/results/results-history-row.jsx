@@ -10,9 +10,21 @@ import {
 } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
+  DRAW_DISPLAY_STATES,
   DRAW_SESSIONS,
   formatDrawDate,
+  getDrawDisplayState,
 } from '@/utils/results-history';
+
+const DRAW_STATE_LABELS = {
+  [DRAW_DISPLAY_STATES.PENDING]: 'PENDING',
+  [DRAW_DISPLAY_STATES.UPCOMING]: 'UPCOMING',
+  [DRAW_DISPLAY_STATES.UNKNOWN]: '—',
+};
+
+function combinationLabel(result) {
+  return Array.isArray(result) ? result.join('') : 'result unavailable';
+}
 
 export const ResultsHistoryHeader = memo(function ResultsHistoryHeader({ width }) {
   const theme = useTheme();
@@ -40,7 +52,7 @@ export const ResultsHistoryHeader = memo(function ResultsHistoryHeader({ width }
   );
 });
 
-/** One date row with three session cells. Missing sessions stay empty. */
+/** One date row with three session cells. Unavailable sessions show their state. */
 export const ResultsHistoryRow = memo(function ResultsHistoryRow({
   group,
   width,
@@ -68,9 +80,23 @@ export const ResultsHistoryRow = memo(function ResultsHistoryRow({
 
       {DRAW_SESSIONS.map((session) => {
         const record = group.sessions[session.key];
-        const cellLabel = record
-          ? `${fullDate}, ${session.label} draw`
-          : `${fullDate}, ${session.label} draw unavailable`;
+        const state = getDrawDisplayState({
+          record,
+          sessionKey: session.key,
+          date: group.date,
+        });
+        const isAvailable = state === DRAW_DISPLAY_STATES.AVAILABLE;
+        const stateLabel =
+          DRAW_STATE_LABELS[state] ??
+          DRAW_STATE_LABELS[DRAW_DISPLAY_STATES.UNKNOWN];
+        const detail = isAvailable
+          ? `winning combination ${combinationLabel(record.result)}`
+          : stateLabel;
+        const cellLabel = `${fullDate}, ${session.label} draw, ${detail}`;
+        const statusColor =
+          state === DRAW_DISPLAY_STATES.PENDING
+            ? theme.primary
+            : theme.textSecondary;
 
         return (
           <Pressable
@@ -84,20 +110,20 @@ export const ResultsHistoryRow = memo(function ResultsHistoryRow({
               styles.sessionCell,
               pressed && record && styles.pressed,
             ]}>
-            {record ? (
+            {isAvailable ? (
               <LotteryCombination
                 result={record.result}
                 size={20}
                 gap={2}
-                accessibilityLabel={`${session.label}: ${
-                  Array.isArray(record.result) ? record.result.join('') : 'result unavailable'
-                }`}
+                accessibilityLabel={`${session.label}: ${combinationLabel(
+                  record.result
+                )}`}
               />
             ) : (
               <Text
                 maxFontSizeMultiplier={1.2}
-                style={[styles.placeholder, { color: theme.textSecondary }]}>
-                —
+                style={[styles.statusText, { color: statusColor }]}>
+                {stateLabel}
               </Text>
             )}
           </Pressable>
@@ -146,9 +172,12 @@ const styles = StyleSheet.create({
     fontSize: Typography.size.caption,
     lineHeight: Typography.lineHeight.caption,
   },
-  placeholder: {
-    fontSize: Typography.size.body,
-    lineHeight: Typography.lineHeight.body,
+  statusText: {
+    fontSize: Typography.size.caption,
+    lineHeight: Typography.lineHeight.caption,
+    fontWeight: Typography.weight.semibold,
+    letterSpacing: 0.3,
+    textAlign: 'center',
   },
   pressed: {
     opacity: Interaction.pressedOpacity,
