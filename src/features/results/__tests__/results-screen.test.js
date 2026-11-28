@@ -234,6 +234,47 @@ describe('Results screen SQLite integration', () => {
     expect(findRowByTestId(root, 'row-2026-11-26')).toBeDefined();
   });
 
+  it('uses native pull-to-refresh instead of a visible refresh button', () => {
+    const root = renderScreen();
+    const list = root.root.findByType(FlatList);
+    mockState.refresh.mockClear();
+
+    expect(list.props.refreshing).toBe(false);
+    expect(findPressableByLabel(root, 'Refresh')).toBeUndefined();
+
+    act(() => list.props.onRefresh());
+
+    expect(mockState.refresh).toHaveBeenCalledTimes(1);
+    expect(mockState.loadOlder).not.toHaveBeenCalled();
+  });
+
+  it('shows the native indicator and ignores repeated pulls while refreshing', () => {
+    mockState = makeState({ isRefreshing: true });
+    const root = renderScreen();
+    mockState.refresh.mockClear();
+
+    expect(root.root.findByType(FlatList).props.refreshing).toBe(true);
+    expect(findRowByTestId(root, 'row-2026-11-27')).toBeDefined();
+
+    act(() => root.root.findByType(FlatList).props.onRefresh());
+    expect(mockState.refresh).not.toHaveBeenCalled();
+
+    mockState = makeState();
+    act(() => {
+      root.update(React.createElement(ResultsScreen));
+    });
+    expect(root.root.findByType(FlatList).props.refreshing).toBe(false);
+  });
+
+  it('keeps the empty state text-only without a retry button', () => {
+    mockState = makeState({ records: [], drawDates: [], totalCount: 0 });
+    const root = renderScreen();
+
+    expect(textContent(root)).toContain('No results yet');
+    expect(textContent(root)).not.toContain('Try again');
+    expect(findPressableByLabel(root, 'Refresh')).toBeUndefined();
+  });
+
   it('opens details for a selected draw and applies date filters', () => {
     const root = renderScreen();
 

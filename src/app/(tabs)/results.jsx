@@ -129,23 +129,13 @@ export default function ResultsScreen() {
 
   const header = (
     <View style={[styles.header, { width: contentWidth }]}>
-      <View style={styles.headerTop}>
-        <View>
-          <ThemedText type="subtitle">Results</ThemedText>
-          <ThemedText themeColor="textSecondary" style={styles.subtitle}>
-            {lastSyncAt
-              ? `Updated ${new Date(lastSyncAt).toLocaleString()}`
-              : 'Not updated yet'}
-          </ThemedText>
-        </View>
-        <Button
-          variant="outline"
-          size="sm"
-          onPress={handleRefresh}
-          disabled={isRefreshing}
-          loading={isRefreshing} icon="arrow.clockwise">
-          Refresh
-        </Button>
+      <View>
+        <ThemedText type="subtitle">Results</ThemedText>
+        <ThemedText themeColor="textSecondary" style={styles.subtitle}>
+          {lastSyncAt
+            ? `Updated ${new Date(lastSyncAt).toLocaleString()}`
+            : 'Not updated yet'}
+        </ThemedText>
       </View>
 
       {error && (
@@ -266,11 +256,6 @@ export default function ResultsScreen() {
           ? 'Fetching the latest draws…'
           : 'Draw results will appear here once they load.'}
       </ThemedText>
-      {!isRefreshing && (
-        <Button variant="outline" size="sm" onPress={handleRefresh} icon="arrow.clockwise">
-          Try again
-        </Button>
-      )}
     </View>
   ) : records.length === 0 ? (
     <View style={[styles.emptyState, { width: contentWidth }]}>
@@ -291,6 +276,8 @@ export default function ResultsScreen() {
         ListFooterComponent={records.length > 0 ? footer : null}
         ListEmptyComponent={empty}
         contentContainerStyle={[styles.contentContainer, contentPadding]}
+        onRefresh={handleRefresh}
+        refreshing={isRefreshing}
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.4}
         initialNumToRender={8}
@@ -319,12 +306,6 @@ const styles = StyleSheet.create({
   header: {
     gap: Spacing.three,
     marginBottom: Spacing.three,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: Spacing.two,
   },
   subtitle: {
     fontSize: Typography.size.body,
