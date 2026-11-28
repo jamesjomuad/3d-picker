@@ -5,6 +5,7 @@ import { StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { ContextualActionSheetHost } from '@/components/ui/contextual-action-sheet-host';
 import { Colors, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useImmersiveStatusBar } from '@/hooks/use-immersive-status-bar';
@@ -54,6 +55,7 @@ export default function RootLayout() {
             options={{ ...infoScreenOptions, title: 'Open-Source Licenses' }}
           />
         </Stack>
+        <ContextualActionSheetHost />
       </ThemeProvider>
     </GestureHandlerRootView>
   );

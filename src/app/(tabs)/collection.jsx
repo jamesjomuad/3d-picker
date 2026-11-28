@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Pressable, Share, StyleSheet, View } from 'react-native';
 
 import { BasketEntrySheet } from '@/components/basket/basket-entry-sheet';
@@ -8,7 +8,6 @@ import { CollectionSearchField } from '@/components/basket/collection-search-fie
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { ContextualActionSheet } from '@/components/ui/contextual-action-sheet';
 import { closeAllSwipeActions } from '@/components/ui/swipe-action-row';
 import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -16,6 +15,7 @@ import { useScreenInsets } from '@/hooks/use-screen-insets';
 import { useTheme } from '@/hooks/use-theme';
 import { useBasketStore } from '@/store/basketStore';
 import { useCollectionSelectionStore } from '@/store/collectionSelectionStore';
+import { useContextualSheetStore } from '@/store/contextualSheetStore';
 import { useLibraryStore } from '@/store/libraryStore';
 import { buildBasketShareText } from '@/utils/basket-format';
 import { groupBasketEntries } from '@/utils/basket-grouping';
@@ -93,8 +93,6 @@ export default function CollectionScreen() {
   // filter or search changes while the sheet is open.
   const [selectedId, setSelectedId] = useState(null);
   const [showBulkRemoveDialog, setShowBulkRemoveDialog] = useState(false);
-  const [showSelectionSheet, setShowSelectionSheet] = useState(false);
-  const selectionSheetRef = useRef(null);
 
   const sections = useMemo(() => groupBasketEntries(entries), [entries]);
   const visibleIds = useMemo(() => entries.map((entry) => entry.id), [entries]);
@@ -104,6 +102,11 @@ export default function CollectionScreen() {
   const selectedCount = useCollectionSelectionStore((state) => state.selectedIds.size);
   const allVisibleSelected = useCollectionSelectionStore((state) =>
     areAllVisibleSelected(state.selectedIds, visibleIds)
+  );
+  const showContextualSheet = useContextualSheetStore((state) => state.showContextualSheet);
+  const hideContextualSheet = useContextualSheetStore((state) => state.hideContextualSheet);
+  const requestDismissContextualSheet = useContextualSheetStore(
+    (state) => state.requestDismiss
   );
 
   const selectedEntry = entries.find((entry) => entry.id === selectedId) ?? null;
@@ -133,20 +136,6 @@ export default function CollectionScreen() {
       .getState()
       .pruneAvailable(entries.map((entry) => entry.id));
   }, [entries]);
-
-  // The sheet follows the temporary selection rather than owning it. First
-  // check opens it; zero checks closes it; the confirmation dialog takes its
-  // place without losing the selected IDs.
-  useEffect(() => {
-    if (showBulkRemoveDialog) return;
-    if (!selectionMode || selectedCount === 0) {
-      if (showSelectionSheet) {
-        selectionSheetRef.current?.dismiss(() => setShowSelectionSheet(false));
-      }
-      return;
-    }
-    setShowSelectionSheet(true);
-  }, [selectionMode, selectedCount, showSelectionSheet, showBulkRemoveDialog]);
 
   const closeOpenSwipes = useCallback(() => closeAllSwipeActions(), []);
 
@@ -228,7 +217,6 @@ export default function CollectionScreen() {
 
   const handleCancelSelection = useCallback(() => {
     closeOpenSwipes();
-    setShowSelectionSheet(false);
     useCollectionSelectionStore.getState().cancelSelection();
   }, [closeOpenSwipes]);
 
@@ -245,17 +233,11 @@ export default function CollectionScreen() {
   const handleOpenBulkRemove = useCallback(() => {
     if (selectedCount === 0) return;
     closeOpenSwipes();
-    selectionSheetRef.current?.dismiss(() => {
-      setShowSelectionSheet(false);
-      setShowBulkRemoveDialog(true);
-    });
-  }, [closeOpenSwipes, selectedCount]);
+    requestDismissContextualSheet(() => setShowBulkRemoveDialog(true));
+  }, [closeOpenSwipes, requestDismissContextualSheet, selectedCount]);
 
   const handleCancelBulkRemove = useCallback(() => {
     setShowBulkRemoveDialog(false);
-    if (useCollectionSelectionStore.getState().selectedIds.size > 0) {
-      setShowSelectionSheet(true);
-    }
   }, []);
 
   const handleConfirmBulkRemove = useCallback(() => {
@@ -265,7 +247,6 @@ export default function CollectionScreen() {
     removeMany([...selectedIds]);
     useCollectionSelectionStore.getState().cancelSelection();
     setShowBulkRemoveDialog(false);
-    setShowSelectionSheet(false);
   }, [closeOpenSwipes, removeMany]);
 
   const selectionActions = useMemo(
@@ -294,6 +275,29 @@ export default function CollectionScreen() {
       visibleIds.length,
     ]
   );
+
+  // The sheet follows temporary selection state. The bulk-remove dialog
+  // replaces it without losing selected IDs.
+  useEffect(() => {
+    if (showBulkRemoveDialog) return;
+    if (!selectionMode || selectedCount === 0) {
+      hideContextualSheet();
+      return;
+    }
+    showContextualSheet({
+      title: `${selectedCount} ${selectedCount === 1 ? 'pick' : 'picks'} selected`,
+      actions: selectionActions,
+      onCancel: handleCancelSelection,
+    });
+  }, [
+    handleCancelSelection,
+    hideContextualSheet,
+    selectionActions,
+    selectionMode,
+    selectedCount,
+    showBulkRemoveDialog,
+    showContextualSheet,
+  ]);
 
   const handleConfirmClear = useCallback(() => {
     closeOpenSwipes();
@@ -523,14 +527,6 @@ export default function CollectionScreen() {
         onClose={() => setSelectedId(null)}
         onPlot={handlePlot}
         onRemove={handleRequestRemove}
-      />
-
-      <ContextualActionSheet
-        ref={selectionSheetRef}
-        visible={showSelectionSheet}
-        title={`${selectedCount} ${selectedCount === 1 ? 'pick' : 'picks'} selected`}
-        actions={selectionActions}
-        onCancel={handleCancelSelection}
       />
 
       <ConfirmDialog

@@ -7,25 +7,18 @@
  */
 
 import { act, createRef } from 'react';
-import { ScrollView, StyleSheet, Text } from 'react-native';
+import { BackHandler, ScrollView, StyleSheet, Text } from 'react-native';
 import TestRenderer from 'react-test-renderer';
 
 import { ContextualActionSheet } from '@/components/ui/contextual-action-sheet';
 
 jest.mock('react-native', () => {
-  const React = require('react');
   const actual = jest.requireActual('react-native');
 
-  function MockModal({ children, visible, onRequestClose }) {
-    return React.createElement(
-      actual.View,
-      { testID: 'contextual-sheet-modal', visible, onRequestClose },
-      children
-    );
-  }
-
   return {
-    Modal: MockModal,
+    BackHandler: {
+      addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+    },
     Platform: actual.Platform,
     Pressable: actual.Pressable,
     ScrollView: actual.ScrollView,
@@ -152,6 +145,7 @@ const actions = [
 
 beforeEach(() => {
   actions.forEach((action) => action.onPress.mockClear());
+  BackHandler.addEventListener.mockClear();
 });
 
 describe('ContextualActionSheet', () => {
@@ -171,12 +165,12 @@ describe('ContextualActionSheet', () => {
     expect(textValues(tree)).toContain('2 picks selected');
     expect(buttonLabels(tree)).toEqual(['Select All', 'Remove Selected', 'Disabled Action', 'Cancel']);
 
-    expect(tree.root.findByProps({ testID: 'contextual-sheet-modal' }).props.visible).toBe(true);
-
     const root = tree.root.findByProps({ testID: 'contextual-action-sheet-root' });
     const rootStyle = StyleSheet.flatten(root.props.style);
-    expect(rootStyle.flex).toBe(1);
+    expect(rootStyle.position).toBe('absolute');
+    expect(root.props.pointerEvents).toBe('box-none');
     expect(rootStyle.justifyContent).toBe('flex-end');
+    expect(rootStyle.flex).toBeUndefined();
 
     const container = tree.root.findByProps({ accessibilityViewIsModal: true });
     const containerStyle = StyleSheet.flatten(container.props.style);
@@ -187,9 +181,8 @@ describe('ContextualActionSheet', () => {
     act(() => tree.unmount());
   });
 
-  it('routes backdrop dismissal through Cancel', () => {
+  it('keeps the backdrop visual only so outside taps reach the screen', () => {
     const onCancel = jest.fn();
-    const onDismiss = jest.fn();
     let tree;
     act(() => {
       tree = TestRenderer.create(
@@ -198,17 +191,13 @@ describe('ContextualActionSheet', () => {
           title="1 pick selected"
           actions={actions}
           onCancel={onCancel}
-          onDismiss={onDismiss}
         />
       );
     });
 
-    act(() => {
-      actionByLabel(tree, 'Dismiss actions').props.onPress();
-    });
-
-    expect(onCancel).toHaveBeenCalledTimes(1);
-    expect(onDismiss).toHaveBeenCalledTimes(1);
+    const backdrop = tree.root.findByProps({ testID: 'contextual-action-sheet-backdrop' });
+    expect(backdrop.props.pointerEvents).toBe('none');
+    expect(tree.root.findAllByProps({ accessibilityLabel: 'Dismiss actions' })).toHaveLength(0);
 
     act(() => tree.unmount());
   });
@@ -229,10 +218,20 @@ describe('ContextualActionSheet', () => {
       );
     });
 
+    expect(BackHandler.addEventListener).toHaveBeenCalledWith(
+      'hardwareBackPress',
+      expect.any(Function)
+    );
+    const backHandler = BackHandler.addEventListener.mock.calls.find(
+      ([event]) => event === 'hardwareBackPress'
+    )[1];
+
+    let handled;
     act(() => {
-      tree.root.findByProps({ testID: 'contextual-sheet-modal' }).props.onRequestClose();
+      handled = backHandler();
     });
 
+    expect(handled).toBe(true);
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onDismiss).toHaveBeenCalledTimes(1);
 

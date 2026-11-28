@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react';
 import {
-  Modal,
+  BackHandler,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -133,6 +133,15 @@ export const ContextualActionSheet = forwardRef(function ContextualActionSheet(
     translateY.set(0);
   }, [translateY, visible]);
 
+  useEffect(() => {
+    if (!visible || !hasActions) return undefined;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      requestClose(null, 'back');
+      return true;
+    });
+    return () => subscription.remove();
+  }, [hasActions, requestClose, visible]);
+
   const panGesture = usePanGesture({
     activeOffsetY: [-DRAG_ACTIVATION, DRAG_ACTIVATION],
     failOffsetX: [-DRAG_SLOP, DRAG_SLOP],
@@ -221,81 +230,73 @@ export const ContextualActionSheet = forwardRef(function ContextualActionSheet(
     );
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      onRequestClose={() => requestClose(null, 'back')}>
-      <View testID="contextual-action-sheet-root" style={styles.root}>
-        <Animated.View style={[styles.backdrop, backdropStyle]}>
-          <Pressable
-            style={styles.backdropPress}
-            onPress={() => requestClose(null, 'backdrop')}
-            accessibilityLabel="Dismiss actions"
-          />
-        </Animated.View>
+    <View
+      testID="contextual-action-sheet-root"
+      style={styles.root}
+      pointerEvents="box-none">
+      <Animated.View
+        testID="contextual-action-sheet-backdrop"
+        style={[styles.backdrop, backdropStyle]}
+        pointerEvents="none"
+      />
 
-        <Animated.View
-          accessibilityViewIsModal
-          style={[
-            styles.container,
-            {
-              marginBottom: resolvedBottomInset,
-              maxHeight: Math.round(windowHeight * MAX_SHEET_HEIGHT_RATIO),
-              backgroundColor: theme.background,
-              borderTopColor: theme.border,
-              paddingLeft: insets.left + Spacing.three,
-              paddingRight: insets.right + Spacing.three,
-            },
-            sheetStyle,
-          ]}>
-          <GestureDetector gesture={panGesture}>
-            <View style={styles.handleArea} importantForAccessibility="no">
-              <View style={[styles.handleBar, { backgroundColor: theme.border }]} />
-            </View>
-          </GestureDetector>
-
-          <View style={styles.content}>
-            {title ? (
-              <View style={styles.titleBlock}>
-                <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
-              </View>
-            ) : null}
-
-            {actionArea}
-
-            <Pressable
-              onPress={handleCancelPress}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel"
-              style={({ pressed }) => [
-                styles.cancel,
-                {
-                  backgroundColor: theme.background,
-                  borderColor: theme.border,
-                },
-                pressed && styles.pressed,
-              ]}>
-              <Text style={[styles.cancelText, { color: theme.text }]}>Cancel</Text>
-            </Pressable>
+      <Animated.View
+        accessibilityViewIsModal
+        style={[
+          styles.container,
+          {
+            marginBottom: resolvedBottomInset,
+            maxHeight: Math.round(windowHeight * MAX_SHEET_HEIGHT_RATIO),
+            backgroundColor: theme.background,
+            borderTopColor: theme.border,
+            paddingLeft: insets.left + Spacing.three,
+            paddingRight: insets.right + Spacing.three,
+          },
+          sheetStyle,
+        ]}>
+        <GestureDetector gesture={panGesture}>
+          <View style={styles.handleArea} importantForAccessibility="no">
+            <View style={[styles.handleBar, { backgroundColor: theme.border }]} />
           </View>
-        </Animated.View>
-      </View>
-    </Modal>
+        </GestureDetector>
+
+        <View style={styles.content}>
+          {title ? (
+            <View style={styles.titleBlock}>
+              <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
+            </View>
+          ) : null}
+
+          {actionArea}
+
+          <Pressable
+            onPress={handleCancelPress}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel"
+            style={({ pressed }) => [
+              styles.cancel,
+              {
+                backgroundColor: theme.background,
+                borderColor: theme.border,
+              },
+              pressed && styles.pressed,
+            ]}>
+            <Text style={[styles.cancelText, { color: theme.text }]}>Cancel</Text>
+          </Pressable>
+        </View>
+      </Animated.View>
+    </View>
   );
 });
 
 const styles = StyleSheet.create({
   root: {
-    flex: 1,
+    ...FULL_SCREEN,
     justifyContent: 'flex-end',
+    zIndex: 10,
   },
   backdrop: {
     ...FULL_SCREEN,
-  },
-  backdropPress: {
-    flex: 1,
   },
   container: {
     alignSelf: 'stretch',
