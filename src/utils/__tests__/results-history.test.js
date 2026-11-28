@@ -2,8 +2,13 @@ import {
   DRAW_DISPLAY_STATES,
   DRAW_SESSIONS,
   formatDrawDate,
+  formatMonthLabel,
+  getDateWindow,
   getDrawDisplayState,
   getDrawSession,
+  getMonthBounds,
+  getMonthKey,
+  getMonthOptions,
   groupRecordsByDrawDate,
 } from '@/utils/results-history';
 
@@ -189,5 +194,70 @@ describe('results history helpers', () => {
         now: 'not-a-time',
       })
     ).toBe(DRAW_DISPLAY_STATES.UNKNOWN);
+  });
+});
+
+describe('results history filters', () => {
+  it('derives month keys and bounds without time-zone shifts', () => {
+    expect(getMonthKey('2026-11-27')).toBe('2026-11');
+    expect(getMonthKey('2026-1-27')).toBeNull();
+    expect(getMonthKey(null)).toBeNull();
+
+    expect(getMonthBounds('2026-11')).toEqual({
+      start: '2026-11-01',
+      end: '2026-12-01',
+    });
+    expect(getMonthBounds('2026-12')).toEqual({
+      start: '2026-12-01',
+      end: '2027-01-01',
+    });
+    expect(getMonthBounds('2026-13')).toBeNull();
+  });
+
+  it('formats and lists cached month options newest first', () => {
+    expect(formatMonthLabel('2026-11')).toBe('November 2026');
+    expect(formatMonthLabel('bad')).toBe('');
+
+    expect(getMonthOptions([
+      '2026-11-27',
+      '2026-10-02',
+      '2026-11-26',
+      'bad-date',
+      null,
+    ])).toEqual(['2026-11', '2026-10']);
+    expect(getMonthOptions(null)).toEqual([]);
+  });
+
+  it('pages dates seven at a time from newest to oldest', () => {
+    const dates = Array.from({ length: 15 }, (_, index) =>
+      `2026-11-${String(15 - index).padStart(2, '0')}`);
+
+    const newest = getDateWindow(dates);
+    expect(newest.dates).toHaveLength(7);
+    expect(newest.dates[0]).toBe('2026-11-15');
+    expect(newest.page).toBe(0);
+    expect(newest.totalPages).toBe(3);
+    expect(newest.canGoNewer).toBe(false);
+    expect(newest.canGoOlder).toBe(true);
+
+    const middle = getDateWindow(dates, 1);
+    expect(middle.dates).toHaveLength(7);
+    expect(middle.dates[0]).toBe('2026-11-08');
+    expect(middle.canGoNewer).toBe(true);
+    expect(middle.canGoOlder).toBe(true);
+
+    const oldest = getDateWindow(dates, 99);
+    expect(oldest.page).toBe(2);
+    expect(oldest.dates).toHaveLength(1);
+    expect(oldest.dates[0]).toBe('2026-11-01');
+    expect(oldest.canGoOlder).toBe(false);
+
+    expect(getDateWindow([], 4)).toEqual({
+      dates: [],
+      page: 0,
+      totalPages: 1,
+      canGoNewer: false,
+      canGoOlder: false,
+    });
   });
 });

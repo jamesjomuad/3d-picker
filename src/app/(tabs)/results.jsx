@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
@@ -16,6 +17,7 @@ import {
   ResultsHistoryHeader,
   ResultsHistoryRow,
 } from '@/components/results/results-history-row';
+import { OptionSheet } from '@/components/settings/option-sheet';
 import { AppIcon } from '@/components/ui/app-icon';
 import { Button } from '@/components/ui/button';
 import { ThemedText } from '@/components/themed-text';
@@ -23,7 +25,11 @@ import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useScreenInsets } from '@/hooks/use-screen-insets';
 import { useTheme } from '@/hooks/use-theme';
 import { cancelResultsRequests, useResultsStore } from '@/store/resultsStore';
-import { groupRecordsByDrawDate } from '@/utils/results-history';
+import {
+  formatMonthLabel,
+  getDateWindow,
+  groupRecordsByDrawDate,
+} from '@/utils/results-history';
 
 const FILTER_ALL = 'all';
 
@@ -38,7 +44,10 @@ export default function ResultsScreen() {
 
   const records = useResultsStore((state) => state.records);
   const drawDates = useResultsStore((state) => state.drawDates);
+  const drawMonths = useResultsStore((state) => state.drawMonths);
   const dateFilter = useResultsStore((state) => state.dateFilter);
+  const monthFilter = useResultsStore((state) => state.monthFilter);
+  const searchQuery = useResultsStore((state) => state.searchQuery);
   const isLoaded = useResultsStore((state) => state.isLoaded);
   const isRefreshing = useResultsStore((state) => state.isRefreshing);
   const isLoadingMore = useResultsStore((state) => state.isLoadingMore);
@@ -50,17 +59,39 @@ export default function ResultsScreen() {
   const emptyOlderPage = useResultsStore((state) => state.emptyOlderPage);
   const load = useResultsStore((state) => state.load);
   const setDateFilter = useResultsStore((state) => state.setDateFilter);
+  const setMonthFilter = useResultsStore((state) => state.setMonthFilter);
+  const setSearchQuery = useResultsStore((state) => state.setSearchQuery);
+  const clearFilters = useResultsStore((state) => state.clearFilters);
   const refresh = useResultsStore((state) => state.refresh);
   const loadOlder = useResultsStore((state) => state.loadOlder);
   const showMoreLocal = useResultsStore((state) => state.showMoreLocal);
 
   const dates = drawDates;
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [monthSheetVisible, setMonthSheetVisible] = useState(false);
+  const [datePage, setDatePage] = useState(0);
   const hasAutoRefreshed = useRef(false);
+
+  const hasActiveFilter = Boolean(
+    dateFilter !== FILTER_ALL || monthFilter !== FILTER_ALL || searchQuery
+  );
+  const isUnfilteredHistory = !hasActiveFilter;
+  const dateWindow = getDateWindow(dates, datePage);
+  const monthOptions = useMemo(() => [
+    { value: FILTER_ALL, label: 'All months' },
+    ...drawMonths.map((month) => ({
+      value: month,
+      label: formatMonthLabel(month),
+    })),
+  ], [drawMonths]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    setDatePage(0);
+  }, [dates, monthFilter, searchQuery]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
@@ -93,21 +124,34 @@ export default function ResultsScreen() {
   }, [isRefreshing, refresh]);
 
   const handleLoadOlderPress = useCallback(() => {
-    if (dateFilter !== FILTER_ALL || isLoadingMore || isRefreshing) return;
+    if (!isUnfilteredHistory || isLoadingMore || isRefreshing) return;
     if (hasMore) {
       loadOlder();
       return;
     }
     if (hasLocalMore) showMoreLocal();
   }, [
-    dateFilter,
-    hasMore,
     hasLocalMore,
+    hasMore,
     isLoadingMore,
     isRefreshing,
+    isUnfilteredHistory,
     loadOlder,
     showMoreLocal,
   ]);
+
+  const handleShowOlderDates = useCallback(() => {
+    setDatePage((page) => Math.min(page + 1, dateWindow.totalPages - 1));
+  }, [dateWindow.totalPages]);
+
+  const handleShowNewerDates = useCallback(() => {
+    setDatePage((page) => Math.max(0, page - 1));
+  }, []);
+
+  const handleClearFilters = useCallback(() => {
+    setDatePage(0);
+    clearFilters();
+  }, [clearFilters]);
 
   const handleEndReached = useCallback(() => {
     if (emptyOlderPage) return;
@@ -120,9 +164,10 @@ export default function ResultsScreen() {
         group={item}
         width={contentWidth}
         onSelectRecord={setSelectedRecord}
+        hideDerivedStatus={hasActiveFilter}
       />
     ),
-    [contentWidth]
+    [contentWidth, hasActiveFilter]
   );
 
   const keyExtractor = useCallback((item) => item.date, []);
@@ -147,13 +192,101 @@ export default function ResultsScreen() {
         </View>
       )}
 
-      {dates.length > 1 && (
+      <View style={styles.searchRow}>
+        <TextInput
+          accessibilityLabel="Search results"
+          placeholder="Search cached draws"
+          placeholderTextColor={theme.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          keyboardType="numeric"
+          maxLength={60}
+          style={[
+            styles.searchInput,
+            {
+              backgroundColor: theme.backgroundElement,
+              borderColor: theme.border,
+              color: theme.text,
+            },
+          ]}
+        />
+        {Boolean(searchQuery) && (
+          <Pressable
+            onPress={() => setSearchQuery('')}
+            accessibilityRole="button"
+            accessibilityLabel="Clear search"
+            style={({ pressed }) => [styles.clearFilter, pressed && styles.pressed]}>
+            <AppIcon name="xmark.circle" size="small" tone="primary" />
+            <Text style={[styles.clearFilterText, { color: theme.primary }]}>
+              Clear search
+            </Text>
+          </Pressable>
+        )}
+      </View>
+
+      {hasActiveFilter && (
         <View style={styles.filterRow}>
+          <Pressable
+            onPress={handleClearFilters}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.clearFilter, pressed && styles.pressed]}>
+            <AppIcon name="xmark.circle" size="small" tone="primary" />
+            <Text style={[styles.clearFilterText, { color: theme.primary }]}>
+              Clear all filters
+            </Text>
+          </Pressable>
+        </View>
+      )}
+
+      {dates.length > 0 && (
+        <View style={styles.dateFilterBlock}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.filterScroll}>
-            {[FILTER_ALL, ...dates].map((date) => {
+            <Pressable
+              key={FILTER_ALL}
+              onPress={() => setDateFilter(FILTER_ALL)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: dateFilter === FILTER_ALL }}
+              style={({ pressed }) => [
+                styles.filterChip,
+                {
+                  backgroundColor: dateFilter === FILTER_ALL ? theme.primary : theme.backgroundElement,
+                  borderColor: dateFilter === FILTER_ALL ? theme.primary : theme.border,
+                },
+                pressed && styles.pressed,
+              ]}>
+              <Text
+                style={[
+                  styles.filterChipText,
+                  {
+                    color: dateFilter === FILTER_ALL ? theme.primaryText : theme.text,
+                  },
+                ]}>
+                All dates
+              </Text>
+            </Pressable>
+            {drawMonths.length > 0 && (
+              <Pressable
+                key="month-filter"
+                onPress={() => setMonthSheetVisible(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Choose month"
+                style={({ pressed }) => [
+                  styles.filterChip,
+                  {
+                    backgroundColor: theme.backgroundElement,
+                    borderColor: theme.border,
+                  },
+                  pressed && styles.pressed,
+                ]}>
+                <Text style={[styles.filterChipText, { color: theme.text }]}>
+                  {`Month: ${monthFilter === FILTER_ALL ? 'All months' : formatMonthLabel(monthFilter)}`}
+                </Text>
+              </Pressable>
+            )}
+            {dateWindow.dates.map((date) => {
               const isActive = dateFilter === date;
               return (
                 <Pressable
@@ -174,22 +307,31 @@ export default function ResultsScreen() {
                       styles.filterChipText,
                       { color: isActive ? theme.primaryText : theme.text },
                     ]}>
-                    {date === FILTER_ALL ? 'All dates' : date}
+                    {date}
                   </Text>
                 </Pressable>
               );
             })}
           </ScrollView>
-          {dateFilter !== FILTER_ALL && (
-            <Pressable
-              onPress={() => setDateFilter(FILTER_ALL)}
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.clearFilter, pressed && styles.pressed]}>
-              <AppIcon name="xmark.circle" size="small" tone="primary" />
-              <Text style={[styles.clearFilterText, { color: theme.primary }]}>
-                Clear filter
-              </Text>
-            </Pressable>
+          {dateWindow.totalPages > 1 && (
+            <View style={styles.pagerRow}>
+              {dateWindow.canGoNewer && (
+                <Pressable
+                  onPress={handleShowNewerDates}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [styles.pagerButton, pressed && styles.pressed]}>
+                  <Text style={[styles.pagerText, { color: theme.primary }]}>Newer</Text>
+                </Pressable>
+              )}
+              {dateWindow.canGoOlder && (
+                <Pressable
+                  onPress={handleShowOlderDates}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [styles.pagerButton, pressed && styles.pressed]}>
+                  <Text style={[styles.pagerText, { color: theme.primary }]}>Older</Text>
+                </Pressable>
+              )}
+            </View>
           )}
         </View>
       )}
@@ -203,7 +345,7 @@ export default function ResultsScreen() {
       {isLoadingMore && <ActivityIndicator color={theme.primary} />}
 
       {!isLoadingMore && olderError && (hasMore || hasLocalMore)
-        && dateFilter === FILTER_ALL && (
+        && isUnfilteredHistory && (
         <>
           <Text style={[styles.endText, { color: theme.textSecondary }]}>{olderError}</Text>
           <Button
@@ -216,7 +358,7 @@ export default function ResultsScreen() {
         </>
       )}
 
-      {!isLoadingMore && !olderError && emptyOlderPage && hasMore && dateFilter === FILTER_ALL && (
+      {!isLoadingMore && !olderError && emptyOlderPage && hasMore && isUnfilteredHistory && (
         <>
           <Text style={[styles.endText, { color: theme.textSecondary }]}>
             No new draws in this page. More history is available.
@@ -228,14 +370,14 @@ export default function ResultsScreen() {
       )}
 
       {!isLoadingMore && !olderError && !emptyOlderPage && !hasMore && hasLocalMore
-        && dateFilter === FILTER_ALL && (
+        && isUnfilteredHistory && (
         <Button variant="outline" size="sm" onPress={handleLoadOlderPress}>
           Show more saved
         </Button>
       )}
 
       {!isLoadingMore && !olderError && !emptyOlderPage && !hasMore && !hasLocalMore
-        && records.length > 0 && dateFilter === FILTER_ALL && (
+        && records.length > 0 && isUnfilteredHistory && (
         <Text style={[styles.endText, { color: theme.textSecondary }]}>
           End of available history
         </Text>
@@ -247,6 +389,13 @@ export default function ResultsScreen() {
     <View style={styles.loadingState}>
       <ActivityIndicator color={theme.primary} />
       <ThemedText themeColor="textSecondary">Loading results...</ThemedText>
+    </View>
+  ) : records.length === 0 && hasActiveFilter ? (
+    <View style={[styles.emptyState, { width: contentWidth }]}>
+      <ThemedText themeColor="textSecondary">No draws match this filter.</ThemedText>
+      <Button variant="outline" size="sm" onPress={handleClearFilters}>
+        Clear all filters
+      </Button>
     </View>
   ) : records.length === 0 && drawDates.length === 0 ? (
     <View style={[styles.emptyState, { width: contentWidth }]}>
@@ -260,8 +409,8 @@ export default function ResultsScreen() {
   ) : records.length === 0 ? (
     <View style={[styles.emptyState, { width: contentWidth }]}>
       <ThemedText themeColor="textSecondary">No draws match this date.</ThemedText>
-      <Button variant="outline" size="sm" onPress={() => setDateFilter(FILTER_ALL)}>
-        Clear filter
+      <Button variant="outline" size="sm" onPress={handleClearFilters}>
+        Clear all filters
       </Button>
     </View>
   ) : null;
@@ -290,6 +439,15 @@ export default function ResultsScreen() {
         record={selectedRecord}
         onClose={() => setSelectedRecord(null)}
       />
+
+      <OptionSheet
+        visible={monthSheetVisible}
+        title="Month"
+        options={monthOptions}
+        value={monthFilter}
+        onSelect={setMonthFilter}
+        onClose={() => setMonthSheetVisible(false)}
+      />
     </View>
   );
 }
@@ -304,8 +462,8 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.six,
   },
   header: {
-    gap: Spacing.three,
-    marginBottom: Spacing.three,
+    gap: Spacing.two,
+    marginBottom: Spacing.two,
   },
   subtitle: {
     fontSize: Typography.size.body,
@@ -319,16 +477,31 @@ const styles = StyleSheet.create({
     fontSize: Typography.size.body,
     lineHeight: Typography.lineHeight.body,
   },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  searchInput: {
+    flex: 1,
+    minHeight: 36,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.two,
+    fontSize: Typography.size.body,
+  },
   filterRow: {
-    gap: Spacing.two,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
   },
   filterScroll: {
-    gap: Spacing.two,
-    paddingRight: Spacing.three,
+    gap: Spacing.one,
+    paddingRight: Spacing.one,
   },
   filterChip: {
-    minHeight: 40,
-    paddingHorizontal: Spacing.three,
+    minHeight: 32,
+    paddingHorizontal: Spacing.two,
     borderRadius: BorderRadius.full,
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
@@ -340,13 +513,30 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   clearFilter: {
-    minHeight: 44,
+    minHeight: 32,
     justifyContent: 'center',
     alignSelf: 'flex-start',
-    paddingHorizontal: Spacing.one,
+    paddingHorizontal: Spacing.half,
   },
   clearFilterText: {
-    fontSize: Typography.size.body,
+    fontSize: Typography.size.caption,
+    fontWeight: Typography.weight.semibold,
+  },
+  dateFilterBlock: {
+    gap: Spacing.one,
+  },
+  pagerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  pagerButton: {
+    minHeight: 32,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.half,
+  },
+  pagerText: {
+    fontSize: Typography.size.caption,
     fontWeight: Typography.weight.semibold,
   },
   footer: {

@@ -7,6 +7,7 @@ import {
 } from '@/features/collection/database/collection-repository';
 import {
   getDrawDates,
+  getDrawMonths,
   getRecordCount,
   getResultsPage,
   getResultsSnapshot,
@@ -123,6 +124,41 @@ describe('results repository', () => {
     expect(await getDrawDates()).toEqual(['2026-11-28', '2026-11-27']);
     expect(await searchResults('005')).toHaveLength(1);
     expect(await getRecordCount()).toBe(2);
+  });
+
+  it('filters cached results by month and search query', async () => {
+    await upsertRecords([
+      makeRecord(),
+      makeRecord({
+        sourceId: '1002',
+        id: 'v2-source-1002',
+        drawDate: '2026-12-01',
+        gameCode: '3d_lotto_9pm',
+        result: ['0', '0', '5'],
+      }),
+      makeRecord({
+        sourceId: '1003',
+        id: 'v2-source-1003',
+        drawDate: '2026-10-31',
+        result: ['0', '3', '7'],
+      }),
+    ]);
+
+    expect((await getResultsPage({ month: '2026-11' })).map((item) => item.drawDate))
+      .toEqual(['2026-11-27']);
+    expect(await getDrawDates({ month: '2026-11' })).toEqual(['2026-11-27']);
+    expect(await getRecordCount({ month: '2026-11' })).toBe(1);
+
+    const combined = await getResultsPage({ month: '2026-11', query: '037' });
+    expect(combined.map((item) => item.drawDate)).toEqual(['2026-11-27']);
+    expect(await getResultsPage({ month: '2026-11', query: '005' })).toEqual([]);
+
+    const searched = await getResultsPage({ query: '005' });
+    expect(searched.map((item) => item.drawDate)).toEqual(['2026-12-01']);
+
+    const exactWins = await getResultsPage({ date: '2026-10-31', month: '2026-11' });
+    expect(exactWins.map((item) => item.drawDate)).toEqual(['2026-10-31']);
+    expect(await getDrawMonths()).toEqual(['2026-12', '2026-11', '2026-10']);
   });
 
   it('uses sourceId as stable identity and preserves history missing from latest', async () => {
@@ -245,6 +281,7 @@ describe('results repository', () => {
     const snapshot = await getResultsSnapshot({ limit: 10 });
     expect(snapshot.records).toHaveLength(1);
     expect(snapshot.drawDates).toEqual(['2026-11-27']);
+    expect(snapshot.drawMonths).toEqual(['2026-11']);
     expect(snapshot.totalCount).toBe(1);
     expect(snapshot.gameCodes).toEqual(['3d_lotto_2pm']);
     expect(snapshot.historyCursors).toEqual({ '3d_lotto_2pm': 'cursor-1' });
@@ -274,10 +311,31 @@ describe('results repository', () => {
       '2026-11-27',
       '2026-11-26',
     ]);
+    expect(snapshot.drawMonths).toEqual(['2026-11']);
 
     const bounded = await getResultsSnapshot({ limit: 1 });
     expect(bounded.records).toHaveLength(1);
     expect(bounded.displayLimit).toBe(400);
+    expect(bounded.drawMonths).toEqual(['2026-11']);
+  });
+
+  it('applies month and query filters to the bounded snapshot', async () => {
+    await upsertRecords([
+      makeRecord(),
+      makeRecord({
+        sourceId: '1002',
+        id: 'v2-source-1002',
+        drawDate: '2026-12-01',
+        result: ['0', '0', '5'],
+      }),
+    ]);
+
+    const snapshot = await getResultsSnapshot({ month: '2026-12', query: '005', limit: 10 });
+    expect(snapshot.records).toHaveLength(1);
+    expect(snapshot.records[0].drawDate).toBe('2026-12-01');
+    expect(snapshot.drawDates).toEqual(['2026-12-01']);
+    expect(snapshot.totalCount).toBe(1);
+    expect(snapshot.drawMonths).toEqual(['2026-12', '2026-11']);
   });
 
   it('persists a rounded display limit for cached paging', async () => {

@@ -57,6 +57,7 @@ export const ResultsHistoryRow = memo(function ResultsHistoryRow({
   group,
   width,
   onSelectRecord,
+  hideDerivedStatus = false,
 }) {
   const theme = useTheme();
   const fullDate = formatDrawDate(group.date);
@@ -80,11 +81,13 @@ export const ResultsHistoryRow = memo(function ResultsHistoryRow({
 
       {DRAW_SESSIONS.map((session) => {
         const record = group.sessions[session.key];
-        const state = getDrawDisplayState({
-          record,
-          sessionKey: session.key,
-          date: group.date,
-        });
+        const state = !record && hideDerivedStatus
+          ? DRAW_DISPLAY_STATES.UNKNOWN
+          : getDrawDisplayState({
+            record,
+            sessionKey: session.key,
+            date: group.date,
+          });
         const isAvailable = state === DRAW_DISPLAY_STATES.AVAILABLE;
         const stateLabel =
           DRAW_STATE_LABELS[state] ??

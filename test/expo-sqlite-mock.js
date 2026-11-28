@@ -70,6 +70,34 @@ function likeNeedle(value) {
   return String(value ?? '').replace(/^%|%$/g, '').toLowerCase();
 }
 
+function rowMatchesFilters(row, sql, params = []) {
+  let index = 0;
+
+  if (/draw_date = \?/i.test(sql)) {
+    if (row.draw_date !== params[index]) return false;
+    index += 1;
+  }
+
+  if (/draw_date >= \? AND draw_date < \?/i.test(sql)) {
+    const start = params[index];
+    const end = params[index + 1];
+    index += 2;
+    if (typeof row.draw_date !== 'string') return false;
+    if (row.draw_date < start || row.draw_date >= end) return false;
+  }
+
+  const likeClauses = [...sql.matchAll(/(?:numbers|game_name|game_code) LIKE \?/gi)];
+  if (likeClauses.length > 0) {
+    const needle = likeNeedle(params[index]);
+    index += likeClauses.length;
+    const matches = [row.numbers, row.game_name, row.game_code]
+      .some((value) => String(value ?? '').toLowerCase().includes(needle));
+    if (!matches) return false;
+  }
+
+  return true;
+}
+
 const database = {
   execAsync: jest.fn(),
   getFirstAsync: jest.fn(),
@@ -102,7 +130,8 @@ function applyImplementations() {
       return row ? { record_json: row.record_json } : null;
     }
     if (/SELECT COUNT\(\*\) AS count FROM lotto_results/i.test(sql)) {
-      return { count: state.rows.size };
+      const rows = [...state.rows.values()].filter((row) => rowMatchesFilters(row, sql, params));
+      return { count: rows.length };
     }
 
     if (/FROM collection_metadata WHERE key = \?/i.test(sql)) {
@@ -136,6 +165,7 @@ function applyImplementations() {
     if (/SELECT DISTINCT draw_date/i.test(sql)) {
       const dates = [...new Set(
         [...state.rows.values()]
+          .filter((row) => rowMatchesFilters(row, sql, params))
           .map((row) => row.draw_date)
           .filter((date) => typeof date === 'string' && date.length > 0)
       )].sort().reverse();
@@ -143,17 +173,8 @@ function applyImplementations() {
     }
 
     if (/SELECT record_json FROM lotto_results/i.test(sql)) {
-      let rows = [...state.rows.values()];
-
-      if (/WHERE draw_date = \?/i.test(sql)) {
-        rows = rows.filter((row) => row.draw_date === params[0]);
-      } else if (/WHERE numbers LIKE \?/i.test(sql)) {
-        const needle = likeNeedle(params[0]);
-        rows = rows.filter((row) =>
-          [row.numbers, row.game_name, row.game_code]
-            .some((value) => String(value ?? '').toLowerCase().includes(needle))
-        );
-      }
+      const rows = [...state.rows.values()]
+        .filter((row) => rowMatchesFilters(row, sql, params));
 
       rows.sort(
         (a, b) =>

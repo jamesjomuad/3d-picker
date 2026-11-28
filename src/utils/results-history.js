@@ -53,6 +53,7 @@ const SHORT_MONTHS = [
 ];
 
 const DRAW_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+const MONTH_KEY_PATTERN = /^(\d{4})-(0[1-9]|1[0-2])$/;
 const GAME_CODE_SESSION_PATTERN = /3d_lotto[_-](2|5|9)pm/i;
 const LABEL_SESSION_PATTERN = /\b(2|5|9)\s*pm\b/i;
 const HOUR_PATTERN = /^(\d{1,2}):/;
@@ -131,6 +132,69 @@ export function formatDrawDate(value, { compact = false } = {}) {
   const month = compact ? SHORT_MONTHS[monthIndex] : MONTHS[monthIndex];
   const day = String(Number(match[3]));
   return `${month} ${day}, ${match[1]}`;
+}
+
+/** Returns the `YYYY-MM` key for a valid API draw date. */
+export function getMonthKey(date) {
+  if (typeof date !== 'string') return null;
+  const match = DRAW_DATE_PATTERN.exec(date);
+  return match ? `${match[1]}-${match[2]}` : null;
+}
+
+/** Returns inclusive start and exclusive end bounds for a valid month key. */
+export function getMonthBounds(month) {
+  if (typeof month !== 'string') return null;
+  const match = MONTH_KEY_PATTERN.exec(month);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const monthNumber = Number(match[2]);
+  const nextYear = monthNumber === 12 ? year + 1 : year;
+  const nextMonth = monthNumber === 12 ? 1 : monthNumber + 1;
+
+  return {
+    start: `${match[1]}-${match[2]}-01`,
+    end: `${String(nextYear).padStart(4, '0')}-${String(nextMonth).padStart(2, '0')}-01`,
+  };
+}
+
+/** Formats a cached month key without shifting it through local time. */
+export function formatMonthLabel(month) {
+  if (!getMonthBounds(month)) return '';
+  const [year, monthNumber] = month.split('-');
+  return `${MONTHS[Number(monthNumber) - 1]} ${year}`;
+}
+
+/** Lists cached month keys newest first, derived from draw dates. */
+export function getMonthOptions(dates) {
+  const months = new Set();
+  for (const date of Array.isArray(dates) ? dates : []) {
+    const key = getMonthKey(date);
+    if (key) months.add(key);
+  }
+  return [...months].sort().reverse();
+}
+
+/**
+ * Returns one bounded page of newest-first draw dates.
+ * `page` 0 is newest; pressing Older advances it, Newer moves back.
+ */
+export function getDateWindow(dates, page = 0, size = 7) {
+  const allDates = Array.isArray(dates) ? dates : [];
+  const pageSize = Number.isFinite(size) && size > 0 ? Math.floor(size) : 7;
+  const totalPages = Math.max(1, Math.ceil(allDates.length / pageSize));
+  const requestedPage = Number.isFinite(page) ? Math.floor(page) : 0;
+  const currentPage = Math.min(Math.max(0, requestedPage), totalPages - 1);
+  const start = currentPage * pageSize;
+  const windowDates = allDates.slice(start, start + pageSize);
+
+  return {
+    dates: windowDates,
+    page: currentPage,
+    totalPages,
+    canGoNewer: currentPage > 0,
+    canGoOlder: currentPage < totalPages - 1,
+  };
 }
 
 /** Winning numbers are available only when three valid single digits exist. */

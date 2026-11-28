@@ -1,7 +1,11 @@
 import { loadDrawResults } from '@/services/lottery-storage';
 import { mergeRecords } from '@/services/lottery-merge';
 import { formatCombination } from '@/services/lottery-normalize';
-import { getDrawSession } from '@/utils/results-history';
+import {
+  getDrawSession,
+  getMonthBounds,
+  getMonthOptions,
+} from '@/utils/results-history';
 
 import { getResultsDatabase } from './results-database';
 import {
@@ -387,28 +391,75 @@ function firstCursor(cursors) {
   return Object.values(cursors).find((cursor) => typeof cursor === 'string' && cursor) ?? null;
 }
 
-export async function getResultsPage({ date = null, limit = RESULTS_PAGE_SIZE } = {}) {
+function buildResultFilters({ date = null, month = null, query = null } = {}) {
+  const conditions = [];
+  const params = [];
+
+  if (typeof date === 'string' && date) {
+    conditions.push('draw_date = ?');
+    params.push(date);
+  } else {
+    const bounds = getMonthBounds(month);
+    if (bounds) {
+      conditions.push('draw_date >= ? AND draw_date < ?');
+      params.push(bounds.start, bounds.end);
+    }
+  }
+
+  const needle = typeof query === 'string' ? query.trim() : '';
+  if (needle) {
+    conditions.push('(numbers LIKE ? OR game_name LIKE ? OR game_code LIKE ?)');
+    const pattern = `%${needle}%`;
+    params.push(pattern, pattern, pattern);
+  }
+
+  return { conditions, params, where: conditions.join(' AND ') };
+}
+
+export async function getResultsPage({
+  date = null,
+  month = null,
+  query = null,
+  limit = RESULTS_PAGE_SIZE,
+} = {}) {
   const db = await getResultsDatabase();
   const pageSize = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : RESULTS_PAGE_SIZE;
-  const sql = date
-    ? 'SELECT record_json FROM lotto_results WHERE draw_date = ? ORDER BY draw_date DESC, id DESC LIMIT ?'
-    : 'SELECT record_json FROM lotto_results ORDER BY draw_date DESC, id DESC LIMIT ?';
-  const rows = await db.getAllAsync(sql, date ? [date, pageSize] : [pageSize]);
+  const { where, params: filterParams } = buildResultFilters({ date, month, query });
+  const whereSql = where ? `WHERE ${where} ` : '';
+  const rows = await db.getAllAsync(
+    `SELECT record_json FROM lotto_results ${whereSql}ORDER BY draw_date DESC, id DESC LIMIT ?`,
+    [...filterParams, pageSize]
+  );
   return (rows ?? []).map(parseStoredRecord).filter(Boolean);
 }
 
-export async function getDrawDates({ limit = RESULTS_PAGE_SIZE } = {}) {
+export async function getDrawDates({
+  date = null,
+  month = null,
+  query = null,
+  limit = RESULTS_PAGE_SIZE,
+} = {}) {
   const db = await getResultsDatabase();
   const pageSize = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : RESULTS_PAGE_SIZE;
+  const {
+    conditions: filterConditions,
+    params: filterParams,
+  } = buildResultFilters({ date, month, query });
+  const conditions = ['draw_date IS NOT NULL', "draw_date <> ''", ...filterConditions];
   const rows = await db.getAllAsync(
     `SELECT DISTINCT draw_date FROM lotto_results
-     WHERE draw_date IS NOT NULL AND draw_date <> ''
+     WHERE ${conditions.join(' AND ')}
      ORDER BY draw_date DESC LIMIT ?`,
-    [pageSize]
+    [...filterParams, pageSize]
   );
   return (rows ?? [])
     .map((row) => row?.draw_date)
-    .filter((date) => typeof date === 'string' && date.length > 0);
+    .filter((item) => typeof item === 'string' && item.length > 0);
+}
+
+export async function getDrawMonths() {
+  const dates = await getDrawDates({ limit: Number.MAX_SAFE_INTEGER });
+  return getMonthOptions(dates);
 }
 
 export async function searchResults(query, { limit = RESULTS_PAGE_SIZE } = {}) {
@@ -426,9 +477,14 @@ export async function searchResults(query, { limit = RESULTS_PAGE_SIZE } = {}) {
   return (rows ?? []).map(parseStoredRecord).filter(Boolean);
 }
 
-export async function getRecordCount() {
+export async function getRecordCount({ date = null, month = null, query = null } = {}) {
   const db = await getResultsDatabase();
-  const row = await db.getFirstAsync('SELECT COUNT(*) AS count FROM lotto_results');
+  const { where, params } = buildResultFilters({ date, month, query });
+  const whereSql = where ? ` WHERE ${where}` : '';
+  const row = await db.getFirstAsync(
+    `SELECT COUNT(*) AS count FROM lotto_results${whereSql}`,
+    params
+  );
   return Number(row?.count ?? 0);
 }
 
@@ -472,7 +528,12 @@ export async function importLegacyCacheIfEmpty() {
 }
 
 /** One bounded snapshot for the screen: page rows, all dates, and sync state. */
-export async function getResultsSnapshot({ date = null, limit = null } = {}) {
+export async function getResultsSnapshot({
+  date = null,
+  month = null,
+  query = null,
+  limit = null,
+} = {}) {
   await importLegacyCacheIfEmpty();
 
   const metadata = await getSyncMetadata();
@@ -481,10 +542,11 @@ export async function getResultsSnapshot({ date = null, limit = null } = {}) {
   );
   const effectiveLimit = limit === null ? displayLimit : limit;
 
-  const [records, drawDates, totalCount] = await Promise.all([
-    getResultsPage({ date, limit: effectiveLimit }),
-    getDrawDates({ limit: effectiveLimit }),
-    getRecordCount(),
+  const [records, drawDates, totalCount, drawMonths] = await Promise.all([
+    getResultsPage({ date, month, query, limit: effectiveLimit }),
+    getDrawDates({ date, month, query, limit: effectiveLimit }),
+    getRecordCount({ date, month, query }),
+    getDrawMonths(),
   ]);
 
   const gameCodes = cleanGameCodes(
@@ -497,6 +559,7 @@ export async function getResultsSnapshot({ date = null, limit = null } = {}) {
   return {
     records,
     drawDates,
+    drawMonths,
     totalCount,
     displayLimit,
     gameCodes,

@@ -37,6 +37,7 @@ const record = (sourceId, drawDate) => ({
 const snapshot = {
   records: [record('1', '2026-11-27')],
   drawDates: ['2026-11-27'],
+  drawMonths: ['2026-11'],
   totalCount: 1,
   gameCodes: ['3d_lotto_2pm'],
   historyCursors: { '3d_lotto_2pm': 'cursor-1' },
@@ -52,7 +53,10 @@ beforeEach(() => {
   useResultsStore.setState({
     records: [],
     drawDates: [],
+    drawMonths: [],
     dateFilter: 'all',
+    monthFilter: 'all',
+    searchQuery: '',
     isLoaded: false,
     isRefreshing: false,
     isLoadingMore: false,
@@ -377,5 +381,133 @@ describe('useResultsStore.showMoreLocal', () => {
 
     expect(getResultsSnapshot).not.toHaveBeenCalled();
     expect(useResultsStore.getState().isLoadingMore).toBe(false);
+  });
+});
+
+describe('useResultsStore month and search filters', () => {
+  it('filters the cached snapshot by month and drops the exact date', async () => {
+    useResultsStore.setState({ dateFilter: '2026-11-27' });
+
+    await useResultsStore.getState().setMonthFilter('2026-11');
+
+    expect(getResultsSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({ date: null, month: '2026-11', query: null })
+    );
+    expect(useResultsStore.getState()).toMatchObject({
+      monthFilter: '2026-11',
+      dateFilter: 'all',
+      records: snapshot.records,
+      drawDates: snapshot.drawDates,
+      drawMonths: snapshot.drawMonths,
+      totalCount: snapshot.totalCount,
+    });
+  });
+
+  it('clears the month filter when All months is chosen', async () => {
+    useResultsStore.setState({ monthFilter: '2026-11' });
+
+    await useResultsStore.getState().setMonthFilter('all');
+
+    expect(getResultsSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({ month: null })
+    );
+    expect(useResultsStore.getState().monthFilter).toBe('all');
+  });
+
+  it('rejects an invalid month without querying SQLite', async () => {
+    await useResultsStore.getState().setMonthFilter('not-a-month');
+
+    expect(getResultsSnapshot).not.toHaveBeenCalled();
+    expect(useResultsStore.getState().monthFilter).toBe('all');
+  });
+
+  it('searches cached draws and trims the query', async () => {
+    await useResultsStore.getState().setSearchQuery('  037  ');
+
+    expect(getResultsSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({ query: '037' })
+    );
+    expect(useResultsStore.getState().searchQuery).toBe('037');
+  });
+
+  it('treats an empty search as no query', async () => {
+    useResultsStore.setState({ searchQuery: '037' });
+
+    await useResultsStore.getState().setSearchQuery('   ');
+
+    expect(getResultsSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({ query: null })
+    );
+    expect(useResultsStore.getState().searchQuery).toBe('');
+  });
+
+  it('clears every filter together', async () => {
+    useResultsStore.setState({
+      dateFilter: '2026-11-27',
+      monthFilter: '2026-11',
+      searchQuery: '037',
+    });
+
+    await useResultsStore.getState().clearFilters();
+
+    expect(getResultsSnapshot).toHaveBeenCalledWith();
+    expect(useResultsStore.getState()).toMatchObject({
+      dateFilter: 'all',
+      monthFilter: 'all',
+      searchQuery: '',
+      records: snapshot.records,
+      drawDates: snapshot.drawDates,
+      drawMonths: snapshot.drawMonths,
+      totalCount: snapshot.totalCount,
+    });
+  });
+
+  it('preserves active filters when refresh reloads SQLite', async () => {
+    useResultsStore.setState({
+      isLoaded: true,
+      dateFilter: '2026-11-27',
+      monthFilter: '2026-11',
+      searchQuery: '037',
+    });
+
+    await useResultsStore.getState().refresh();
+
+    expect(getResultsSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        date: '2026-11-27',
+        month: '2026-11',
+        query: '037',
+      })
+    );
+  });
+
+  it('blocks server paging while a month or search filter is active', async () => {
+    useResultsStore.setState({ hasMore: true, monthFilter: '2026-11' });
+    await expect(useResultsStore.getState().loadOlder())
+      .resolves.toEqual({ success: false });
+    expect(syncLoadOlder).not.toHaveBeenCalled();
+
+    useResultsStore.setState({ monthFilter: 'all', searchQuery: '037' });
+    await expect(useResultsStore.getState().loadOlder())
+      .resolves.toEqual({ success: false });
+    expect(syncLoadOlder).not.toHaveBeenCalled();
+  });
+
+  it('blocks local reveal while a month or search filter is active', async () => {
+    useResultsStore.setState({
+      isLoaded: true,
+      hasMore: false,
+      totalCount: 600,
+      monthFilter: '2026-11',
+    });
+    await expect(useResultsStore.getState().showMoreLocal())
+      .resolves.toEqual({ success: false });
+    expect(setDisplayLimit).not.toHaveBeenCalled();
+
+    useResultsStore.setState({ monthFilter: 'all', searchQuery: '037' });
+    await expect(useResultsStore.getState().showMoreLocal())
+      .resolves.toEqual({ success: false });
+    expect(setDisplayLimit).not.toHaveBeenCalled();
+    expect(getResultsSnapshot).not.toHaveBeenCalled();
   });
 });

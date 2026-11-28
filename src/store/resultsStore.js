@@ -13,6 +13,7 @@ import {
   syncLoadOlder,
   syncRefresh,
 } from '@/features/results/database/results-sync';
+import { getMonthBounds } from '@/utils/results-history';
 
 /**
  * Draw results store
@@ -26,7 +27,26 @@ let refreshController = null;
 let olderController = null;
 let refreshGeneration = 0;
 let olderGeneration = 0;
+let filterGeneration = 0;
 const seenCursors = new Set();
+
+function resultFilters(state, overrides = {}) {
+  const date = overrides.date !== undefined
+    ? overrides.date
+    : state.dateFilter !== FILTER_ALL ? state.dateFilter : null;
+  const month = overrides.month !== undefined
+    ? overrides.month
+    : state.monthFilter !== FILTER_ALL ? state.monthFilter : null;
+  const query = overrides.query !== undefined
+    ? overrides.query
+    : state.searchQuery || null;
+  return { date, month, query };
+}
+
+function nextFilterGeneration() {
+  filterGeneration += 1;
+  return filterGeneration;
+}
 
 function rememberCursors(cursors) {
   if (!cursors || typeof cursors !== 'object') return;
@@ -55,6 +75,7 @@ function messageForOlder(result) {
 export function cancelResultsRequests() {
   refreshGeneration += 1;
   olderGeneration += 1;
+  filterGeneration += 1;
   refreshController?.abort();
   olderController?.abort();
   refreshController = null;
@@ -72,11 +93,20 @@ export const useResultsStore = create((set, get) => ({
   /** @type {Object[]} Draw records for the active date filter, newest first */
   records: [],
 
-  /** @type {string[]} Every cached draw date, newest first */
+  /** @type {string[]} Cached draw dates for the active filters, newest first */
   drawDates: [],
+
+  /** @type {string[]} Cached month keys for search, newest first */
+  drawMonths: [],
 
   /** @type {string} Active date filter or 'all' */
   dateFilter: FILTER_ALL,
+
+  /** @type {string} Active month filter or 'all' */
+  monthFilter: FILTER_ALL,
+
+  /** @type {string} Active cached-results search query */
+  searchQuery: '',
 
   /** @type {boolean} Whether SQLite has been read */
   isLoaded: false,
@@ -129,8 +159,11 @@ export const useResultsStore = create((set, get) => ({
       rememberCursors(snapshot.historyCursors);
       set({
         ...snapshot,
+        drawMonths: snapshot.drawMonths ?? [],
         displayLimit: snapshot.displayLimit ?? get().displayLimit,
         dateFilter: FILTER_ALL,
+        monthFilter: FILTER_ALL,
+        searchQuery: '',
         isLoaded: true,
       });
     } catch (error) {
@@ -148,17 +181,118 @@ export const useResultsStore = create((set, get) => ({
     const dateFilter = typeof nextFilter === 'string' && nextFilter
       ? nextFilter
       : FILTER_ALL;
+    const generation = nextFilterGeneration();
+    const isCurrent = () => generation === filterGeneration;
     set({ dateFilter, error: null, olderError: null, emptyOlderPage: false });
 
     try {
       const records = await getResultsPage({
-        date: dateFilter === FILTER_ALL ? null : dateFilter,
+        ...resultFilters(get(), {
+          date: dateFilter === FILTER_ALL ? null : dateFilter,
+        }),
         limit: RESULTS_PAGE_SIZE,
       });
+      if (!isCurrent()) return;
       set({ records });
     } catch (error) {
+      if (!isCurrent()) return;
       console.warn('Failed to filter saved draw results:', error);
       set({ error: 'Could not filter saved results.' });
+    }
+  },
+
+  /**
+   * Switches the month filter and reloads that month's cached dates.
+   * @param {string} nextFilter
+   * @returns {Promise<void>}
+   */
+  setMonthFilter: async (nextFilter) => {
+    const candidate = typeof nextFilter === 'string' ? nextFilter : FILTER_ALL;
+    const monthFilter = candidate === FILTER_ALL || getMonthBounds(candidate)
+      ? candidate
+      : FILTER_ALL;
+    const generation = nextFilterGeneration();
+    const isCurrent = () => generation === filterGeneration;
+    set({
+      monthFilter,
+      dateFilter: FILTER_ALL,
+      error: null,
+      olderError: null,
+      emptyOlderPage: false,
+    });
+
+    try {
+      const snapshot = await getResultsSnapshot(resultFilters(get(), {
+        date: null,
+        month: monthFilter === FILTER_ALL ? null : monthFilter,
+      }));
+      if (!isCurrent()) return;
+      set({
+        records: snapshot.records ?? [],
+        drawDates: snapshot.drawDates ?? [],
+        drawMonths: snapshot.drawMonths ?? get().drawMonths,
+        totalCount: snapshot.totalCount ?? get().totalCount,
+      });
+    } catch (error) {
+      if (!isCurrent()) return;
+      console.warn('Failed to filter saved draw results by month:', error);
+      set({ error: 'Could not filter saved results.' });
+    }
+  },
+
+  /**
+   * Searches cached draw results without changing the stored page.
+   * @param {string} nextQuery
+   * @returns {Promise<void>}
+   */
+  setSearchQuery: async (nextQuery) => {
+    const searchQuery = typeof nextQuery === 'string' ? nextQuery.trim() : '';
+    const generation = nextFilterGeneration();
+    const isCurrent = () => generation === filterGeneration;
+    set({ searchQuery, error: null, olderError: null, emptyOlderPage: false });
+
+    try {
+      const snapshot = await getResultsSnapshot(resultFilters(get(), {
+        query: searchQuery || null,
+      }));
+      if (!isCurrent()) return;
+      set({
+        records: snapshot.records ?? [],
+        drawDates: snapshot.drawDates ?? [],
+        drawMonths: snapshot.drawMonths ?? get().drawMonths,
+        totalCount: snapshot.totalCount ?? get().totalCount,
+      });
+    } catch (error) {
+      if (!isCurrent()) return;
+      console.warn('Failed to search saved draw results:', error);
+      set({ error: 'Could not search saved results.' });
+    }
+  },
+
+  /** Clears date, month and search filters in one SQLite read. */
+  clearFilters: async () => {
+    const generation = nextFilterGeneration();
+    const isCurrent = () => generation === filterGeneration;
+    set({
+      dateFilter: FILTER_ALL,
+      monthFilter: FILTER_ALL,
+      searchQuery: '',
+      error: null,
+      olderError: null,
+      emptyOlderPage: false,
+    });
+
+    try {
+      const snapshot = await getResultsSnapshot();
+      if (!isCurrent()) return;
+      set({
+        ...snapshot,
+        displayLimit: snapshot.displayLimit ?? get().displayLimit,
+      });
+    } catch (error) {
+      if (!isCurrent()) return;
+      console.warn('Failed to clear saved draw result filters:', error);
+      set({ error: 'Could not clear saved result filters.' });
     }
   },
 
@@ -168,12 +302,10 @@ export const useResultsStore = create((set, get) => ({
    * @returns {Promise<void>}
    */
   _reload: async (updates = {}) => {
-    const { dateFilter } = get();
-    const snapshot = await getResultsSnapshot({
-      date: dateFilter === FILTER_ALL ? null : dateFilter,
-    });
+    const snapshot = await getResultsSnapshot(resultFilters(get()));
     set({
       ...snapshot,
+      drawMonths: snapshot.drawMonths ?? get().drawMonths,
       displayLimit: snapshot.displayLimit ?? get().displayLimit,
       ...updates,
     });
@@ -257,12 +389,22 @@ export const useResultsStore = create((set, get) => ({
     const {
       isLoadingMore,
       isRefreshing,
+      dateFilter,
+      monthFilter,
+      searchQuery,
       hasMore,
       historyCursors,
       gameCodes,
       displayLimit,
     } = get();
-    if (isLoadingMore || isRefreshing || !hasMore) {
+    if (
+      isLoadingMore
+      || isRefreshing
+      || dateFilter !== FILTER_ALL
+      || monthFilter !== FILTER_ALL
+      || searchQuery
+      || !hasMore
+    ) {
       return { success: false };
     }
 
@@ -337,6 +479,8 @@ export const useResultsStore = create((set, get) => ({
       isLoadingMore,
       isRefreshing,
       dateFilter,
+      monthFilter,
+      searchQuery,
       records,
       totalCount,
       displayLimit,
@@ -346,6 +490,8 @@ export const useResultsStore = create((set, get) => ({
       || isLoadingMore
       || isRefreshing
       || dateFilter !== FILTER_ALL
+      || monthFilter !== FILTER_ALL
+      || searchQuery
       || records.length >= totalCount
     ) {
       return { success: false };
