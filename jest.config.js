@@ -14,5 +14,6 @@ module.exports = {
     // The theme hook now reads the settings store, so any component test
     // pulls in the persistence services and AsyncStorage with it.
     '^@react-native-async-storage/async-storage$': '<rootDir>/test/async-storage-mock.js',
+    '^expo-sqlite$': '<rootDir>/test/expo-sqlite-mock.js',
   },
 };

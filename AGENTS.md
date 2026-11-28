@@ -37,6 +37,7 @@ The Angle Board is **NOT** a historical lottery draw result. It is an independen
 | react                          | 19.3.0   |
 | react-native                   | 0.88.1   |
 | expo-router                    | ~58.0.32 |
+| expo-sqlite                    | ~58.0.18 |
 | react-native-reanimated        | 4.7.1    |
 | react-native-gesture-handler   | ~3.3.0   |
 | react-native-safe-area-context | ~5.11.1  |
@@ -59,7 +60,8 @@ The Angle Board is **NOT** a historical lottery draw result. It is an independen
 
 ### State Management
 
-- **Zustand** for shared application state (to be installed when needed).
+- **Zustand** for shared application state.
+- **SQLite** is the local source of truth for Results data; Zustand holds only the active page and UI state.
 - Keep temporary UI state (e.g., animations, focus) local to components.
 - Keep persistent board data separate from ephemeral interaction state.
 
@@ -99,6 +101,9 @@ src/
 │   ├── library/          # Board library components (board card, preview)
 │   ├── search/           # Combination search UI (search bar, results card)
 │   └── ui/               # Generic UI primitives (Button, Text, etc.)
+├── features/             # Feature-specific logic
+│   └── results/          # Results database, repository, sync, and tests
+│       └── database/     # SQLite schema, connection, repository, sync
 ├── store/                # Zustand stores
 ├── data/                 # Static data files (angle-board.json)
 ├── hooks/                # Custom React hooks
@@ -113,6 +118,7 @@ src/
 - **Components (`src/components/`):** Reusable, self-contained UI elements. Accept data via props; do not access stores directly unless they are clearly "connected" container components.
 - **State (`src/store/`):** Zustand stores for shared application state. One store per domain (`angleBoardStore.js` for selection, `libraryStore.js` for saved boards). Keep stores focused: selection logic lives in `src/utils/selection.js`, not in the store.
 - **Data (`data/`):** Static JSON data files.
+- **Features (`src/features/`):** Feature-scoped persistence and sync modules. Results SQLite access lives in `src/features/results/database/`.
 - **Services (`src/services/`):** Data loading, parsing, and transformation logic.
 - **Utils (`src/utils/`):** Pure functions — validation, formatting, math. No side effects.
 - **Constants (`src/constants/`):** Design tokens (colors, spacing, typography), configuration values, enumerations.
@@ -287,6 +293,8 @@ Add tests for important logic, especially:
 - Grid data validation (row lengths, cell value range).
 - Selection behavior (single cell, multi-cell, deselect).
 - Store state transitions.
+- Results SQLite schema, upsert identity, transactions, migrations, and sync failure behavior.
+- Results screen loading, date filters, grouped rows, details, and pagination.
 
 **Do not claim tests passed unless they were actually executed.**
 
@@ -339,7 +347,7 @@ Do not overwrite existing configuration without understanding its purpose.
 - **No backend.**
 - **No authentication.**
 - **No cloud synchronization.**
-- **No database** at this stage.
+- **Local SQLite database** for cached Results data. No server database.
 - **JSON** is the initial Angle Board data source.
 
 ### Future Features

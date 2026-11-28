@@ -1,38 +1,50 @@
 import { create } from 'zustand';
 
 import {
-  fetchGameCodes,
-  fetchHistoryBundle,
-  fetchLatestResults,
-} from '@/services/lottery-api';
-import { mergeRecords } from '@/services/lottery-merge';
-import { loadDrawResults, saveDrawResults } from '@/services/lottery-storage';
+  getResultsPage,
+  getResultsSnapshot,
+} from '@/features/results/database/results-repository';
+import { RESULTS_PAGE_SIZE } from '@/features/results/database/results-schema';
+import {
+  syncLoadOlder,
+  syncRefresh,
+} from '@/features/results/database/results-sync';
 
 /**
  * Draw results store
- * Cached results load first, refresh runs in the background, and a failed
- * network call never empties what is already on screen.
+ * SQLite is read immediately, refresh runs behind the screen, and a failed
+ * network or database write never removes results already cached on device.
  */
 
-function firstCursor(cursors) {
-  const values = Object.values(cursors ?? {});
-  return values.find((cursor) => typeof cursor === 'string' && cursor) ?? null;
+const FILTER_ALL = 'all';
+
+function messageForRefresh(result, hasCachedResults) {
+  if (result?.reason === 'database') {
+    return 'Could not save new results locally. Showing saved results.';
+  }
+  return hasCachedResults
+    ? 'Could not refresh. Showing saved results.'
+    : 'Could not reach draw results. Check your connection and try again.';
 }
 
-function cleanCursors(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-  const cursors = {};
-  for (const [code, cursor] of Object.entries(value)) {
-    if (code && typeof cursor === 'string' && cursor) cursors[code] = cursor;
+function messageForOlder(result) {
+  if (result?.reason === 'database') {
+    return 'Could not save older results locally. Saved results are unchanged.';
   }
-  return cursors;
+  return 'Could not load older results. Saved results are unchanged.';
 }
 
 export const useResultsStore = create((set, get) => ({
-  /** @type {Object[]} Draw records, newest first */
+  /** @type {Object[]} Draw records for the active date filter, newest first */
   records: [],
 
-  /** @type {boolean} Whether the cache has been read from storage */
+  /** @type {string[]} Every cached draw date, newest first */
+  drawDates: [],
+
+  /** @type {string} Active date filter or 'all' */
+  dateFilter: FILTER_ALL,
+
+  /** @type {boolean} Whether SQLite has been read */
   isLoaded: false,
 
   /** @type {boolean} Whether a first-page refresh is running */
@@ -44,7 +56,7 @@ export const useResultsStore = create((set, get) => ({
   /** @type {boolean} Whether older history remains */
   hasMore: false,
 
-  /** @type {string|null} First active cursor, kept for cache compatibility */
+  /** @type {string|null} First active cursor, kept for compatibility */
   nextCursor: null,
 
   /** @type {string[]} Discovered active 3D Lotto game codes */
@@ -56,36 +68,71 @@ export const useResultsStore = create((set, get) => ({
   /** @type {string|null} ISO time of the last successful refresh */
   lastSyncAt: null,
 
+  /** @type {number} Total cached rows, independent of the active page */
+  totalCount: 0,
+
   /** @type {string|null} Subtle message shown over cached results on failure */
   error: null,
 
   /**
-   * Loads the cached results from storage. Idempotent.
+   * Reads the cached results from SQLite. Idempotent.
    * @returns {Promise<void>}
    */
   load: async () => {
     if (get().isLoaded) return;
     try {
-      const cache = await loadDrawResults();
+      const snapshot = await getResultsSnapshot({ limit: RESULTS_PAGE_SIZE });
       set({
-        records: cache.records,
-        nextCursor: cache.nextCursor,
-        hasMore: cache.hasMore,
-        gameCodes: cache.gameCodes ?? [],
-        historyCursors: cleanCursors(cache.historyCursors),
-        lastSyncAt: cache.lastSyncAt,
+        ...snapshot,
+        dateFilter: FILTER_ALL,
         isLoaded: true,
       });
     } catch (error) {
-      console.warn('Failed to load draw results store:', error);
+      console.warn('Failed to load draw results from SQLite:', error);
       set({ isLoaded: true });
     }
   },
 
   /**
-   * Refreshes the latest snapshot plus the newest history page per game code.
-   * Every endpoint is attempted; at least one must succeed. Existing records
-   * stay on screen either way.
+   * Switches the date filter using a targeted SQLite query.
+   * @param {string} nextFilter
+   * @returns {Promise<void>}
+   */
+  setDateFilter: async (nextFilter) => {
+    const dateFilter = typeof nextFilter === 'string' && nextFilter
+      ? nextFilter
+      : FILTER_ALL;
+    set({ dateFilter, error: null });
+
+    try {
+      const records = await getResultsPage({
+        date: dateFilter === FILTER_ALL ? null : dateFilter,
+        limit: RESULTS_PAGE_SIZE,
+      });
+      set({ records });
+    } catch (error) {
+      console.warn('Failed to filter saved draw results:', error);
+      set({ error: 'Could not filter saved results.' });
+    }
+  },
+
+  /**
+   * Reloads the active page from SQLite after a successful write.
+   * @param {Object} updates
+   * @returns {Promise<void>}
+   */
+  _reload: async (updates = {}) => {
+    const { dateFilter } = get();
+    const snapshot = await getResultsSnapshot({
+      date: dateFilter === FILTER_ALL ? null : dateFilter,
+      limit: RESULTS_PAGE_SIZE,
+    });
+    set({ ...snapshot, ...updates });
+  },
+
+  /**
+   * Refreshes latest results plus the newest history page, persists them,
+   * then reloads from SQLite. Overlapping refreshes are ignored.
    * @returns {Promise<{ success: boolean }>}
    */
   refresh: async () => {
@@ -94,89 +141,48 @@ export const useResultsStore = create((set, get) => ({
 
     set({ isRefreshing: true, error: null });
 
-    const [latest, codes] = await Promise.allSettled([
-      fetchLatestResults(),
-      fetchGameCodes(),
-    ]);
-
-    const cachedCodes = get().gameCodes ?? [];
-    const discoveredCodes = codes.status === 'fulfilled' ? codes.value : [];
-    const gameCodes =
-      discoveredCodes.length > 0 ? discoveredCodes : cachedCodes;
-
-    let history = {
-      status: 'rejected',
-      reason: new Error('No 3D Lotto game codes available'),
-    };
-    if (gameCodes.length > 0) {
-      try {
-        history = {
-          status: 'fulfilled',
-          value: await fetchHistoryBundle({
-            gameCodes,
-            cursors: get().historyCursors ?? {},
-          }),
-        };
-      } catch (error) {
-        history = { status: 'rejected', reason: error };
-      }
+    let result;
+    try {
+      result = await syncRefresh({
+        gameCodes: get().gameCodes,
+        historyCursors: get().historyCursors,
+        hasMore: get().hasMore,
+      });
+    } catch (error) {
+      console.warn('Unexpected draw results refresh failure:', error);
+      result = { success: false, reason: 'network' };
     }
 
-    const batches = [latest, history]
-      .filter((result) => result.status === 'fulfilled')
-      .map((result) => result.value);
-
-    if (batches.length === 0) {
-      // Never surface raw HTTP/status text: a short, actionable message over
-      // whatever is already cached.
+    if (!result.success) {
+      const hasCachedResults = get().records.length > 0 || get().drawDates.length > 0;
       set({
         isRefreshing: false,
-        error: get().records.length
-          ? 'Could not refresh. Showing saved results.'
-          : 'Could not reach draw results. Check your connection and try again.',
+        error: messageForRefresh(result, hasCachedResults),
       });
       return { success: false };
     }
 
-    const failures = [latest, codes, history].filter(
-      (result) => result.status === 'rejected'
-    );
-    const incoming = batches.flatMap((batch) => batch.records ?? []);
-    const merged = mergeRecords(get().records, incoming);
-    const historyPage = history.status === 'fulfilled' ? history.value : null;
+    try {
+      await get()._reload({
+        isRefreshing: false,
+        error: result.reason === 'partial'
+          ? 'Some results could not be refreshed. Showing saved results.'
+          : null,
+      });
+    } catch (error) {
+      console.warn('Failed to reload draw results from SQLite:', error);
+      set({
+        isRefreshing: false,
+        error: 'Saved results are ready, but the local database could not be read.',
+      });
+    }
 
-    // Keep the old cursors when history failed. Otherwise use one cursor per
-    // discovered code, so a stale cursor only affects its own game.
-    const historyCursors = historyPage
-      ? cleanCursors(historyPage.cursors)
-      : get().historyCursors ?? {};
-    const nextCursor = firstCursor(historyCursors);
-    const hasMore = historyPage
-      ? Object.keys(historyCursors).length > 0
-      : get().hasMore;
-
-    const lastSyncAt = new Date().toISOString();
-    const nextState = {
-      records: merged.records,
-      nextCursor,
-      gameCodes,
-      historyCursors,
-      hasMore,
-      lastSyncAt,
-      isRefreshing: false,
-      error: failures.length
-        ? 'Some results could not be refreshed. Showing saved results.'
-        : null,
-    };
-
-    set(nextState);
-    await get()._persist(nextState);
     return { success: true };
   },
 
   /**
-   * Loads the next older page for every active game code. Existing records
-   * stay visible, and overlapping pagination requests are ignored.
+   * Loads the next older history page, persists it, then reloads from SQLite.
+   * Existing records and cursors stay untouched on failure.
    * @returns {Promise<{ success: boolean }>}
    */
   loadOlder: async () => {
@@ -186,67 +192,44 @@ export const useResultsStore = create((set, get) => ({
       hasMore,
       historyCursors,
       gameCodes,
-      records,
     } = get();
-    const cursors = cleanCursors(historyCursors);
-    const activeGameCodes = (gameCodes ?? []).filter((code) => cursors[code]);
-    if (
-      isLoadingMore ||
-      isRefreshing ||
-      !hasMore ||
-      activeGameCodes.length === 0
-    ) {
+    if (isLoadingMore || isRefreshing || !hasMore) {
       return { success: false };
     }
 
     set({ isLoadingMore: true, error: null });
 
-    let page;
+    let result;
     try {
-      page = await fetchHistoryBundle({ gameCodes: activeGameCodes, cursors });
-    } catch {
+      result = await syncLoadOlder({ gameCodes, historyCursors });
+    } catch (error) {
+      console.warn('Unexpected older results failure:', error);
+      result = { success: false, reason: 'network' };
+    }
+
+    if (!result.success) {
       set({
         isLoadingMore: false,
-        error: 'Could not load older results. Saved results are unchanged.',
+        error: messageForOlder(result),
       });
       return { success: false };
     }
 
-    const merged = mergeRecords(records, page.records);
-    const nextHistoryCursors = cleanCursors(page.cursors);
-    const nextState = {
-      records: merged.records,
-      nextCursor: firstCursor(nextHistoryCursors),
-      historyCursors: nextHistoryCursors,
-      hasMore: page.hasMore === true,
-      isLoadingMore: false,
-      error: page.failedCodes?.length
-        ? 'Some older results could not load. Saved results are unchanged.'
-        : null,
-    };
-
-    set(nextState);
-    await get()._persist({ ...nextState, lastSyncAt: get().lastSyncAt });
-    return { success: true };
-  },
-
-  /**
-   * Persists the cache. A save failure only logs — memory stays usable.
-   * @param {Object} state
-   * @returns {Promise<void>}
-   */
-  _persist: async (state) => {
     try {
-      await saveDrawResults({
-        records: state.records,
-        nextCursor: state.nextCursor,
-        hasMore: state.hasMore,
-        lastSyncAt: state.lastSyncAt ?? get().lastSyncAt,
-        gameCodes: state.gameCodes ?? get().gameCodes ?? [],
-        historyCursors: state.historyCursors ?? get().historyCursors ?? {},
+      await get()._reload({
+        isLoadingMore: false,
+        error: result.reason === 'partial'
+          ? 'Some older results could not load. Saved results are unchanged.'
+          : null,
       });
     } catch (error) {
-      console.warn('Failed to save draw results:', error);
+      console.warn('Failed to reload older draw results from SQLite:', error);
+      set({
+        isLoadingMore: false,
+        error: 'Saved results are ready, but the local database could not be read.',
+      });
     }
+
+    return { success: true };
   },
 }));

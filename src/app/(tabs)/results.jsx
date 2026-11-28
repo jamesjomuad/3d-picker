@@ -35,6 +35,8 @@ export default function ResultsScreen() {
   const { contentPadding, contentWidth } = useScreenInsets();
 
   const records = useResultsStore((state) => state.records);
+  const drawDates = useResultsStore((state) => state.drawDates);
+  const dateFilter = useResultsStore((state) => state.dateFilter);
   const isLoaded = useResultsStore((state) => state.isLoaded);
   const isRefreshing = useResultsStore((state) => state.isRefreshing);
   const isLoadingMore = useResultsStore((state) => state.isLoadingMore);
@@ -42,10 +44,11 @@ export default function ResultsScreen() {
   const lastSyncAt = useResultsStore((state) => state.lastSyncAt);
   const error = useResultsStore((state) => state.error);
   const load = useResultsStore((state) => state.load);
+  const setDateFilter = useResultsStore((state) => state.setDateFilter);
   const refresh = useResultsStore((state) => state.refresh);
   const loadOlder = useResultsStore((state) => state.loadOlder);
 
-  const [dateFilter, setDateFilter] = useState(FILTER_ALL);
+  const dates = drawDates;
   const [selectedRecord, setSelectedRecord] = useState(null);
   const hasAutoRefreshed = useRef(false);
 
@@ -60,21 +63,9 @@ export default function ResultsScreen() {
     refresh();
   }, [isLoaded, refresh]);
 
-  const dates = useMemo(() => {
-    const seen = new Set();
-    for (const record of records) seen.add(record.drawDate);
-    return [...seen];
-  }, [records]);
-
-  const visibleRecords = useMemo(() => {
-    if (dateFilter === FILTER_ALL) return records;
-    return records.filter((record) => record.drawDate === dateFilter);
-  }, [records, dateFilter]);
-
-  const visibleRows = useMemo(
-    () => groupRecordsByDrawDate(visibleRecords),
-    [visibleRecords]
-  );
+  // Records are already the active date page from SQLite. Keep the same
+  // date-grouped table; only the source of the filtered rows changed.
+  const visibleRows = useMemo(() => groupRecordsByDrawDate(records), [records]);
 
   const handleRefresh = useCallback(() => {
     if (isRefreshing) return;
@@ -197,7 +188,7 @@ export default function ResultsScreen() {
       <ActivityIndicator color={theme.primary} />
       <ThemedText themeColor="textSecondary">Loading results...</ThemedText>
     </View>
-  ) : records.length === 0 ? (
+  ) : records.length === 0 && drawDates.length === 0 ? (
     <View style={[styles.emptyState, { width: contentWidth }]}>
       <ThemedText type="smallBold">No results yet</ThemedText>
       <ThemedText themeColor="textSecondary" style={styles.emptyText}>
@@ -211,14 +202,14 @@ export default function ResultsScreen() {
         </Button>
       )}
     </View>
-  ) : (
+  ) : records.length === 0 ? (
     <View style={[styles.emptyState, { width: contentWidth }]}>
       <ThemedText themeColor="textSecondary">No draws match this date.</ThemedText>
       <Button variant="outline" size="sm" onPress={() => setDateFilter(FILTER_ALL)}>
         Clear filter
       </Button>
     </View>
-  );
+  ) : null;
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.background }]}>
