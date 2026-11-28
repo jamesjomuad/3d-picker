@@ -7,6 +7,7 @@ import { getResultsDatabase } from './results-database';
 import {
   RESULTS_METADATA_KEYS,
   RESULTS_PAGE_SIZE,
+  parseDisplayLimit,
 } from './results-schema';
 
 /**
@@ -334,6 +335,13 @@ export async function saveSyncState(metadata) {
   });
 }
 
+/** Persists how many newest cached rows the Results screen may display. */
+export async function setDisplayLimit(limit) {
+  const displayLimit = parseDisplayLimit(limit);
+  await saveSyncState({ [RESULTS_METADATA_KEYS.DISPLAY_LIMIT]: displayLimit });
+  return displayLimit;
+}
+
 export async function getSyncMetadata() {
   const db = await getResultsDatabase();
   const rows = await db.getAllAsync(
@@ -464,16 +472,18 @@ export async function importLegacyCacheIfEmpty() {
 }
 
 /** One bounded snapshot for the screen: page rows, all dates, and sync state. */
-export async function getResultsSnapshot({
-  date = null,
-  limit = RESULTS_PAGE_SIZE,
-} = {}) {
+export async function getResultsSnapshot({ date = null, limit = null } = {}) {
   await importLegacyCacheIfEmpty();
 
-  const [records, drawDates, metadata, totalCount] = await Promise.all([
-    getResultsPage({ date, limit }),
-    getDrawDates({ limit }),
-    getSyncMetadata(),
+  const metadata = await getSyncMetadata();
+  const displayLimit = parseDisplayLimit(
+    metadata[RESULTS_METADATA_KEYS.DISPLAY_LIMIT]
+  );
+  const effectiveLimit = limit === null ? displayLimit : limit;
+
+  const [records, drawDates, totalCount] = await Promise.all([
+    getResultsPage({ date, limit: effectiveLimit }),
+    getDrawDates({ limit: effectiveLimit }),
     getRecordCount(),
   ]);
 
@@ -488,6 +498,7 @@ export async function getResultsSnapshot({
     records,
     drawDates,
     totalCount,
+    displayLimit,
     gameCodes,
     historyCursors,
     nextCursor: firstCursor(historyCursors),

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   FlatList,
   Pressable,
   ScrollView,
@@ -8,6 +9,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 
 import { ResultsDetailSheet } from '@/components/results/results-detail-sheet';
 import {
@@ -20,7 +22,7 @@ import { ThemedText } from '@/components/themed-text';
 import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useScreenInsets } from '@/hooks/use-screen-insets';
 import { useTheme } from '@/hooks/use-theme';
-import { useResultsStore } from '@/store/resultsStore';
+import { cancelResultsRequests, useResultsStore } from '@/store/resultsStore';
 import { groupRecordsByDrawDate } from '@/utils/results-history';
 
 const FILTER_ALL = 'all';
@@ -41,12 +43,16 @@ export default function ResultsScreen() {
   const isRefreshing = useResultsStore((state) => state.isRefreshing);
   const isLoadingMore = useResultsStore((state) => state.isLoadingMore);
   const hasMore = useResultsStore((state) => state.hasMore);
+  const totalCount = useResultsStore((state) => state.totalCount);
   const lastSyncAt = useResultsStore((state) => state.lastSyncAt);
   const error = useResultsStore((state) => state.error);
+  const olderError = useResultsStore((state) => state.olderError);
+  const emptyOlderPage = useResultsStore((state) => state.emptyOlderPage);
   const load = useResultsStore((state) => state.load);
   const setDateFilter = useResultsStore((state) => state.setDateFilter);
   const refresh = useResultsStore((state) => state.refresh);
   const loadOlder = useResultsStore((state) => state.loadOlder);
+  const showMoreLocal = useResultsStore((state) => state.showMoreLocal);
 
   const dates = drawDates;
   const [selectedRecord, setSelectedRecord] = useState(null);
@@ -55,6 +61,19 @@ export default function ResultsScreen() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState !== 'active') cancelResultsRequests();
+    });
+    return () => subscription.remove();
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => () => {
+      cancelResultsRequests();
+    }, [])
+  );
 
   // Cached results render first, then one background refresh per screen visit.
   useEffect(() => {
@@ -66,17 +85,34 @@ export default function ResultsScreen() {
   // Records are already the active date page from SQLite. Keep the same
   // date-grouped table; only the source of the filtered rows changed.
   const visibleRows = useMemo(() => groupRecordsByDrawDate(records), [records]);
+  const hasLocalMore = records.length < totalCount;
 
   const handleRefresh = useCallback(() => {
     if (isRefreshing) return;
     refresh();
   }, [isRefreshing, refresh]);
 
+  const handleLoadOlderPress = useCallback(() => {
+    if (dateFilter !== FILTER_ALL || isLoadingMore || isRefreshing) return;
+    if (hasMore) {
+      loadOlder();
+      return;
+    }
+    if (hasLocalMore) showMoreLocal();
+  }, [
+    dateFilter,
+    hasMore,
+    hasLocalMore,
+    isLoadingMore,
+    isRefreshing,
+    loadOlder,
+    showMoreLocal,
+  ]);
+
   const handleEndReached = useCallback(() => {
-    if (dateFilter !== FILTER_ALL) return;
-    if (!hasMore || isLoadingMore || isRefreshing) return;
-    loadOlder();
-  }, [dateFilter, hasMore, isLoadingMore, isRefreshing, loadOlder]);
+    if (emptyOlderPage) return;
+    handleLoadOlderPress();
+  }, [emptyOlderPage, handleLoadOlderPress]);
 
   const renderItem = useCallback(
     ({ item }) => (
@@ -175,7 +211,41 @@ export default function ResultsScreen() {
   const footer = (
     <View style={[styles.footer, { width: contentWidth }]}>
       {isLoadingMore && <ActivityIndicator color={theme.primary} />}
-      {!hasMore && records.length > 0 && dateFilter === FILTER_ALL && (
+
+      {!isLoadingMore && olderError && (hasMore || hasLocalMore)
+        && dateFilter === FILTER_ALL && (
+        <>
+          <Text style={[styles.endText, { color: theme.textSecondary }]}>{olderError}</Text>
+          <Button
+            variant="outline"
+            size="sm"
+            onPress={handleLoadOlderPress}
+            icon="arrow.clockwise">
+            Retry
+          </Button>
+        </>
+      )}
+
+      {!isLoadingMore && !olderError && emptyOlderPage && hasMore && dateFilter === FILTER_ALL && (
+        <>
+          <Text style={[styles.endText, { color: theme.textSecondary }]}>
+            No new draws in this page. More history is available.
+          </Text>
+          <Button variant="outline" size="sm" onPress={handleLoadOlderPress}>
+            Continue
+          </Button>
+        </>
+      )}
+
+      {!isLoadingMore && !olderError && !emptyOlderPage && !hasMore && hasLocalMore
+        && dateFilter === FILTER_ALL && (
+        <Button variant="outline" size="sm" onPress={handleLoadOlderPress}>
+          Show more saved
+        </Button>
+      )}
+
+      {!isLoadingMore && !olderError && !emptyOlderPage && !hasMore && !hasLocalMore
+        && records.length > 0 && dateFilter === FILTER_ALL && (
         <Text style={[styles.endText, { color: theme.textSecondary }]}>
           End of available history
         </Text>

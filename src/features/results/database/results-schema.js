@@ -19,8 +19,18 @@ export const RESULTS_METADATA_KEYS = Object.freeze({
   LATEST_SYNCED_AT: 'latest_synced_at',
   HISTORY_SYNCED_AT: 'history_synced_at',
   LEGACY_IMPORTED: 'legacy_imported',
+  DISPLAY_LIMIT: 'display_limit',
   LAST_ERROR: 'last_error',
 });
+
+/** Number of newest local records currently shown by the Results screen. */
+export const RESULTS_DISPLAY_LIMIT_STEP = RESULTS_PAGE_SIZE;
+
+export function parseDisplayLimit(value, fallback = RESULTS_PAGE_SIZE) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.max(RESULTS_PAGE_SIZE, Math.floor(parsed / RESULTS_PAGE_SIZE) * RESULTS_PAGE_SIZE);
+}
 
 export const CREATE_RESULTS_TABLE_SQL = `
 CREATE TABLE IF NOT EXISTS lotto_results (

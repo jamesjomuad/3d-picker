@@ -8,6 +8,7 @@ import {
   fetchHistoryBundle,
   fetchHistoryPage,
   fetchLatestResults,
+  isAbortError,
   LotteryApiError,
 } from '../lottery-api';
 
@@ -163,6 +164,27 @@ describe('fetchHistoryPage', () => {
     await expect(fetchHistoryPage()).rejects.toThrow('game code');
     expect(global.fetch).not.toHaveBeenCalled();
   });
+
+  it('passes an AbortSignal through to fetch', async () => {
+    const controller = new AbortController();
+    global.fetch.mockResolvedValue(
+      jsonResponse({
+        items: [historyItem()],
+        pageInfo: { nextCursor: '3483', hasNextPage: true },
+      })
+    );
+
+    await fetchHistoryPage({
+      gameCode: '3d_lotto_9pm',
+      cursor: '3484',
+      signal: controller.signal,
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      `${HISTORY_RESULTS_URL}?gameCode=3d_lotto_9pm&limit=200&cursor=3484`,
+      { headers: { Accept: 'application/json' }, signal: controller.signal }
+    );
+  });
 });
 
 describe('fetchHistoryBundle', () => {
@@ -204,6 +226,27 @@ describe('fetchHistoryBundle', () => {
     expect(bundle.failedCodes).toEqual([]);
   });
 
+  it('continues from nextCursor when hasNextPage is missing', async () => {
+    global.fetch.mockResolvedValue(
+      jsonResponse({
+        items: [historyItem()],
+        pageInfo: { nextCursor: '452' },
+      })
+    );
+
+    const bundle = await fetchHistoryBundle({
+      gameCodes: ['3d_lotto_9pm'],
+      cursors: { '3d_lotto_9pm': '584' },
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      `${HISTORY_RESULTS_URL}?gameCode=3d_lotto_9pm&limit=200&cursor=584`,
+      { headers: { Accept: 'application/json' } }
+    );
+    expect(bundle.cursors).toEqual({ '3d_lotto_9pm': '452' });
+    expect(bundle.hasMore).toBe(true);
+  });
+
   it('keeps successful pages when one cursor is expired', async () => {
     global.fetch.mockImplementation((url) => {
       const code = new URL(url).searchParams.get('gameCode');
@@ -241,5 +284,37 @@ describe('fetchHistoryBundle', () => {
     await expect(
       fetchHistoryBundle({ gameCodes: ['3d_lotto_9pm'] })
     ).rejects.toBeInstanceOf(LotteryApiError);
+  });
+
+  it('passes an AbortSignal through every page request', async () => {
+    const controller = new AbortController();
+    global.fetch.mockResolvedValue(
+      jsonResponse({
+        items: [historyItem()],
+        pageInfo: { nextCursor: null, hasNextPage: false },
+      })
+    );
+
+    await fetchHistoryBundle({
+      gameCodes: ['3d_lotto_2pm', '3d_lotto_9pm'],
+      cursors: {},
+      signal: controller.signal,
+    });
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    for (const [, options] of global.fetch.mock.calls) {
+      expect(options).toEqual({
+        headers: { Accept: 'application/json' },
+        signal: controller.signal,
+      });
+    }
+  });
+});
+
+describe('isAbortError', () => {
+  it('recognizes AbortError names and ABORT_ERR codes', () => {
+    expect(isAbortError({ name: 'AbortError' })).toBe(true);
+    expect(isAbortError({ code: 'ABORT_ERR' })).toBe(true);
+    expect(isAbortError(new Error('offline'))).toBe(false);
   });
 });

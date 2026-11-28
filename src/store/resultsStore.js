@@ -3,8 +3,12 @@ import { create } from 'zustand';
 import {
   getResultsPage,
   getResultsSnapshot,
+  setDisplayLimit,
 } from '@/features/results/database/results-repository';
-import { RESULTS_PAGE_SIZE } from '@/features/results/database/results-schema';
+import {
+  RESULTS_DISPLAY_LIMIT_STEP,
+  RESULTS_PAGE_SIZE,
+} from '@/features/results/database/results-schema';
 import {
   syncLoadOlder,
   syncRefresh,
@@ -17,6 +21,19 @@ import {
  */
 
 const FILTER_ALL = 'all';
+
+let refreshController = null;
+let olderController = null;
+let refreshGeneration = 0;
+let olderGeneration = 0;
+const seenCursors = new Set();
+
+function rememberCursors(cursors) {
+  if (!cursors || typeof cursors !== 'object') return;
+  for (const cursor of Object.values(cursors)) {
+    if (typeof cursor === 'string' && cursor) seenCursors.add(cursor);
+  }
+}
 
 function messageForRefresh(result, hasCachedResults) {
   if (result?.reason === 'database') {
@@ -32,6 +49,23 @@ function messageForOlder(result) {
     return 'Could not save older results locally. Saved results are unchanged.';
   }
   return 'Could not load older results. Saved results are unchanged.';
+}
+
+/** Cancel in-flight Results requests. Safe to call on blur, background or unmount. */
+export function cancelResultsRequests() {
+  refreshGeneration += 1;
+  olderGeneration += 1;
+  refreshController?.abort();
+  olderController?.abort();
+  refreshController = null;
+  olderController = null;
+  useResultsStore.setState({ isRefreshing: false, isLoadingMore: false });
+}
+
+/** Test helper: clears request guards between independent cases. */
+export function resetResultsRequestStateForTests() {
+  cancelResultsRequests();
+  seenCursors.clear();
 }
 
 export const useResultsStore = create((set, get) => ({
@@ -65,14 +99,23 @@ export const useResultsStore = create((set, get) => ({
   /** @type {Object<string,string>} Per-game cursors for the next history page */
   historyCursors: {},
 
+  /** @type {number} Number of newest cached rows shown by the Results screen */
+  displayLimit: RESULTS_PAGE_SIZE,
+
   /** @type {string|null} ISO time of the last successful refresh */
   lastSyncAt: null,
 
   /** @type {number} Total cached rows, independent of the active page */
   totalCount: 0,
 
-  /** @type {string|null} Subtle message shown over cached results on failure */
+  /** @type {string|null} Subtle message shown over cached results on refresh failure */
   error: null,
+
+  /** @type {string|null} Message shown in the list footer on pagination failure */
+  olderError: null,
+
+  /** @type {boolean} Whether the last older page had no records but more pages remain */
+  emptyOlderPage: false,
 
   /**
    * Reads the cached results from SQLite. Idempotent.
@@ -81,9 +124,12 @@ export const useResultsStore = create((set, get) => ({
   load: async () => {
     if (get().isLoaded) return;
     try {
-      const snapshot = await getResultsSnapshot({ limit: RESULTS_PAGE_SIZE });
+      const snapshot = await getResultsSnapshot();
+      seenCursors.clear();
+      rememberCursors(snapshot.historyCursors);
       set({
         ...snapshot,
+        displayLimit: snapshot.displayLimit ?? get().displayLimit,
         dateFilter: FILTER_ALL,
         isLoaded: true,
       });
@@ -102,7 +148,7 @@ export const useResultsStore = create((set, get) => ({
     const dateFilter = typeof nextFilter === 'string' && nextFilter
       ? nextFilter
       : FILTER_ALL;
-    set({ dateFilter, error: null });
+    set({ dateFilter, error: null, olderError: null, emptyOlderPage: false });
 
     try {
       const records = await getResultsPage({
@@ -125,9 +171,12 @@ export const useResultsStore = create((set, get) => ({
     const { dateFilter } = get();
     const snapshot = await getResultsSnapshot({
       date: dateFilter === FILTER_ALL ? null : dateFilter,
-      limit: RESULTS_PAGE_SIZE,
     });
-    set({ ...snapshot, ...updates });
+    set({
+      ...snapshot,
+      displayLimit: snapshot.displayLimit ?? get().displayLimit,
+      ...updates,
+    });
   },
 
   /**
@@ -139,6 +188,12 @@ export const useResultsStore = create((set, get) => ({
     const { isRefreshing, isLoadingMore } = get();
     if (isRefreshing || isLoadingMore) return { success: false };
 
+    const generation = refreshGeneration + 1;
+    refreshGeneration = generation;
+    const controller = new AbortController();
+    refreshController = controller;
+    const isCurrent = () => generation === refreshGeneration;
+
     set({ isRefreshing: true, error: null });
 
     let result;
@@ -147,10 +202,20 @@ export const useResultsStore = create((set, get) => ({
         gameCodes: get().gameCodes,
         historyCursors: get().historyCursors,
         hasMore: get().hasMore,
+        displayLimit: get().displayLimit,
+        signal: controller.signal,
       });
     } catch (error) {
+      if (!isCurrent()) return { success: false };
       console.warn('Unexpected draw results refresh failure:', error);
       result = { success: false, reason: 'network' };
+    } finally {
+      if (refreshController === controller) refreshController = null;
+    }
+
+    if (!isCurrent() || result?.reason === 'aborted') {
+      if (isCurrent()) set({ isRefreshing: false });
+      return { success: false };
     }
 
     if (!result.success) {
@@ -162,6 +227,8 @@ export const useResultsStore = create((set, get) => ({
       return { success: false };
     }
 
+    rememberCursors(result.historyCursors);
+
     try {
       await get()._reload({
         isRefreshing: false,
@@ -170,6 +237,7 @@ export const useResultsStore = create((set, get) => ({
           : null,
       });
     } catch (error) {
+      if (!isCurrent()) return { success: false };
       console.warn('Failed to reload draw results from SQLite:', error);
       set({
         isRefreshing: false,
@@ -192,44 +260,132 @@ export const useResultsStore = create((set, get) => ({
       hasMore,
       historyCursors,
       gameCodes,
+      displayLimit,
     } = get();
     if (isLoadingMore || isRefreshing || !hasMore) {
       return { success: false };
     }
 
-    set({ isLoadingMore: true, error: null });
+    const generation = olderGeneration + 1;
+    olderGeneration = generation;
+    const controller = new AbortController();
+    olderController = controller;
+    const isCurrent = () => generation === olderGeneration;
+
+    set({ isLoadingMore: true, olderError: null, emptyOlderPage: false });
 
     let result;
     try {
-      result = await syncLoadOlder({ gameCodes, historyCursors });
+      result = await syncLoadOlder({
+        gameCodes,
+        historyCursors,
+        displayLimit,
+        seenCursors,
+        signal: controller.signal,
+      });
     } catch (error) {
+      if (!isCurrent()) return { success: false };
       console.warn('Unexpected older results failure:', error);
       result = { success: false, reason: 'network' };
+    } finally {
+      if (olderController === controller) olderController = null;
+    }
+
+    if (!isCurrent() || result?.reason === 'aborted') {
+      if (isCurrent()) set({ isLoadingMore: false });
+      return { success: false };
     }
 
     if (!result.success) {
       set({
         isLoadingMore: false,
-        error: messageForOlder(result),
+        olderError: messageForOlder(result),
       });
       return { success: false };
     }
 
+    rememberCursors(result.historyCursors);
+
     try {
       await get()._reload({
         isLoadingMore: false,
-        error: result.reason === 'partial'
+        olderError: result.reason === 'partial'
           ? 'Some older results could not load. Saved results are unchanged.'
           : null,
+        emptyOlderPage: result.persistedCount === 0 && result.hasMore === true,
       });
     } catch (error) {
+      if (!isCurrent()) return { success: false };
       console.warn('Failed to reload older draw results from SQLite:', error);
       set({
         isLoadingMore: false,
-        error: 'Saved results are ready, but the local database could not be read.',
+        olderError: 'Saved results are ready, but the local database could not be read.',
       });
     }
 
     return { success: true };
+  },
+
+  /**
+   * Reveals the next 200 already-cached rows after API cursors run out.
+   * Only the bounded SQLite snapshot is reloaded.
+   * @returns {Promise<{ success: boolean }>}
+   */
+  showMoreLocal: async () => {
+    const {
+      isLoaded,
+      isLoadingMore,
+      isRefreshing,
+      dateFilter,
+      records,
+      totalCount,
+      displayLimit,
+    } = get();
+    if (
+      !isLoaded
+      || isLoadingMore
+      || isRefreshing
+      || dateFilter !== FILTER_ALL
+      || records.length >= totalCount
+    ) {
+      return { success: false };
+    }
+
+    const generation = olderGeneration + 1;
+    olderGeneration = generation;
+    const isCurrent = () => generation === olderGeneration;
+
+    set({ isLoadingMore: true, olderError: null, emptyOlderPage: false });
+
+    try {
+      const ceiling = Math.ceil(totalCount / RESULTS_DISPLAY_LIMIT_STEP)
+        * RESULTS_DISPLAY_LIMIT_STEP;
+      const nextLimit = Math.min(
+        displayLimit + RESULTS_DISPLAY_LIMIT_STEP,
+        ceiling
+      );
+      const savedLimit = await setDisplayLimit(nextLimit);
+      if (!isCurrent()) return { success: false };
+
+      const snapshot = await getResultsSnapshot();
+      if (!isCurrent()) return { success: false };
+
+      set({
+        ...snapshot,
+        displayLimit: snapshot.displayLimit ?? savedLimit,
+        isLoadingMore: false,
+        olderError: null,
+        emptyOlderPage: false,
+      });
+      return { success: true };
+    } catch (error) {
+      if (!isCurrent()) return { success: false };
+      console.warn('Failed to reveal more saved draw results:', error);
+      set({
+        isLoadingMore: false,
+        olderError: 'Could not load more saved results.',
+      });
+      return { success: false };
+    }
   },
 }));

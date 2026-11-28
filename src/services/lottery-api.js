@@ -23,11 +23,18 @@ export class LotteryApiError extends Error {
   }
 }
 
-async function fetchJson(url) {
+export function isAbortError(error) {
+  return error?.name === 'AbortError' || error?.code === 'ABORT_ERR';
+}
+
+async function fetchJson(url, { signal } = {}) {
   let response;
   try {
-    response = await fetch(url, { headers: { Accept: 'application/json' } });
-  } catch {
+    const options = { headers: { Accept: 'application/json' } };
+    if (signal) options.signal = signal;
+    response = await fetch(url, options);
+  } catch (error) {
+    if (isAbortError(error)) throw error;
     throw new LotteryApiError('Network request failed', 0);
   }
   if (!response.ok) {
@@ -37,8 +44,8 @@ async function fetchJson(url) {
 }
 
 /** Discover the real active 3D Lotto codes. Never substitute a guessed code. */
-export async function fetchGameCodes() {
-  const payload = await fetchJson(GAMES_URL);
+export async function fetchGameCodes({ signal } = {}) {
+  const payload = await fetchJson(GAMES_URL, { signal });
   const codes = discoverThreeDGameCodes(payload);
   if (codes.length === 0) {
     throw new LotteryApiError('No active 3D Lotto game codes found', 0);
@@ -46,8 +53,8 @@ export async function fetchGameCodes() {
   return codes;
 }
 
-export async function fetchLatestResults() {
-  const payload = await fetchJson(LATEST_RESULTS_URL);
+export async function fetchLatestResults({ signal } = {}) {
+  const payload = await fetchJson(LATEST_RESULTS_URL, { signal });
   return normalizeV2LatestPayload(payload, 'latest');
 }
 
@@ -56,6 +63,7 @@ export async function fetchHistoryPage({
   gameCode,
   cursor,
   limit = HISTORY_PAGE_SIZE,
+  signal,
 } = {}) {
   if (typeof gameCode !== 'string' || gameCode.length === 0) {
     throw new LotteryApiError('Missing 3D Lotto game code', 0);
@@ -73,7 +81,7 @@ export async function fetchHistoryPage({
     params.set('cursor', String(cursor));
   }
 
-  const payload = await fetchJson(`${HISTORY_RESULTS_URL}?${params.toString()}`);
+  const payload = await fetchJson(`${HISTORY_RESULTS_URL}?${params.toString()}`, { signal });
   return normalizeV2HistoryPayload(payload, 'history');
 }
 
@@ -81,14 +89,14 @@ export async function fetchHistoryPage({
  * Fetch one page per game code.
  * A failed code keeps cached records and drops only its own cursor.
  */
-export async function fetchHistoryBundle({ gameCodes, cursors = {} } = {}) {
+export async function fetchHistoryBundle({ gameCodes, cursors = {}, signal } = {}) {
   if (!Array.isArray(gameCodes) || gameCodes.length === 0) {
     throw new LotteryApiError('Missing 3D Lotto game codes', 0);
   }
 
   const results = await Promise.allSettled(
     gameCodes.map((gameCode) =>
-      fetchHistoryPage({ gameCode, cursor: cursors?.[gameCode] ?? null })
+      fetchHistoryPage({ gameCode, cursor: cursors?.[gameCode] ?? null, signal })
     )
   );
 
@@ -108,7 +116,7 @@ export async function fetchHistoryBundle({ gameCodes, cursors = {} } = {}) {
       dropped += result.value.dropped ?? 0;
       total += result.value.total ?? 0;
       const info = result.value.pageInfo ?? {};
-      if (info.hasNextPage && info.nextCursor) {
+      if (info.nextCursor) {
         nextCursors[gameCode] = info.nextCursor;
       }
       return;

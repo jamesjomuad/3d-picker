@@ -4,6 +4,7 @@ import {
   fetchGameCodes,
   fetchHistoryBundle,
   fetchLatestResults,
+  isAbortError,
 } from '@/services/lottery-api';
 
 import {
@@ -24,6 +25,7 @@ jest.mock('@/services/lottery-api', () => ({
   fetchGameCodes: jest.fn(),
   fetchLatestResults: jest.fn(),
   fetchHistoryBundle: jest.fn(),
+  isAbortError: jest.fn((error) => error?.name === 'AbortError'),
 }));
 
 function makeRecord(overrides = {}) {
@@ -51,6 +53,7 @@ beforeEach(() => {
   fetchGameCodes.mockReset();
   fetchLatestResults.mockReset();
   fetchHistoryBundle.mockReset();
+  isAbortError.mockClear();
 
   fetchGameCodes.mockResolvedValue(['3d_lotto_2pm', '3d_lotto_5pm', '3d_lotto_9pm']);
   fetchLatestResults.mockResolvedValue({ records: [makeRecord()] });
@@ -79,6 +82,7 @@ describe('syncRefresh', () => {
     expect(fetchHistoryBundle).toHaveBeenCalledWith({
       gameCodes: ['3d_lotto_2pm', '3d_lotto_5pm', '3d_lotto_9pm'],
       cursors: { '3d_lotto_2pm': 'cursor-2pm-1' },
+      signal: undefined,
     });
     expect(await getRecordCountIfAvailable()).toBe(2);
 
@@ -130,6 +134,7 @@ describe('syncRefresh', () => {
     expect(fetchHistoryBundle).toHaveBeenCalledWith({
       gameCodes: ['3d_lotto_2pm'],
       cursors: {},
+      signal: undefined,
     });
   });
 
@@ -202,6 +207,7 @@ describe('syncLoadOlder', () => {
     expect(fetchHistoryBundle).toHaveBeenCalledWith({
       gameCodes: ['3d_lotto_2pm'],
       cursors: { '3d_lotto_2pm': 'cursor-2pm-1' },
+      signal: undefined,
     });
     const metadata = await getSyncMetadata();
     expect(JSON.parse(metadata[RESULTS_METADATA_KEYS.HISTORY_CURSORS]))
@@ -250,6 +256,100 @@ describe('syncLoadOlder', () => {
     const metadata = await getSyncMetadata();
     expect(JSON.parse(metadata[RESULTS_METADATA_KEYS.HISTORY_CURSORS]))
       .toEqual({ '3d_lotto_2pm': 'cursor-keep' });
+  });
+
+  it('stops when the API returns the same cursor', async () => {
+    fetchHistoryBundle.mockResolvedValueOnce({
+      records: [],
+      cursors: { '3d_lotto_2pm': 'cursor-2pm-1' },
+      hasMore: true,
+      failedCodes: [],
+    });
+
+    const result = await syncLoadOlder({
+      gameCodes: ['3d_lotto_2pm'],
+      historyCursors: { '3d_lotto_2pm': 'cursor-2pm-1' },
+      displayLimit: 200,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.hasMore).toBe(false);
+    expect(result.historyCursors).toEqual({});
+  });
+
+  it('does not reuse a cursor seen in an earlier page', async () => {
+    fetchHistoryBundle.mockResolvedValueOnce({
+      records: [],
+      cursors: { '3d_lotto_2pm': 'cursor-seen' },
+      hasMore: true,
+      failedCodes: [],
+    });
+
+    const result = await syncLoadOlder({
+      gameCodes: ['3d_lotto_2pm'],
+      historyCursors: { '3d_lotto_2pm': 'cursor-2pm-1' },
+      seenCursors: new Set(['cursor-seen']),
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.hasMore).toBe(false);
+    expect(result.historyCursors).toEqual({});
+  });
+
+  it('keeps the old cursor for a failed game code', async () => {
+    fetchHistoryBundle.mockResolvedValueOnce({
+      records: [makeRecord({ sourceId: 'ok', id: 'v2-source-ok' })],
+      cursors: { '3d_lotto_9pm': 'cursor-9pm-2' },
+      hasMore: true,
+      failedCodes: ['3d_lotto_2pm'],
+    });
+
+    const result = await syncLoadOlder({
+      gameCodes: ['3d_lotto_2pm', '3d_lotto_9pm'],
+      historyCursors: {
+        '3d_lotto_2pm': 'cursor-2pm-1',
+        '3d_lotto_9pm': 'cursor-9pm-1',
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.reason).toBe('partial');
+    expect(result.historyCursors).toEqual({
+      '3d_lotto_2pm': 'cursor-2pm-1',
+      '3d_lotto_9pm': 'cursor-9pm-2',
+    });
+    expect(result.hasMore).toBe(true);
+  });
+
+  it('deduplicates repeated draw ids and grows the display limit', async () => {
+    const record = makeRecord({ sourceId: 'page', id: 'v2-source-page' });
+    fetchHistoryBundle.mockResolvedValueOnce({
+      records: [record, record],
+      cursors: { '3d_lotto_2pm': 'cursor-2pm-2' },
+      hasMore: true,
+      failedCodes: [],
+    });
+
+    const result = await syncLoadOlder({
+      gameCodes: ['3d_lotto_2pm'],
+      historyCursors: { '3d_lotto_2pm': 'cursor-2pm-1' },
+      displayLimit: 200,
+    });
+
+    expect(result.persistedCount).toBe(1);
+    expect(result.page.records).toHaveLength(1);
+    expect(result.displayLimit).toBe(400);
+  });
+
+  it('does not request when the signal is already aborted', async () => {
+    const result = await syncLoadOlder({
+      gameCodes: ['3d_lotto_2pm'],
+      historyCursors: { '3d_lotto_2pm': 'cursor-2pm-1' },
+      signal: AbortSignal.abort(),
+    });
+
+    expect(result).toEqual({ success: false, reason: 'aborted' });
+    expect(fetchHistoryBundle).not.toHaveBeenCalled();
   });
 });
 

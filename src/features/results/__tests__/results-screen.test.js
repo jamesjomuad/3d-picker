@@ -1,15 +1,25 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
-import { FlatList, Text } from 'react-native';
+import { AppState, FlatList, Text } from 'react-native';
 
 import ResultsScreen from '@/app/(tabs)/results';
 
 let mockUseResultsStore;
 let mockState;
+const mountedRoots = new Set();
+
+jest.mock('expo-router', () => ({
+  useFocusEffect: () => {},
+}));
 
 jest.mock('@/store/resultsStore', () => ({
+  cancelResultsRequests: jest.fn(),
   useResultsStore: (selector) => mockUseResultsStore(selector),
 }));
+
+const { cancelResultsRequests: mockCancelResultsRequests } = jest.requireMock(
+  '@/store/resultsStore'
+);
 
 jest.mock('@/components/results/results-history-row', () => {
   const React = require('react');
@@ -123,19 +133,24 @@ function makeState(overrides = {}) {
     nextCursor: null,
     gameCodes: ['3d_lotto_2pm'],
     historyCursors: {},
+    displayLimit: 200,
     lastSyncAt: '2026-11-27T10:00:00.000Z',
     totalCount: 5,
     error: null,
+    olderError: null,
+    emptyOlderPage: false,
     load: jest.fn(),
     setDateFilter: jest.fn(),
     refresh: jest.fn(),
     loadOlder: jest.fn(),
+    showMoreLocal: jest.fn(),
     ...overrides,
   };
 }
 
 function textContent(node) {
-  return node
+  const searchRoot = node.root ?? node;
+  return searchRoot
     .findAllByType(Text)
     .map((textNode) => {
       const children = textNode.props.children;
@@ -159,11 +174,31 @@ function findRowByTestId(root, testID) {
     .find((candidate) => typeof candidate.props.onPress === 'function');
 }
 
+function renderScreen() {
+  let root;
+  act(() => {
+    root = create(React.createElement(ResultsScreen));
+  });
+  mountedRoots.add(root);
+  return root;
+}
+
 describe('Results screen SQLite integration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.spyOn(AppState, 'addEventListener').mockImplementation(() => ({
+      remove: jest.fn(),
+    }));
     mockState = makeState();
     mockUseResultsStore = jest.fn((selector) => selector(mockState));
+  });
+
+  afterEach(() => {
+    for (const root of mountedRoots) {
+      act(() => root.unmount());
+    }
+    mountedRoots.clear();
+    jest.restoreAllMocks();
   });
 
   it('renders cached records grouped into three sessions and refreshes after hydration', () => {
@@ -175,10 +210,7 @@ describe('Results screen SQLite integration', () => {
     });
     mockState = coldState;
 
-    let root;
-    act(() => {
-      root = create(React.createElement(ResultsScreen));
-    });
+    const root = renderScreen();
 
     expect(coldState.load).toHaveBeenCalledTimes(1);
     expect(coldState.refresh).not.toHaveBeenCalled();
@@ -203,10 +235,7 @@ describe('Results screen SQLite integration', () => {
   });
 
   it('opens details for a selected draw and applies date filters', () => {
-    let root;
-    act(() => {
-      root = create(React.createElement(ResultsScreen));
-    });
+    const root = renderScreen();
 
     const row = findRowByTestId(root, 'row-2026-11-27');
     act(() => row.props.onPress());
@@ -230,10 +259,7 @@ describe('Results screen SQLite integration', () => {
   });
 
   it('loads older pages only for the unfiltered history view', () => {
-    let root;
-    act(() => {
-      root = create(React.createElement(ResultsScreen));
-    });
+    const root = renderScreen();
 
     const list = root.root.findByType(FlatList);
     act(() => list.props.onEndReached());
@@ -248,5 +274,80 @@ describe('Results screen SQLite integration', () => {
     });
     act(() => list.props.onEndReached());
     expect(mockState.loadOlder).toHaveBeenCalledTimes(1);
+  });
+
+  it('reveals cached rows when network history is exhausted', () => {
+    mockState = makeState({ hasMore: false, totalCount: 600 });
+    const root = renderScreen();
+
+    const list = root.root.findByType(FlatList);
+    act(() => list.props.onEndReached());
+
+    expect(mockState.showMoreLocal).toHaveBeenCalledTimes(1);
+    expect(mockState.loadOlder).not.toHaveBeenCalled();
+  });
+
+  it('offers a footer action to reveal cached rows after network history is exhausted', () => {
+    mockState = makeState({ hasMore: false, totalCount: 600 });
+    const root = renderScreen();
+
+    const showMore = findPressableByLabel(root, 'Show more saved');
+    expect(showMore).toBeDefined();
+    act(() => showMore.props.onPress());
+
+    expect(mockState.showMoreLocal).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not auto-load another page after an empty page', () => {
+    mockState = makeState({ emptyOlderPage: true });
+    const root = renderScreen();
+
+    const list = root.root.findByType(FlatList);
+    act(() => list.props.onEndReached());
+    expect(mockState.loadOlder).not.toHaveBeenCalled();
+  });
+
+  it('shows Retry for a failed older page', () => {
+    mockState = makeState({
+      olderError: 'Could not load older results. Saved results are unchanged.',
+    });
+    const root = renderScreen();
+
+    expect(textContent(root)).toContain(mockState.olderError);
+    const retry = findPressableByLabel(root, 'Retry');
+    expect(retry).toBeDefined();
+    act(() => retry.props.onPress());
+    expect(mockState.loadOlder).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows Continue for an empty page with more history', () => {
+    mockState = makeState({ emptyOlderPage: true });
+    const root = renderScreen();
+
+    expect(textContent(root)).toContain('No new draws in this page');
+    const continueButton = findPressableByLabel(root, 'Continue');
+    expect(continueButton).toBeDefined();
+    act(() => continueButton.props.onPress());
+    expect(mockState.loadOlder).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the end state when no more history remains', () => {
+    mockState = makeState({ hasMore: false });
+    const root = renderScreen();
+
+    expect(textContent(root)).toContain('End of available history');
+  });
+
+  it('cancels in-flight requests when the app goes to the background', () => {
+    let listener;
+    jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, nextListener) => {
+      listener = nextListener;
+      return { remove: jest.fn() };
+    });
+
+    renderScreen();
+    act(() => listener('background'));
+
+    expect(mockCancelResultsRequests).toHaveBeenCalledTimes(1);
   });
 });

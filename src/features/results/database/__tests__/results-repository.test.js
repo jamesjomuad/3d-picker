@@ -15,6 +15,7 @@ import {
   importLegacyCacheIfEmpty,
   persistSyncResult,
   searchResults,
+  setDisplayLimit,
   upsertRecords,
 } from '../results-repository';
 import {
@@ -249,6 +250,44 @@ describe('results repository', () => {
     expect(snapshot.historyCursors).toEqual({ '3d_lotto_2pm': 'cursor-1' });
     expect(snapshot.hasMore).toBe(true);
     expect(snapshot.lastSyncAt).toBe('2026-11-27T07:00:00.000Z');
+  });
+
+  it('uses the persisted display limit for snapshots', async () => {
+    await persistSyncResult({
+      records: [
+        makeRecord(),
+        makeRecord({
+          sourceId: '1002',
+          id: 'v2-source-1002',
+          drawDate: '2026-11-26',
+        }),
+      ],
+      metadata: {
+        [RESULTS_METADATA_KEYS.DISPLAY_LIMIT]: 400,
+      },
+    });
+
+    const snapshot = await getResultsSnapshot();
+    expect(snapshot.displayLimit).toBe(400);
+    expect(snapshot.records).toHaveLength(2);
+    expect(snapshot.records.map((record) => record.drawDate)).toEqual([
+      '2026-11-27',
+      '2026-11-26',
+    ]);
+
+    const bounded = await getResultsSnapshot({ limit: 1 });
+    expect(bounded.records).toHaveLength(1);
+    expect(bounded.displayLimit).toBe(400);
+  });
+
+  it('persists a rounded display limit for cached paging', async () => {
+    await upsertRecords([makeRecord()]);
+
+    await expect(setDisplayLimit(650)).resolves.toBe(600);
+    expect(await getSyncMetadata()).toMatchObject({
+      [RESULTS_METADATA_KEYS.DISPLAY_LIMIT]: '600',
+    });
+    expect((await getResultsSnapshot()).displayLimit).toBe(600);
   });
 
   it('imports the legacy AsyncStorage cache once when SQLite is empty', async () => {
