@@ -16,7 +16,7 @@ import { IconButton } from '@/components/ui/icon-button';
 import { BorderRadius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-const DEFAULT_SNAP_POINTS = [0.5, 0.75, 1];
+const DEFAULT_SNAP_POINTS = [0.5, 1];
 const SHEET_SPRING = { damping: 24, stiffness: 240, mass: 0.9 };
 const DISMISS_DURATION_MS = 180;
 const DRAG_ACTIVATION = 10;
