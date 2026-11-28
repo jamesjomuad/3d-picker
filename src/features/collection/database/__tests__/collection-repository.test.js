@@ -11,6 +11,7 @@ import {
   getCollectionSnapshot,
   removeCollectionEntries,
   removeCollectionEntry,
+  resetCollectionMigrationForTests,
   saveCollectionEntries,
   saveCollectionEntry,
   setCollectionFavorite,
@@ -28,6 +29,7 @@ jest.mock('@/services/basket-storage', () => ({
 beforeEach(() => {
   __resetSqliteMock();
   resetResultsDatabaseForTests();
+  resetCollectionMigrationForTests();
   mockLegacyEntries = [];
   loadBasket.mockImplementation(async () => mockLegacyEntries);
 });

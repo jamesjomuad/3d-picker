@@ -1,6 +1,11 @@
 import { __database, __dbState, __resetSqliteMock } from '../../../../../test/expo-sqlite-mock';
 
 import {
+  getCollectionSnapshot,
+  resetCollectionMigrationForTests,
+  saveCollectionEntries,
+} from '@/features/collection/database/collection-repository';
+import {
   getDrawDates,
   getRecordCount,
   getResultsPage,
@@ -57,6 +62,7 @@ function makeRecord(overrides = {}) {
 beforeEach(() => {
   __resetSqliteMock();
   resetResultsDatabaseForTests();
+  resetCollectionMigrationForTests();
   loadDrawResults.mockReset();
   loadDrawResults.mockResolvedValue({ records: [] });
 });
@@ -206,6 +212,22 @@ describe('results repository', () => {
     expect(page[0].sourceId).toBe('1001');
     const metadata = await getSyncMetadata();
     expect(metadata[RESULTS_METADATA_KEYS.GAME_CODES]).toBeUndefined();
+  });
+
+  it('runs Results and Collection writes concurrently without nested transactions', async () => {
+    await getResultsDatabase();
+    __database.withTransactionAsync.mockClear();
+    __database.withExclusiveTransactionAsync.mockClear();
+
+    await Promise.all([
+      upsertRecords([makeRecord()]),
+      saveCollectionEntries([{ digits: '037', path: [{ row: 4, column: 3 }] }]),
+    ]);
+
+    expect(__database.withTransactionAsync).not.toHaveBeenCalled();
+    expect(__database.withExclusiveTransactionAsync).toHaveBeenCalledTimes(2);
+    expect(await getRecordCount()).toBe(1);
+    expect((await getCollectionSnapshot()).entries).toHaveLength(1);
   });
 
   it('reads a bounded snapshot with parsed sync metadata', async () => {

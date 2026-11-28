@@ -15,6 +15,11 @@ import {
 } from './collection-schema';
 
 const SELECT_COLUMNS = 'id, combination, coordinates, added_at, is_favorite';
+let legacyMigrationPromise = null;
+
+export function resetCollectionMigrationForTests() {
+  legacyMigrationPromise = null;
+}
 
 function hasValidTimestamp(value) {
   if (typeof value !== 'string' && typeof value !== 'number') return false;
@@ -146,7 +151,7 @@ async function markLegacyImported(db) {
   await setMetadata(db, COLLECTION_METADATA_KEYS.LEGACY_IMPORTED, '1');
 }
 
-async function migrateLegacyBasketIfNeeded(db) {
+async function runLegacyBasketMigration(db) {
   if (await getMetadata(db, COLLECTION_METADATA_KEYS.LEGACY_IMPORTED)) return;
 
   const countRow = await db.getFirstAsync(
@@ -173,19 +178,30 @@ async function migrateLegacyBasketIfNeeded(db) {
     return;
   }
 
-  await db.withTransactionAsync(async () => {
+  await db.withExclusiveTransactionAsync(async (txn) => {
     for (const entry of prepared) {
-      await insertEntry(db, entry);
+      await insertEntry(txn, entry);
     }
 
-    const verifyRow = await db.getFirstAsync(
+    const verifyRow = await txn.getFirstAsync(
       `SELECT COUNT(*) AS count FROM ${COLLECTION_TABLE_NAME}`
     );
     if (Number(verifyRow?.count ?? 0) !== prepared.length) {
       throw new Error('Collection migration verification failed');
     }
-    await markLegacyImported(db);
+    await markLegacyImported(txn);
   });
+}
+
+/** One migration at a time on the shared connection, even under concurrent loads. */
+async function migrateLegacyBasketIfNeeded(db) {
+  if (!legacyMigrationPromise) {
+    legacyMigrationPromise = runLegacyBasketMigration(db).catch((error) => {
+      legacyMigrationPromise = null;
+      throw error;
+    });
+  }
+  return legacyMigrationPromise;
 }
 
 async function readyDatabase() {
@@ -296,10 +312,10 @@ export async function saveCollectionEntries(entries) {
   if (normalized.length === 0) return [];
 
   const db = await readyDatabase();
-  return db.withTransactionAsync(async () => {
+  return db.withExclusiveTransactionAsync(async (txn) => {
     const saved = [];
     for (const entry of normalized) {
-      saved.push(await insertEntry(db, entry));
+      saved.push(await insertEntry(txn, entry));
     }
     return saved;
   });
@@ -331,10 +347,10 @@ export async function removeCollectionEntries(ids) {
   if (cleanIds.length === 0) return 0;
 
   const db = await readyDatabase();
-  return db.withTransactionAsync(async () => {
+  return db.withExclusiveTransactionAsync(async (txn) => {
     let removed = 0;
     for (const id of cleanIds) {
-      const result = await db.runAsync(
+      const result = await txn.runAsync(
         `DELETE FROM ${COLLECTION_TABLE_NAME} WHERE id = ?`,
         [id]
       );
@@ -347,9 +363,9 @@ export async function removeCollectionEntries(ids) {
 /** Empty Collection. The migration flag stays set so legacy data never returns. */
 export async function clearCollection() {
   const db = await readyDatabase();
-  await db.withTransactionAsync(async () => {
-    await db.runAsync(`DELETE FROM ${COLLECTION_TABLE_NAME}`);
-    await markLegacyImported(db);
+  await db.withExclusiveTransactionAsync(async (txn) => {
+    await txn.runAsync(`DELETE FROM ${COLLECTION_TABLE_NAME}`);
+    await markLegacyImported(txn);
   });
 }
 
@@ -365,19 +381,19 @@ export async function replaceCollectionEntries(entries) {
   }
 
   const db = await readyDatabase();
-  return db.withTransactionAsync(async () => {
-    await db.runAsync(`DELETE FROM ${COLLECTION_TABLE_NAME}`);
+  await db.withExclusiveTransactionAsync(async (txn) => {
+    await txn.runAsync(`DELETE FROM ${COLLECTION_TABLE_NAME}`);
     for (const entry of normalized) {
-      await insertEntry(db, entry);
+      await insertEntry(txn, entry);
     }
 
-    const verifyRow = await db.getFirstAsync(
+    const verifyRow = await txn.getFirstAsync(
       `SELECT COUNT(*) AS count FROM ${COLLECTION_TABLE_NAME}`
     );
     if (Number(verifyRow?.count ?? 0) !== normalized.length) {
       throw new Error('Collection restore verification failed');
     }
-    await markLegacyImported(db);
-    return getCollectionSnapshot();
+    await markLegacyImported(txn);
   });
+  return getCollectionSnapshot();
 }

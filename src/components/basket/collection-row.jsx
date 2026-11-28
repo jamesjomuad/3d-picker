@@ -13,6 +13,7 @@ import { SwipeActionRow } from '@/components/ui/swipe-action-row';
 import {
   BorderRadius,
   Fonts,
+  IconSize,
   Interaction,
   Spacing,
   TouchTarget,
@@ -27,6 +28,8 @@ import { formatAddedTime } from '@/utils/basket-format';
 import { getPathReference } from '@/utils/cell-reference';
 
 const CHECKBOX_SIZE = 22;
+const FAVORITE_ICON_SIZE = IconSize.small;
+const FAVORITE_HIT_SLOP = Math.max(0, (TouchTarget - FAVORITE_ICON_SIZE) / 2);
 
 /**
  * One saved pick inside a date group card.
@@ -212,6 +215,7 @@ export const CollectionRow = memo(function CollectionRow({
       <Pressable
         onPress={handleFavoritePress}
         onPressIn={(event) => event?.stopPropagation?.()}
+        hitSlop={FAVORITE_HIT_SLOP}
         accessibilityRole="button"
         accessibilityLabel={
           isFavorite
@@ -305,12 +309,12 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   favoriteButton: {
-    width: TouchTarget,
-    minHeight: TouchTarget,
+    width: FAVORITE_ICON_SIZE,
+    height: FAVORITE_ICON_SIZE,
     flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: -Spacing.two,
+    marginTop: Spacing.two,
   },
   favoritePressed: {
     opacity: Interaction.pressedOpacity,

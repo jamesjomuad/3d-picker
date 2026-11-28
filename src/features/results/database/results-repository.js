@@ -301,8 +301,8 @@ async function writeMetadataInTransaction(db, metadata) {
 /** Inserts or updates records atomically. Conflicting digits are never replaced. */
 export async function upsertRecords(records) {
   const db = await getResultsDatabase();
-  return db.withTransactionAsync(async () =>
-    upsertRecordsInTransaction(db, records, { inserted: 0, updated: 0, skipped: 0 })
+  return db.withExclusiveTransactionAsync(async (txn) =>
+    upsertRecordsInTransaction(txn, records, { inserted: 0, updated: 0, skipped: 0 })
   );
 }
 
@@ -310,13 +310,13 @@ export async function upsertRecords(records) {
 export async function persistSyncResult({ records, metadata } = {}) {
   const db = await getResultsDatabase();
   try {
-    return await db.withTransactionAsync(async () => {
-      const stats = await upsertRecordsInTransaction(db, records, {
+    return await db.withExclusiveTransactionAsync(async (txn) => {
+      const stats = await upsertRecordsInTransaction(txn, records, {
         inserted: 0,
         updated: 0,
         skipped: 0,
       });
-      await writeMetadataInTransaction(db, metadata);
+      await writeMetadataInTransaction(txn, metadata);
       return stats;
     });
   } catch (error) {
@@ -329,8 +329,8 @@ export async function persistSyncResult({ records, metadata } = {}) {
 
 export async function saveSyncState(metadata) {
   const db = await getResultsDatabase();
-  return db.withTransactionAsync(async () => {
-    await writeMetadataInTransaction(db, metadata);
+  return db.withExclusiveTransactionAsync(async (txn) => {
+    await writeMetadataInTransaction(txn, metadata);
   });
 }
 

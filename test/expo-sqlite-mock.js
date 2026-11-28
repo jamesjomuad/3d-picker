@@ -38,6 +38,7 @@ const state = {
   collectionMetadata: new Map(),
   userVersion: 0,
   openedNames: [],
+  activeTransactions: 0,
 };
 
 function snapshotState() {
@@ -75,6 +76,7 @@ const database = {
   getAllAsync: jest.fn(),
   runAsync: jest.fn(),
   withTransactionAsync: jest.fn(),
+  withExclusiveTransactionAsync: jest.fn(),
 };
 
 const openDatabaseAsync = jest.fn();
@@ -269,9 +271,25 @@ function applyImplementations() {
   });
 
   database.withTransactionAsync.mockImplementation(async (callback) => {
+    if (state.activeTransactions > 0) {
+      throw new Error('cannot start a transaction within a transaction');
+    }
+    state.activeTransactions += 1;
     const before = snapshotState();
     try {
       return await callback();
+    } catch (error) {
+      restoreState(before);
+      throw error;
+    } finally {
+      state.activeTransactions -= 1;
+    }
+  });
+
+  database.withExclusiveTransactionAsync.mockImplementation(async (callback) => {
+    const before = snapshotState();
+    try {
+      return await callback(database);
     } catch (error) {
       restoreState(before);
       throw error;
@@ -286,6 +304,7 @@ function reset() {
   state.collectionMetadata.clear();
   state.userVersion = 0;
   state.openedNames.length = 0;
+  state.activeTransactions = 0;
   jest.resetAllMocks();
   applyImplementations();
 }

@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Pressable, Share, StyleSheet, View } from 'react-native';
 
 import { BasketEntrySheet } from '@/components/basket/basket-entry-sheet';
@@ -8,6 +8,7 @@ import { CollectionSearchField } from '@/components/basket/collection-search-fie
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { ContextualActionSheet } from '@/components/ui/contextual-action-sheet';
 import { closeAllSwipeActions } from '@/components/ui/swipe-action-row';
 import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -55,8 +56,10 @@ import {
  *
  * Browse mode also offers a deliberate left swipe on a row to reveal Remove.
  * Select mode replaces that gesture with a checkbox and keeps its temporary
- * entry IDs outside the persisted basket. Select All / Deselect All limits
- * itself to the currently displayed results; hidden picks are never changed.
+ * entry IDs outside the persisted basket. The first checked pick opens a
+ * contextual action sheet whose count stays live. Select All / Deselect All
+ * limits itself to the currently displayed results; hidden picks are never
+ * changed.
  */
 export default function CollectionScreen() {
   const theme = useTheme();
@@ -90,6 +93,8 @@ export default function CollectionScreen() {
   // filter or search changes while the sheet is open.
   const [selectedId, setSelectedId] = useState(null);
   const [showBulkRemoveDialog, setShowBulkRemoveDialog] = useState(false);
+  const [showSelectionSheet, setShowSelectionSheet] = useState(false);
+  const selectionSheetRef = useRef(null);
 
   const sections = useMemo(() => groupBasketEntries(entries), [entries]);
   const visibleIds = useMemo(() => entries.map((entry) => entry.id), [entries]);
@@ -128,6 +133,20 @@ export default function CollectionScreen() {
       .getState()
       .pruneAvailable(entries.map((entry) => entry.id));
   }, [entries]);
+
+  // The sheet follows the temporary selection rather than owning it. First
+  // check opens it; zero checks closes it; the confirmation dialog takes its
+  // place without losing the selected IDs.
+  useEffect(() => {
+    if (showBulkRemoveDialog) return;
+    if (!selectionMode || selectedCount === 0) {
+      if (showSelectionSheet) {
+        selectionSheetRef.current?.dismiss(() => setShowSelectionSheet(false));
+      }
+      return;
+    }
+    setShowSelectionSheet(true);
+  }, [selectionMode, selectedCount, showSelectionSheet, showBulkRemoveDialog]);
 
   const closeOpenSwipes = useCallback(() => closeAllSwipeActions(), []);
 
@@ -209,6 +228,7 @@ export default function CollectionScreen() {
 
   const handleCancelSelection = useCallback(() => {
     closeOpenSwipes();
+    setShowSelectionSheet(false);
     useCollectionSelectionStore.getState().cancelSelection();
   }, [closeOpenSwipes]);
 
@@ -225,10 +245,18 @@ export default function CollectionScreen() {
   const handleOpenBulkRemove = useCallback(() => {
     if (selectedCount === 0) return;
     closeOpenSwipes();
-    setShowBulkRemoveDialog(true);
+    selectionSheetRef.current?.dismiss(() => {
+      setShowSelectionSheet(false);
+      setShowBulkRemoveDialog(true);
+    });
   }, [closeOpenSwipes, selectedCount]);
 
-  const handleCancelBulkRemove = useCallback(() => setShowBulkRemoveDialog(false), []);
+  const handleCancelBulkRemove = useCallback(() => {
+    setShowBulkRemoveDialog(false);
+    if (useCollectionSelectionStore.getState().selectedIds.size > 0) {
+      setShowSelectionSheet(true);
+    }
+  }, []);
 
   const handleConfirmBulkRemove = useCallback(() => {
     const { selectedIds } = useCollectionSelectionStore.getState();
@@ -237,7 +265,35 @@ export default function CollectionScreen() {
     removeMany([...selectedIds]);
     useCollectionSelectionStore.getState().cancelSelection();
     setShowBulkRemoveDialog(false);
+    setShowSelectionSheet(false);
   }, [closeOpenSwipes, removeMany]);
+
+  const selectionActions = useMemo(
+    () => [
+      {
+        id: 'select-all',
+        label: allVisibleSelected ? 'Deselect All' : 'Select All',
+        icon: allVisibleSelected ? 'xmark' : 'checkmark',
+        onPress: handleSelectAll,
+        disabled: visibleIds.length === 0,
+      },
+      {
+        id: 'remove-selected',
+        label: 'Remove Selected',
+        icon: 'trash',
+        onPress: handleOpenBulkRemove,
+        destructive: true,
+        disabled: selectedCount === 0,
+      },
+    ],
+    [
+      allVisibleSelected,
+      handleOpenBulkRemove,
+      handleSelectAll,
+      selectedCount,
+      visibleIds.length,
+    ]
+  );
 
   const handleConfirmClear = useCallback(() => {
     closeOpenSwipes();
@@ -306,51 +362,29 @@ export default function CollectionScreen() {
                 : `${totalCount} ${totalCount === 1 ? 'pick' : 'picks'} saved`}
             </ThemedText>
           </View>
-          <View style={styles.headerActions}>
-            {selectionMode ? (
-              <>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  style={styles.touchTarget}
-                  onPress={handleCancelSelection}
-                  icon="xmark">
-                  Cancel
-                </Button>
+          {!selectionMode && (
+            <View style={styles.headerActions}>
+              {totalCount > 0 && (
                 <Button
                   size="sm"
                   variant="secondary"
                   style={styles.touchTarget}
-                  onPress={handleSelectAll}
-                  disabled={visibleIds.length === 0}
-                  icon={allVisibleSelected ? 'xmark' : 'checkmark'}>
-                  {allVisibleSelected ? 'Deselect All' : 'Select All'}
+                  onPress={handleStartSelection}
+                  icon="checkmark">
+                  Select
                 </Button>
-              </>
-            ) : (
-              <>
-                {totalCount > 0 && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    style={styles.touchTarget}
-                    onPress={handleStartSelection}
-                    icon="checkmark">
-                    Select
-                  </Button>
-                )}
-                {totalCount > 0 && (
-                  <Button
-                    size="sm"
-                    style={styles.touchTarget}
-                    onPress={handleShare}
-                    icon="square.and.arrow.up">
-                    Share
-                  </Button>
-                )}
-              </>
-            )}
-          </View>
+              )}
+              {totalCount > 0 && (
+                <Button
+                  size="sm"
+                  style={styles.touchTarget}
+                  onPress={handleShare}
+                  icon="square.and.arrow.up">
+                  Share
+                </Button>
+              )}
+            </View>
+          )}
         </View>
         <CollectionSearchField
           value={query}
@@ -389,21 +423,6 @@ export default function CollectionScreen() {
             );
           })}
         </View>
-        {selectionMode && selectedCount > 0 && (
-          <View style={styles.selectionToolbar}>
-            <ThemedText themeColor="textSecondary" style={styles.selectedText}>
-              {selectedCount} {selectedCount === 1 ? 'pick' : 'picks'} selected
-            </ThemedText>
-            <Button
-              size="sm"
-              variant="destructive"
-              style={styles.touchTarget}
-              onPress={handleOpenBulkRemove}
-              icon="trash">
-              Remove Selected
-            </Button>
-          </View>
-        )}
       </View>
     </View>
   );
@@ -506,6 +525,14 @@ export default function CollectionScreen() {
         onRemove={handleRequestRemove}
       />
 
+      <ContextualActionSheet
+        ref={selectionSheetRef}
+        visible={showSelectionSheet}
+        title={`${selectedCount} ${selectedCount === 1 ? 'pick' : 'picks'} selected`}
+        actions={selectionActions}
+        onCancel={handleCancelSelection}
+      />
+
       <ConfirmDialog
         visible={pendingRemoveEntry !== null}
         title="Remove Pick"
@@ -583,17 +610,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
-  },
-  selectionToolbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.two,
-    marginTop: Spacing.two,
-  },
-  selectedText: {
-    flexShrink: 1,
-    fontSize: Typography.size.body,
   },
   filterRow: {
     flexDirection: 'row',
