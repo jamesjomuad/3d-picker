@@ -1,6 +1,7 @@
 import { memo, useCallback, useMemo, useRef } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
+  interpolate,
   runOnJS,
   useAnimatedReaction,
   useAnimatedStyle,
@@ -24,6 +25,8 @@ import {
 } from '@/store/collectionSelectionVisuals';
 import { formatAddedTime } from '@/utils/basket-format';
 import { getPathReference } from '@/utils/cell-reference';
+
+const CHECKBOX_SIZE = 22;
 
 /**
  * One saved pick inside a date group card.
@@ -118,9 +121,18 @@ export const CollectionRow = memo(function CollectionRow({
   const browseLabel = `Open details for ${digits}, at ${coordinates}, added ${time}`;
   const selectLabel = `Select ${digits}, at ${coordinates}, added ${time}`;
 
-  const checkboxStyle = useAnimatedStyle(() => ({
-    opacity: selectionModeProgress.get(),
-  }));
+  // Browse mode collapses the checkbox entirely. Animating width and spacing
+  // keeps the row's text aligned without re-rendering when mode changes.
+  const checkboxStyle = useAnimatedStyle(() => {
+    const progress = selectionModeProgress.get();
+    return {
+      opacity: progress,
+      width: interpolate(progress, [0, 1], [0, CHECKBOX_SIZE]),
+      marginRight: interpolate(progress, [0, 1], [0, Spacing.two]),
+      marginTop: interpolate(progress, [0, 1], [0, Spacing.one]),
+      borderWidth: interpolate(progress, [0, 1], [0, 1]),
+    };
+  });
   const chevronStyle = useAnimatedStyle(() => ({
     opacity: 1 - selectionModeProgress.get(),
   }));
@@ -233,7 +245,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    gap: Spacing.two,
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.half,
   },
@@ -244,11 +255,9 @@ const styles = StyleSheet.create({
     opacity: Interaction.pressedOpacity,
   },
   checkbox: {
-    width: 22,
-    height: 22,
+    height: CHECKBOX_SIZE,
     flexShrink: 0,
-    marginTop: Spacing.one,
-    borderWidth: 1,
+    overflow: 'hidden',
     borderRadius: BorderRadius.sm,
     alignItems: 'center',
     justifyContent: 'center',
@@ -262,6 +271,7 @@ const styles = StyleSheet.create({
   primary: {
     flex: 1,
     minWidth: 0,
+    marginRight: Spacing.two,
     gap: Spacing.half,
   },
   digits: {
@@ -281,6 +291,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexShrink: 0,
     gap: Spacing.one,
+    marginRight: Spacing.two,
     paddingTop: Spacing.one,
   },
   chevron: {
