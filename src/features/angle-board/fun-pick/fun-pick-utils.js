@@ -9,16 +9,16 @@
  * `{ digits, path, start, end }` with zero-based `{ row, column }` cells —
  * so `getPathReference` can render them unchanged.
  *
- * Rules encoded here — the Angle Board's angle geometry:
- * - Every step goes to a neighbouring selected cell, but from the second
- *   step on the path must bend exactly 90 degrees: the new step is
- *   perpendicular to the step just taken. Straight runs and 45/135-degree
- *   turns (a diagonal mixed with an orthogonal step) are not valid angles,
- *   so a neighbour only counts when it sits on the turning axis.
+ * Rules encoded here — the Angle Board's board geometry:
+ * - Every step goes to a neighbouring selected cell. From the second step
+ *   on, a path may continue in the same direction or turn exactly 90
+ *   degrees. Straight runs are valid walks; 45/135-degree turns (a diagonal
+ *   mixed with an orthogonal step) and immediate reversals are not.
  * - Generation walks all eight step families: four orthogonal ones
- *   (L-shaped angles) and four diagonal ones (V-shaped angles between
- *   diagonals). A 90-degree rotation keeps a step in its own family, so one
- *   path never mixes the two.
+ *   (straight rows/columns and L-shaped angles) and four diagonal ones
+ *   (straight diagonals and V-shaped angles). Continuing straight or turning
+ *   90 degrees keeps a step in its own family, so one path never mixes the
+ *   two.
  * - Every combination holds exactly three digits.
  * - A cell is never reused within one combination, and cells outside the
  *   selection are never used.
@@ -78,29 +78,31 @@ export function getDirectionOffsets(direction) {
 }
 
 /**
- * The two steps perpendicular to a given step: a 90-degree turn either way.
- * Rotating an orthogonal step yields orthogonal steps, and a diagonal step
- * yields diagonal steps, so the direction family never mixes within a path.
+ * Continue straight or turn exactly 90 degrees from a given step.
+ * Keeping the original step plus its two perpendicular rotations preserves
+ * the direction family, so one path never mixes orthogonal and diagonal
+ * steps. The reverse step is excluded; cell reuse already blocks it.
  *
  * @param {[number, number]} step
  * @returns {Array<[number, number]>}
  */
-function perpendicularSteps(step) {
+function continuationSteps(step) {
   const [dr, dc] = step;
   return [
+    step,
     [-dc, dr],
     [dc, -dr],
   ];
 }
 
 /**
- * Enumerate every length-cell angle path through the selection.
+ * Enumerate every length-cell walk through the selection.
  *
  * Depth-first walk from each selected cell. The first step may take any
- * neighbour the direction rule allows; every later step must bend exactly
- * 90 degrees from the step just taken (a perpendicular turn left or right).
- * With the default length of 3 each start has at most 8 first steps then 2
- * turns, so the whole candidate list stays small enough to materialise.
+ * neighbour the direction rule allows; every later step may continue in the
+ * same direction or turn exactly 90 degrees left or right. With the default
+ * length of 3 each start has at most 8 first steps then 3 follow-ups, so the
+ * whole candidate list stays small enough to materialise.
  *
  * Exported for the selection insights, which count the same candidate list
  * without formatting it.
@@ -118,7 +120,7 @@ export function collectPaths(selectedKeys, totalRows, totalCols, offsets, length
     if (depth === lastDepth) {
       paths.push([...path]);
     } else {
-      const steps = depth === 0 ? offsets : perpendicularSteps(step);
+      const steps = depth === 0 ? offsets : continuationSteps(step);
       for (const [dr, dc] of steps) {
         const nearRow = row + dr;
         const nearCol = col + dc;
@@ -287,10 +289,10 @@ export const FUN_PICK_SELECTABLE_FILTERS = FUN_PICK_RESULT_FILTER_OPTIONS.filter
 /**
  * Movement of a path's first step, or null for an invalid path.
  *
- * Generation bends 90 degrees after the first step, so a 3-digit L path has
- * both horizontal and vertical segments. The result filters split those
- * paths by the movement that starts them; the existing "Horizontal &
- * Vertical" filter still matches the whole family.
+ * Generation allows straight runs and 90-degree turns, so a 3-digit path
+ * may stay straight or form an L. The result filters split paths by the
+ * movement that starts them; the existing "Horizontal & Vertical" filter
+ * still matches the whole orthogonal family.
  *
  * @param {Array<{ row: number, column: number }>} path
  * @returns {'horizontal'|'vertical'|'diagonal'|null}

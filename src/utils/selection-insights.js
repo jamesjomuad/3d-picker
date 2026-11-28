@@ -3,9 +3,9 @@
  *
  * Compact statistics for the selected cells card, computed from the current
  * Angle Board selection with the real Fun Pick rules: combinations are the
- * 90-degree angle paths of the default generation length (3 digits) under
- * the all-directions rule, enumerated by the same `collectPaths` walker the
- * generator uses — not simple neighbour adjacency.
+ * straight and 90-degree walks of the default generation length (3 digits)
+ * under the all-directions rule, enumerated by the same `collectPaths`
+ * walker the generator uses — not simple neighbour adjacency.
  *
  * Pure module: like `selection-summary`, it reads the grid plus the store's
  * "row,col" selection Set and never touches React, Zustand or the board.
@@ -33,8 +33,8 @@ import { getSelectedCellEntries } from '@/utils/selection-summary';
  *   combination.
  *
  * A selection smaller than the combination length — or one whose cells
- * cannot bend 90 degrees anywhere — yields zero combinations and zero start
- * cells rather than an error.
+ * cannot form a straight or 90-degree walk — yields zero combinations and
+ * zero start cells rather than an error.
  *
  * @param {number[][]} grid - the board's digits, read row-major
  * @param {Set<string>} selection - selected "row,col" keys
