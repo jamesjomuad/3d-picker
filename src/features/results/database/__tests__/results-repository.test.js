@@ -73,7 +73,9 @@ describe('results database initialization', () => {
     expect(sql).toContain('idx_results_game_code');
     expect(sql).toContain('idx_results_slot');
     expect(sql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS idx_results_source_id');
-    expect(__dbState.userVersion).toBe(1);
+    expect(__dbState.userVersion).toBe(2);
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS collection_items');
+    expect(sql).toContain('idx_collection_favorite_added_at');
 
     await getResultsDatabase();
     expect(__dbState.openedNames).toHaveLength(1);

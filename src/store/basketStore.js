@@ -1,125 +1,185 @@
 import { create } from 'zustand';
 
-import { loadBasket, saveBasket } from '@/services/basket-storage';
+import {
+  clearCollection,
+  getAllCollectionEntries,
+  getCollectionEntryByDigits,
+  getCollectionSnapshot,
+  removeCollectionEntries,
+  removeCollectionEntry,
+  replaceCollectionEntries,
+  saveCollectionEntries,
+  saveCollectionEntry,
+  setCollectionFavorite,
+} from '@/features/collection/database/collection-repository';
 
 /**
- * Selection Basket store
+ * Selection Basket store.
  *
- * Holds the combinations the user collected from Fun Pick results. The
- * basket is deliberately its own domain: generation, search and filter
- * state stay ephemeral inside the Fun Pick card, while these entries live
- * here and persist through AsyncStorage (see `@/services/basket-storage`),
- * so navigating between screens or generating new batches never touches
- * them. An entry is identified by its digits — the same digit sequence is
- * the same pick — so duplicates are refused on add.
+ * SQLite is the persistent source of truth. This store keeps only the active
+ * view: the loaded page, the All/Favorites filter, the search query and
+ * counts. Entries have stable local IDs; digit sequences still define
+ * duplicates. Generation, selection mode and removal dialogs stay ephemeral.
  */
-export const useBasketStore = create((set, get) => ({
-  /** @type {Array<{ digits: string, path: Array<{ row: number, column: number }> }>} */
-  entries: [],
-
-  /** @type {boolean} Whether the basket has been loaded from storage */
-  isLoaded: false,
-
-  /**
-   * Loads the saved basket from storage. Idempotent: the Fun Pick card
-   * calls it on mount, and a second call never clobbers in-memory state.
-   * @returns {Promise<void>}
-   */
-  load: async () => {
-    if (get().isLoaded) return;
+export const useBasketStore = create((set, get) => {
+  async function reload() {
+    const { filter, query } = get();
     try {
-      const entries = await loadBasket();
-      set({ entries, isLoaded: true });
+      const snapshot = await getCollectionSnapshot({ favoritesOnly: filter === 'favorites', query });
+      set({
+        entries: snapshot.entries,
+        totalCount: snapshot.totalCount,
+        favoriteCount: snapshot.favoriteCount,
+        isLoaded: true,
+      });
     } catch (error) {
       console.error('Failed to load selection basket:', error);
       set({ isLoaded: true });
     }
-  },
+  }
 
-  /**
-   * Adds a generated combination to the basket, stamped with the local
-   * time of the press. A digit sequence already in the basket keeps its
-   * original entry untouched — re-adding never refreshes the timestamp.
-   * @param {{ digits: string, path: Array }} combination
-   */
-  add: (combination) => {
-    if (!combination || typeof combination.digits !== 'string') return;
-    const { entries } = get();
-    if (entries.some((entry) => entry.digits === combination.digits)) return;
-    set({
-      entries: [
-        ...entries,
-        { digits: combination.digits, path: combination.path, addedAt: new Date().toISOString() },
-      ],
-    });
-    get()._persist();
-  },
+  return {
+    /** @type {Array<{ id: string, digits: string, path: Array, addedAt?: string, isFavorite: boolean }>} */
+    entries: [],
 
-  /**
-   * Adds every combination of a batch (e.g. the visible Fun Pick results)
-   * in one update: sequences already in the basket — or repeated within
-   * the batch — are skipped, kept entries keep their original timestamps,
-   * and storage is written once instead of once per addition.
-   * @param {Array<{ digits: string, path: Array }>} combinations
-   */
-  addMany: (combinations) => {
-    if (!Array.isArray(combinations) || combinations.length === 0) return;
-    const { entries } = get();
-    const known = new Set(entries.map((entry) => entry.digits));
-    const addedAt = new Date().toISOString();
-    const fresh = [];
-    for (const combination of combinations) {
-      if (!combination || typeof combination.digits !== 'string') continue;
-      if (known.has(combination.digits)) continue;
-      known.add(combination.digits);
-      fresh.push({ digits: combination.digits, path: combination.path, addedAt });
-    }
-    if (fresh.length === 0) return;
-    set({ entries: [...entries, ...fresh] });
-    get()._persist();
-  },
+    /** @type {boolean} Whether the active SQLite view has loaded */
+    isLoaded: false,
 
-  /**
-   * Removes the entry with these digits (digits identify entries).
-   * @param {string} digits
-   */
-  remove: (digits) => {
-    set({ entries: get().entries.filter((entry) => entry.digits !== digits) });
-    get()._persist();
-  },
+    /** @type {'all' | 'favorites'} Temporary Collection filter */
+    filter: 'all',
 
-  /**
-   * Removes several entries, identified by digits, in one update.
-   * A no-op match set never writes storage; kept entries keep their exact
-   * timestamps and coordinates.
-   * @param {Array<string>} digitsList
-   */
-  removeMany: (digitsList) => {
-    if (!Array.isArray(digitsList) || digitsList.length === 0) return;
-    const targets = new Set(digitsList);
-    const { entries } = get();
-    const remaining = entries.filter((entry) => !targets.has(entry.digits));
-    if (remaining.length === entries.length) return;
-    set({ entries: remaining });
-    get()._persist();
-  },
+    /** @type {string} Temporary Collection search query */
+    query: '',
 
-  /** Empties the basket. */
-  clear: () => {
-    set({ entries: [] });
-    get()._persist();
-  },
+    totalCount: 0,
+    favoriteCount: 0,
 
-  /**
-   * Persists the current entries; failures are logged, not surfaced — the
-   * in-memory basket stays usable for the session either way.
-   * @returns {Promise<void>}
-   */
-  _persist: async () => {
-    try {
-      await saveBasket(get().entries);
-    } catch (error) {
-      console.error('Failed to save selection basket:', error);
-    }
-  },
-}));
+    /** Loads the active view once. Fun Pick and Collection both call it. */
+    load: async () => {
+      if (get().isLoaded) return;
+      await reload();
+    },
+
+    /** Force a reload after a backup restore or external SQLite change. */
+    reload,
+
+    /** Read the full saved set for sharing without changing the active view. */
+    getAllEntries: async () => {
+      try {
+        return await getAllCollectionEntries();
+      } catch (error) {
+        console.error('Failed to read selection basket for sharing:', error);
+        return [];
+      }
+    },
+
+    setFilter: async (filter) => {
+      const nextFilter = filter === 'favorites' ? 'favorites' : 'all';
+      if (get().filter === nextFilter) return;
+      set({ filter: nextFilter });
+      await reload();
+    },
+
+    setQuery: async (query) => {
+      const nextQuery = typeof query === 'string' ? query : '';
+      if (get().query === nextQuery) return;
+      set({ query: nextQuery });
+      await reload();
+    },
+
+    /** Add one generated combination. Existing digits keep their original row. */
+    add: async (combination) => {
+      if (!combination || typeof combination.digits !== 'string') return;
+      try {
+        const existing = await getCollectionEntryByDigits(combination.digits);
+        if (existing) return;
+        await saveCollectionEntry({
+          ...combination,
+          addedAt: combination.addedAt ?? new Date().toISOString(),
+        });
+        await reload();
+      } catch (error) {
+        console.error('Failed to add selection basket entry:', error);
+      }
+    },
+
+    /** Add a batch of generated combinations in one SQLite transaction. */
+    addMany: async (combinations) => {
+      if (!Array.isArray(combinations) || combinations.length === 0) return;
+      try {
+        await saveCollectionEntries(combinations);
+        await reload();
+      } catch (error) {
+        console.error('Failed to add selection basket entries:', error);
+      }
+    },
+
+    /** Remove one entry by stable ID. */
+    remove: async (id) => {
+      if (typeof id !== 'string') return;
+      try {
+        await removeCollectionEntry(id);
+        await reload();
+      } catch (error) {
+        console.error('Failed to remove selection basket entry:', error);
+      }
+    },
+
+    /** Remove several entries by stable ID in one SQLite transaction. */
+    removeMany: async (ids) => {
+      if (!Array.isArray(ids) || ids.length === 0) return;
+      try {
+        await removeCollectionEntries(ids);
+        await reload();
+      } catch (error) {
+        console.error('Failed to remove selection basket entries:', error);
+      }
+    },
+
+    /** Toggle one entry's favorite flag without reloading the whole view. */
+    toggleFavorite: async (id, isFavorite) => {
+      const state = get();
+      const current = state.entries.find((entry) => entry.id === id);
+      if (!current || current.isFavorite === isFavorite) return;
+
+      set({
+        entries: state.entries
+          .filter((entry) => !(state.filter === 'favorites' && !isFavorite && entry.id === id))
+          .map((entry) => (entry.id === id ? { ...entry, isFavorite } : entry)),
+      });
+
+      try {
+        const changed = await setCollectionFavorite(id, isFavorite);
+        if (changed > 0) {
+          set({ favoriteCount: Math.max(0, get().favoriteCount + (isFavorite ? 1 : -1)) });
+        } else {
+          await reload();
+        }
+      } catch (error) {
+        console.error('Failed to update favorite status:', error);
+        await reload();
+      }
+    },
+
+    /** Empty Collection. Migration flag stays set so legacy data never returns. */
+    clear: async () => {
+      try {
+        await clearCollection();
+        set({ entries: [], totalCount: 0, favoriteCount: 0, isLoaded: true });
+      } catch (error) {
+        console.error('Failed to clear selection basket:', error);
+      }
+    },
+
+    /** Replace Collection rows after a verified backup restore. */
+    replaceAll: async (entries) => {
+      try {
+        await replaceCollectionEntries(entries);
+        await reload();
+      } catch (error) {
+        console.error('Failed to restore selection basket:', error);
+        throw error;
+      }
+    },
+  };
+});

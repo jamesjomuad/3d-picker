@@ -139,7 +139,7 @@ export default function SettingsScreen() {
         activeBoardId: library.activeBoardId,
         isLoaded: true,
       });
-      useBasketStore.setState({ entries: basket.entries, isLoaded: true });
+      await useBasketStore.getState().reload();
 
       Alert.alert(
         'Backup imported',
@@ -199,7 +199,7 @@ export default function SettingsScreen() {
       await AsyncStorage.clear();
       useLibraryStore.setState({ boards: [], activeBoardId: null, isLoaded: false });
       await useLibraryStore.getState().loadLibrary();
-      useBasketStore.setState({ entries: [], isLoaded: false });
+      await useBasketStore.getState().clear();
       useResultsStore.setState({
         records: [],
         isLoaded: true,

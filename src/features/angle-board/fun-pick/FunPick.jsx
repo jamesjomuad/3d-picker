@@ -95,9 +95,13 @@ export function FunPickScreen() {
     setVisibleCount(RENDER_BATCH);
   }, [combinations, filters, search]);
 
-  const basketDigits = useMemo(
-    () => new Set(entries.map((entry) => entry.digits)),
+  const basketEntriesByDigits = useMemo(
+    () => new Map(entries.map((entry) => [entry.digits, entry])),
     [entries]
+  );
+  const basketDigits = useMemo(
+    () => new Set(basketEntriesByDigits.keys()),
+    [basketEntriesByDigits]
   );
   const searchQuery = useMemo(() => parseSequenceQuery(search), [search]);
   const searchedCombinations = useMemo(
@@ -162,8 +166,9 @@ export function FunPickScreen() {
 
   const handleToggleBasket = useCallback(
     (combination) => {
-      if (basketDigits.has(combination.digits)) {
-        useBasketStore.getState().remove(combination.digits);
+      const existing = basketEntriesByDigits.get(combination.digits);
+      if (existing) {
+        useBasketStore.getState().remove(existing.id ?? existing.digits);
       } else {
         addToBasket({
           digits: combination.digits,
@@ -172,7 +177,7 @@ export function FunPickScreen() {
         });
       }
     },
-    [addToBasket, basketDigits]
+    [addToBasket, basketEntriesByDigits]
   );
 
   const handleAddVisible = useCallback(() => {

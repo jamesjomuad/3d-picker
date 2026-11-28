@@ -17,16 +17,18 @@ import { useTheme } from '@/hooks/use-theme';
  * @param {Object} props
  * @param {{key: string, title: string, count: number, data: Array}} props.section
  * @param {number} [props.width] - centred column width
- * @param {string|null} props.selectedDigits - open detail sheet target
- * @param {(digits: string) => void} props.onSelect
- * @param {(digits: string) => void} [props.onRequestRemove]
+ * @param {string|null} props.selectedId - open detail sheet target
+ * @param {(id: string) => void} props.onSelect
+ * @param {(id: string) => void} [props.onRequestRemove]
+ * @param {(id: string, isFavorite: boolean) => void} [props.onToggleFavorite]
  */
 export const CollectionGroupCard = memo(function CollectionGroupCard({
   section,
   width,
-  selectedDigits,
+  selectedId,
   onSelect,
   onRequestRemove,
+  onToggleFavorite,
 }) {
   const theme = useTheme();
   const rowWidth = width == null ? undefined : Math.max(0, width - Spacing.three * 2);
@@ -42,13 +44,14 @@ export const CollectionGroupCard = memo(function CollectionGroupCard({
       >
         {section.data.map((entry, index) => (
           <CollectionRow
-            key={entry.digits}
+            key={entry.id ?? entry.digits}
             entry={entry}
             width={rowWidth}
-            selected={entry.digits === selectedDigits}
+            selected={entry.id === selectedId}
             showDivider={index > 0}
             onSelect={onSelect}
             onRequestRemove={onRequestRemove}
+            onToggleFavorite={onToggleFavorite}
           />
         ))}
       </View>

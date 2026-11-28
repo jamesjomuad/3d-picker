@@ -1,13 +1,24 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
+  replaceCollectionEntries,
+} from '@/features/collection/database/collection-repository';
+
+import {
   createBackup,
   parseBackup,
   restoreBackup,
   serializeBackup,
 } from '../backup';
-import { saveBasket } from '../basket-storage';
 import { saveLibrary } from '../board-storage';
+
+jest.mock('@/features/collection/database/collection-repository', () => ({
+  getAllCollectionEntries: jest.fn(async () => mockCollectionEntries),
+  replaceCollectionEntries: jest.fn(async (entries) => {
+    mockCollectionEntries = entries;
+    return entries;
+  }),
+}));
 
 jest.mock('@react-native-async-storage/async-storage', () => {
   const store = new Map();
@@ -28,6 +39,8 @@ jest.mock('@react-native-async-storage/async-storage', () => {
   };
 });
 
+let mockCollectionEntries = [];
+
 const BOARD = {
   id: 'board-1',
   name: 'Test Board',
@@ -45,21 +58,24 @@ const LIBRARY = {
 
 const ENTRIES = [
   {
+    id: 'entry-037',
     digits: '037',
     path: [{ row: 0, column: 0 }],
     addedAt: '2026-01-03T00:00:00.000Z',
+    isFavorite: true,
   },
 ];
 
 describe('backup service', () => {
   beforeEach(async () => {
     await AsyncStorage.clear();
+    mockCollectionEntries = [];
     jest.clearAllMocks();
   });
 
   it('creates a versioned backup from local library and basket data', async () => {
     await saveLibrary(LIBRARY);
-    await saveBasket(ENTRIES);
+    mockCollectionEntries = ENTRIES;
 
     const backup = await createBackup();
 
@@ -71,7 +87,7 @@ describe('backup service', () => {
 
   it('parses a backup it created', async () => {
     await saveLibrary(LIBRARY);
-    await saveBasket(ENTRIES);
+    mockCollectionEntries = ENTRIES;
     const backup = await createBackup();
 
     const result = parseBackup(serializeBackup(backup));
@@ -146,6 +162,7 @@ describe('backup service', () => {
     expect(parsed.valid).toBe(true);
     await restoreBackup(parsed.backup);
 
+    expect(replaceCollectionEntries).toHaveBeenCalledWith(ENTRIES);
     const backup = await createBackup();
     expect(backup.data.library).toEqual(LIBRARY);
     expect(backup.data.basket).toEqual({ version: 1, entries: ENTRIES });

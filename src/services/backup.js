@@ -11,7 +11,10 @@
  * is already on the device.
  */
 
-import { loadBasket, saveBasket } from '@/services/basket-storage';
+import {
+  getAllCollectionEntries,
+  replaceCollectionEntries,
+} from '@/features/collection/database/collection-repository';
 import { loadLibrary, saveLibrary } from '@/services/board-storage';
 import { validateBoard } from '@/utils/board-validation';
 
@@ -23,7 +26,7 @@ export const BACKUP_VERSION = 1;
  * @returns {Promise<Object>} Backup document
  */
 export async function createBackup() {
-  const [library, basket] = await Promise.all([loadLibrary(), loadBasket()]);
+  const [library, basket] = await Promise.all([loadLibrary(), getAllCollectionEntries()]);
 
   return {
     format: BACKUP_FORMAT,
@@ -62,9 +65,13 @@ function isValidEntry(entry) {
     return false;
   }
 
-  if (entry.addedAt === undefined) return true;
-  if (typeof entry.addedAt !== 'string' && typeof entry.addedAt !== 'number') return false;
-  return !Number.isNaN(new Date(entry.addedAt).getTime());
+  if (entry.addedAt !== undefined) {
+    if (typeof entry.addedAt !== 'string' && typeof entry.addedAt !== 'number') return false;
+    if (Number.isNaN(new Date(entry.addedAt).getTime())) return false;
+  }
+  if (entry.id !== undefined && (typeof entry.id !== 'string' || entry.id.length === 0)) return false;
+  if (entry.isFavorite !== undefined && typeof entry.isFavorite !== 'boolean') return false;
+  return true;
 }
 
 /**
@@ -94,8 +101,10 @@ function normalizeEntry(entry) {
     digits: entry.digits,
     path: entry.path.map((cell) => ({ row: cell.row, column: cell.column })),
   };
-
-  return entry.addedAt === undefined ? normalized : { ...normalized, addedAt: entry.addedAt };
+  if (entry.id !== undefined) normalized.id = entry.id;
+  if (entry.isFavorite !== undefined) normalized.isFavorite = entry.isFavorite;
+  if (entry.addedAt !== undefined) normalized.addedAt = entry.addedAt;
+  return normalized;
 }
 
 /**
@@ -210,15 +219,15 @@ export function parseBackup(text) {
  */
 export async function restoreBackup(backup) {
   const previousLibrary = await loadLibrary();
-  const previousBasket = await loadBasket();
+  const previousCollection = await getAllCollectionEntries();
 
   try {
     await saveLibrary(backup.data.library);
-    await saveBasket(backup.data.basket.entries);
+    await replaceCollectionEntries(backup.data.basket.entries);
   } catch (error) {
     try {
       await saveLibrary(previousLibrary);
-      await saveBasket(previousBasket);
+      await replaceCollectionEntries(previousCollection);
     } catch (rollbackError) {
       console.error('Failed to roll back backup import:', rollbackError);
     }

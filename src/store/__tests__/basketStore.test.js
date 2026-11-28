@@ -1,16 +1,43 @@
 /**
  * Tests for the Selection Basket store
+ *
+ * SQLite is the source of truth; the store keeps the active filtered view and
+ * temporary UI state. Repository functions are mocked here so tests cover
+ * store behavior without native SQLite.
  */
 
-import { loadBasket, saveBasket } from '@/services/basket-storage';
+import {
+  clearCollection,
+  getAllCollectionEntries,
+  getCollectionSnapshot,
+  removeCollectionEntries,
+  removeCollectionEntry,
+  replaceCollectionEntries,
+  saveCollectionEntries,
+  saveCollectionEntry,
+  setCollectionFavorite,
+} from '@/features/collection/database/collection-repository';
 import { useBasketStore } from '@/store/basketStore';
 
-// Mock the persistence service: the store logic under test is the
-// timestamping and the duplicate rule, not AsyncStorage.
 let mockStored = [];
-jest.mock('@/services/basket-storage', () => ({
-  loadBasket: jest.fn(async () => mockStored),
-  saveBasket: jest.fn(async () => {}),
+
+jest.mock('@/features/collection/database/collection-repository', () => ({
+  clearCollection: jest.fn(async () => {}),
+  getAllCollectionEntries: jest.fn(async () => mockStored),
+  getCollectionEntryByDigits: jest.fn(async (digits) =>
+    mockStored.find((entry) => entry.digits === digits) ?? null
+  ),
+  getCollectionSnapshot: jest.fn(async () => ({
+    entries: mockStored.map((entry) => ({ ...entry })),
+    totalCount: mockStored.length,
+    favoriteCount: mockStored.filter((entry) => entry.isFavorite).length,
+  })),
+  removeCollectionEntries: jest.fn(async () => 0),
+  removeCollectionEntry: jest.fn(async () => 0),
+  replaceCollectionEntries: jest.fn(async (entries) => entries),
+  saveCollectionEntries: jest.fn(async () => mockStored),
+  saveCollectionEntry: jest.fn(async () => mockStored[0]),
+  setCollectionFavorite: jest.fn(async () => 1),
 }));
 
 const combination = (digits) => ({
@@ -21,15 +48,15 @@ const combination = (digits) => ({
   ],
 });
 
-/** Helper to reset the store to initial state */
 function resetStore() {
-  useBasketStore.setState({ entries: [], isLoaded: false });
-}
-
-/** Let the fire-and-forget persist promise settle. */
-async function flush() {
-  await Promise.resolve();
-  await Promise.resolve();
+  useBasketStore.setState({
+    entries: [],
+    isLoaded: false,
+    filter: 'all',
+    query: '',
+    totalCount: 0,
+    favoriteCount: 0,
+  });
 }
 
 describe('basketStore', () => {
@@ -43,132 +70,128 @@ describe('basketStore', () => {
     jest.useRealTimers();
   });
 
-  it('stamps addedAt with the current time when a combination is added', () => {
-    jest.useFakeTimers().setSystemTime(new Date(2026, 10, 23, 20, 35));
-
-    useBasketStore.getState().add(combination('074'));
-
-    const { entries } = useBasketStore.getState();
-    expect(entries).toHaveLength(1);
-    expect(entries[0].digits).toBe('074');
-    expect(entries[0].addedAt).toBe(new Date(2026, 10, 23, 20, 35).toISOString());
-  });
-
-  it('refuses a duplicate digits entry and keeps the original timestamp', () => {
-    jest.useFakeTimers().setSystemTime(new Date(2026, 10, 23, 20, 35));
-    useBasketStore.getState().add(combination('074'));
-
-    // Re-adding the same digits later must not touch the stored entry.
-    jest.setSystemTime(new Date(2026, 11, 1, 8, 0));
-    useBasketStore.getState().add({ digits: '074', path: [{ row: 9, column: 9 }] });
-
-    const { entries } = useBasketStore.getState();
-    expect(entries).toHaveLength(1);
-    expect(entries[0].addedAt).toBe(new Date(2026, 10, 23, 20, 35).toISOString());
-    expect(entries[0].path).toHaveLength(2);
-  });
-
-  it('persists entries including addedAt on add, remove and clear', async () => {
-    jest.useFakeTimers().setSystemTime(new Date(2026, 10, 23, 20, 35));
-    const stamp = new Date(2026, 10, 23, 20, 35).toISOString();
-
-    useBasketStore.getState().add(combination('074'));
-    await flush();
-    expect(saveBasket).toHaveBeenCalledWith([{ digits: '074', path: expect.any(Array), addedAt: stamp }]);
-
-    useBasketStore.getState().add(combination('638'));
-    useBasketStore.getState().remove('074');
-    await flush();
-    expect(useBasketStore.getState().entries.map((e) => e.digits)).toEqual(['638']);
-
-    useBasketStore.getState().clear();
-    await flush();
-    expect(useBasketStore.getState().entries).toEqual([]);
-    expect(saveBasket).toHaveBeenLastCalledWith([]);
-  });
-
-  it('loads saved entries once and tolerates legacy entries without addedAt', async () => {
+  it('loads the SQLite snapshot once and keeps counts', async () => {
     mockStored = [
-      { digits: '952', path: [{ row: 0, column: 0 }], addedAt: '2026-11-23T12:00:00.000Z' },
-      { digits: '111', path: [{ row: 3, column: 3 }] },
+      {
+        id: 'entry-1',
+        digits: '952',
+        path: [{ row: 0, column: 0 }],
+        addedAt: '2026-11-23T12:00:00.000Z',
+        isFavorite: true,
+      },
+      { id: 'entry-2', digits: '111', path: [{ row: 3, column: 3 }], isFavorite: false },
     ];
 
     await useBasketStore.getState().load();
     expect(useBasketStore.getState().entries).toHaveLength(2);
-    expect(useBasketStore.getState().isLoaded).toBe(true);
+    expect(useBasketStore.getState().favoriteCount).toBe(1);
 
-    // A second mount must not clobber in-memory state with a re-read.
-    mockStored = [];
     await useBasketStore.getState().load();
-    expect(loadBasket).toHaveBeenCalledTimes(1);
-    expect(useBasketStore.getState().entries).toHaveLength(2);
+    expect(getCollectionSnapshot).toHaveBeenCalledTimes(1);
   });
 
-  it('ignores malformed add input', () => {
-    useBasketStore.getState().add(null);
-    useBasketStore.getState().add({ path: [] });
-    expect(useBasketStore.getState().entries).toHaveLength(0);
-  });
-
-  it('addMany appends a batch once, deduping against the basket and itself', async () => {
+  it('stamps addedAt and defaults favorites when adding', async () => {
     jest.useFakeTimers().setSystemTime(new Date(2026, 10, 23, 20, 35));
-    useBasketStore.getState().add(combination('074'));
 
-    useBasketStore.getState().addMany([
-      combination('074'), // already collected — must be skipped
+    await useBasketStore.getState().add(combination('074'));
+
+    expect(saveCollectionEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ digits: '074', addedAt: new Date(2026, 10, 23, 20, 35).toISOString() })
+    );
+  });
+
+  it('refuses a duplicate without refreshing its timestamp', async () => {
+    const existing = {
+      id: 'entry-1',
+      ...combination('074'),
+      addedAt: '2026-01-01T00:00:00.000Z',
+      isFavorite: false,
+    };
+    mockStored = [existing];
+
+    await useBasketStore.getState().add({ digits: '074', path: [{ row: 9, column: 9 }] });
+
+    expect(saveCollectionEntry).not.toHaveBeenCalled();
+  });
+
+  it('ignores malformed add input', async () => {
+    await useBasketStore.getState().add(null);
+    await useBasketStore.getState().add({ path: [] });
+    expect(saveCollectionEntry).not.toHaveBeenCalled();
+  });
+
+  it('saves a batch in one repository call', async () => {
+    await useBasketStore.getState().addMany([
+      combination('074'),
       combination('638'),
-      combination('638'), // duplicate inside the batch — must be skipped
-      combination('952'),
-      null, // malformed — ignored
+      combination('638'),
+      null,
     ]);
-    await flush();
-
-    const { entries } = useBasketStore.getState();
-    expect(entries.map((entry) => entry.digits)).toEqual(['074', '638', '952']);
-    // The kept entry holds its original timestamp; nothing is stamped later.
-    expect(entries[0].addedAt).toBe(new Date(2026, 10, 23, 20, 35).toISOString());
-    // One persist for the whole batch (the earlier add() wrote once too).
-    expect(saveBasket).toHaveBeenCalledTimes(2);
-    expect(saveBasket).toHaveBeenLastCalledWith(expect.arrayContaining([expect.objectContaining({ digits: '952' })]));
+    expect(saveCollectionEntries).toHaveBeenCalledTimes(1);
   });
 
-  it('addMany with nothing new does not write storage', async () => {
-    useBasketStore.getState().addMany([combination('074')]);
-    await flush();
-    const writesBefore = saveBasket.mock.calls.length;
+  it('removes entries by stable ID', async () => {
+    await useBasketStore.getState().remove('entry-1');
+    expect(removeCollectionEntry).toHaveBeenCalledWith('entry-1');
 
-    useBasketStore.getState().addMany([combination('074')]);
-    await flush();
-    expect(saveBasket).toHaveBeenCalledTimes(writesBefore);
-    expect(useBasketStore.getState().entries).toHaveLength(1);
+    await useBasketStore.getState().removeMany(['entry-1', 'entry-2']);
+    expect(removeCollectionEntries).toHaveBeenCalledWith(['entry-1', 'entry-2']);
   });
 
-  it('removeMany removes only listed digits and persists once', async () => {
-    jest.useFakeTimers().setSystemTime(new Date(2026, 10, 23, 20, 35));
-    useBasketStore.getState().add(combination('074'));
-    useBasketStore.getState().add(combination('638'));
-    useBasketStore.getState().add(combination('129'));
-    await flush();
-    const firstKept = useBasketStore.getState().entries[1];
-    const writesBefore = saveBasket.mock.calls.length;
-
-    useBasketStore.getState().removeMany(['074', '129', 'missing']);
-    await flush();
-
-    expect(useBasketStore.getState().entries).toEqual([firstKept]);
-    expect(useBasketStore.getState().entries[0]).toBe(firstKept);
-    expect(saveBasket).toHaveBeenCalledTimes(writesBefore + 1);
+  it('clears SQLite collection rows', async () => {
+    await useBasketStore.getState().clear();
+    expect(clearCollection).toHaveBeenCalledTimes(1);
+    expect(useBasketStore.getState().entries).toEqual([]);
   });
 
-  it('removeMany with nothing to remove does not write storage', async () => {
-    useBasketStore.getState().add(combination('074'));
-    await flush();
-    const writesBefore = saveBasket.mock.calls.length;
+  it('toggles one favorite without reloading the view', async () => {
+    mockStored = [
+      { id: 'entry-1', ...combination('074'), isFavorite: false },
+      { id: 'entry-2', ...combination('638'), isFavorite: false },
+    ];
+    await useBasketStore.getState().load();
+    jest.clearAllMocks();
 
-    useBasketStore.getState().removeMany(['missing']);
-    await flush();
+    await useBasketStore.getState().toggleFavorite('entry-1', true);
 
-    expect(saveBasket).toHaveBeenCalledTimes(writesBefore);
-    expect(useBasketStore.getState().entries).toHaveLength(1);
+    expect(setCollectionFavorite).toHaveBeenCalledWith('entry-1', true);
+    expect(getCollectionSnapshot).not.toHaveBeenCalled();
+    expect(useBasketStore.getState().entries[0].isFavorite).toBe(true);
+    expect(useBasketStore.getState().favoriteCount).toBe(1);
+  });
+
+  it('reverts a favorite toggle when the row no longer exists', async () => {
+    mockStored = [{ id: 'entry-1', ...combination('074'), isFavorite: false }];
+    await useBasketStore.getState().load();
+    setCollectionFavorite.mockResolvedValueOnce(0);
+
+    await useBasketStore.getState().toggleFavorite('entry-1', true);
+
+    expect(getCollectionSnapshot).toHaveBeenCalledTimes(2);
+    expect(useBasketStore.getState().entries[0].isFavorite).toBe(false);
+  });
+
+  it('passes filter and query into targeted SQLite reads', async () => {
+    await useBasketStore.getState().setFilter('favorites');
+    await useBasketStore.getState().setQuery('a1');
+
+    expect(getCollectionSnapshot).toHaveBeenLastCalledWith({
+      favoritesOnly: true,
+      query: 'a1',
+    });
+    expect(useBasketStore.getState().filter).toBe('favorites');
+    expect(useBasketStore.getState().query).toBe('a1');
+  });
+
+  it('reads the full collection for sharing', async () => {
+    mockStored = [{ id: 'entry-1', ...combination('074'), isFavorite: false }];
+    const entries = await useBasketStore.getState().getAllEntries();
+    expect(getAllCollectionEntries).toHaveBeenCalledTimes(1);
+    expect(entries).toEqual(mockStored);
+  });
+
+  it('replaces collection rows on backup restore', async () => {
+    await useBasketStore.getState().replaceAll(mockStored);
+    expect(replaceCollectionEntries).toHaveBeenCalledWith(mockStored);
   });
 });

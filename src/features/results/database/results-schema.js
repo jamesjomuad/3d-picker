@@ -5,8 +5,10 @@
  * driven by `PRAGMA user_version`; no old table is dropped during init.
  */
 
+import { COLLECTION_MIGRATION_STATEMENTS } from '../../collection/database/collection-schema';
+
 export const RESULTS_DATABASE_NAME = 'results.db';
-export const RESULTS_SCHEMA_VERSION = 1;
+export const RESULTS_SCHEMA_VERSION = 2;
 export const RESULTS_PAGE_SIZE = 200;
 
 export const RESULTS_METADATA_KEYS = Object.freeze({
@@ -62,6 +64,7 @@ const MIGRATIONS = Object.freeze({
     CREATE_METADATA_TABLE_SQL,
     ...CREATE_RESULTS_INDEXES_SQL,
   ],
+  2: COLLECTION_MIGRATION_STATEMENTS,
 });
 
 /** Every migration for one schema version. Unknown versions are no-ops. */

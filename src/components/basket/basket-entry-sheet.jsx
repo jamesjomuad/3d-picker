@@ -14,8 +14,9 @@ import { AppIcon } from '@/components/ui/app-icon';
  * Detail sheet for one saved basket pick.
  *
  * Opens when a Collection row is tapped and carries the exact entry chosen by
- * the caller — digits are the basket's stable identity, so several rows can
- * never be confused. The active board is embedded as a read-only preview with
+ * the caller — the entry's stable ID keeps details and removal tied to the
+ * chosen row even when the active filter changes. The active board is embedded
+ * as a read-only preview with
  * the saved cells marked. Tapping that embedded board plots the pick, and the
  * explicit Plot action does the same. Remove is delegated upward so the
  * Collection screen owns its confirmation dialog. It follows
@@ -24,7 +25,7 @@ import { AppIcon } from '@/components/ui/app-icon';
  *
  * @param {Object} props
  * @param {boolean} props.visible
- * @param {{ digits: string, path: Array, addedAt?: string }|null} props.entry
+ * @param {{ id?: string, digits: string, path: Array, addedAt?: string }|null} props.entry
  * @param {string|null} [props.activeBoardName] - board the pick will be plotted on
  * @param {{ grid: number[][], cells: Set<string>, highlights?: Object|null, matchCount?: number }|null} [props.preview] -
  *   active board grid, validated saved cells, and the search-style colour
@@ -32,7 +33,7 @@ import { AppIcon } from '@/components/ui/app-icon';
  * @param {string|null} [props.plotError] - why this pick cannot be plotted
  * @param {() => void} props.onClose
  * @param {() => void} props.onPlot - called by the embedded board and Plot action
- * @param {() => void} props.onRemove - asks the screen to confirm removal
+ * @param {(id: string) => void} props.onRemove - asks the screen to confirm removal
  */
 export function BasketEntrySheet({
   visible,
@@ -132,7 +133,7 @@ export function BasketEntrySheet({
               label="Remove from Basket"
               icon="trash"
               destructive
-              onPress={() => onRemove(entry.digits)}
+              onPress={() => onRemove(entry.id ?? entry.digits)}
               theme={theme}
             />
             <SheetAction label="Close" icon="xmark" onPress={onClose} theme={theme} />

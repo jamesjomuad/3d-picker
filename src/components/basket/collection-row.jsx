@@ -40,12 +40,13 @@ import { getPathReference } from '@/utils/cell-reference';
  * every row. The row stays mounted throughout.
  *
  * @param {Object} props
- * @param {{digits: string, path: Array, addedAt?: string|number}} props.entry
+ * @param {{id?: string, digits: string, path: Array, addedAt?: string|number, isFavorite?: boolean}} props.entry
  * @param {boolean} [props.selected=false] - detail sheet target
  * @param {boolean} [props.showDivider=false]
  * @param {number} [props.width]
- * @param {(digits: string) => void} [props.onSelect]
- * @param {(digits: string) => void} [props.onRequestRemove]
+ * @param {(id: string) => void} [props.onSelect]
+ * @param {(id: string) => void} [props.onRequestRemove]
+ * @param {(id: string, isFavorite: boolean) => void} [props.onToggleFavorite]
  */
 export const CollectionRow = memo(function CollectionRow({
   entry,
@@ -54,11 +55,14 @@ export const CollectionRow = memo(function CollectionRow({
   width,
   onSelect,
   onRequestRemove,
+  onToggleFavorite,
 }) {
   const theme = useTheme();
   const { digits } = entry;
+  const entryId = entry.id ?? digits;
+  const isFavorite = entry.isFavorite === true;
   const rowRef = useRef(null);
-  const checked = useCollectionSelectionStore((state) => state.selectedIds.has(digits));
+  const checked = useCollectionSelectionStore((state) => state.selectedIds.has(entryId));
   const time = useMemo(() => formatAddedTime(entry.addedAt), [entry.addedAt]);
   const coordinates = useMemo(
     () => getPathReference(entry.path).split(' → ').join(' · '),
@@ -71,11 +75,19 @@ export const CollectionRow = memo(function CollectionRow({
 
   const handleRowPress = useCallback(() => {
     if (useCollectionSelectionStore.getState().selectionMode) {
-      useCollectionSelectionStore.getState().toggleSelected(digits);
+      useCollectionSelectionStore.getState().toggleSelected(entryId);
       return;
     }
-    onSelect?.(digits);
-  }, [digits, onSelect]);
+    onSelect?.(entryId);
+  }, [entryId, onSelect]);
+
+  const handleFavoritePress = useCallback(
+    (event) => {
+      event?.stopPropagation?.();
+      onToggleFavorite?.(entryId, !isFavorite);
+    },
+    [entryId, isFavorite, onToggleFavorite]
+  );
 
   const removeActions = useMemo(
     () => [
@@ -85,10 +97,10 @@ export const CollectionRow = memo(function CollectionRow({
         icon: 'trash',
         tone: 'destructive',
         accessibilityLabel: `Remove ${digits} from the basket`,
-        onPress: () => onRequestRemove?.(digits),
+        onPress: () => onRequestRemove?.(entryId),
       },
     ],
-    [digits, onRequestRemove]
+    [digits, entryId, onRequestRemove]
   );
 
   const highlighted = selected || checked;
@@ -185,11 +197,31 @@ export const CollectionRow = memo(function CollectionRow({
           <AppIcon name="chevron.right" size="small" tone="textSecondary" />
         </Animated.View>
       </View>
+      <Pressable
+        onPress={handleFavoritePress}
+        onPressIn={(event) => event?.stopPropagation?.()}
+        accessibilityRole="button"
+        accessibilityLabel={
+          isFavorite
+            ? `Remove ${digits} from favorites`
+            : `Add ${digits} to favorites`
+        }
+        accessibilityState={{ selected: isFavorite }}
+        style={({ pressed }) => [
+          styles.favoriteButton,
+          pressed && styles.favoritePressed,
+        ]}>
+        <AppIcon
+          name={isFavorite ? 'star' : 'star.slash'}
+          size="small"
+          tone={isFavorite ? 'lotteryBall' : 'textSecondary'}
+        />
+      </Pressable>
     </Pressable>
   );
 
   return (
-    <SwipeActionRow rowId={digits} actions={removeActions} contentStyle={surfaceStyle}>
+    <SwipeActionRow rowId={entryId} actions={removeActions} contentStyle={surfaceStyle}>
       {content}
     </SwipeActionRow>
   );
@@ -260,5 +292,16 @@ const styles = StyleSheet.create({
     fontSize: Typography.size.caption,
     lineHeight: Typography.lineHeight.caption,
     fontVariant: ['tabular-nums'],
+  },
+  favoriteButton: {
+    width: TouchTarget,
+    minHeight: TouchTarget,
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: -Spacing.two,
+  },
+  favoritePressed: {
+    opacity: Interaction.pressedOpacity,
   },
 });

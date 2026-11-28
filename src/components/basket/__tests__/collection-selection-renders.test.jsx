@@ -41,6 +41,7 @@ jest.mock('@/hooks/use-theme', () => ({
 global.IS_REACT_ACT_ENVIRONMENT = true;
 
 const first = {
+  id: 'item-first',
   digits: '074',
   path: [
     { row: 1, column: 1 },
@@ -51,6 +52,7 @@ const first = {
 };
 
 const second = {
+  id: 'item-second',
   digits: '638',
   path: [
     { row: 4, column: 2 },
@@ -130,11 +132,38 @@ describe('Collection selection render isolation', () => {
     expect(renders).toEqual({ first: 1, second: 1 });
 
     act(() => {
-      useCollectionSelectionStore.getState().toggleSelected('074');
+      useCollectionSelectionStore.getState().toggleSelected('item-first');
     });
 
     expect(renders.first).toBe(2);
     expect(renders.second).toBe(1);
+
+    act(() => tree.unmount());
+  });
+
+  it('toggles favorite by stable ID without selecting the row', () => {
+    const onSelect = jest.fn();
+    const onToggleFavorite = jest.fn();
+    let tree;
+
+    act(() => {
+      tree = TestRenderer.create(
+        <CollectionRow
+          entry={first}
+          width={320}
+          onSelect={onSelect}
+          onToggleFavorite={onToggleFavorite}
+        />
+      );
+    });
+
+    const star = tree.root.findByProps({ accessibilityLabel: 'Add 074 to favorites' });
+    act(() => {
+      star.props.onPress({ stopPropagation: jest.fn() });
+    });
+
+    expect(onToggleFavorite).toHaveBeenCalledWith('item-first', true);
+    expect(onSelect).not.toHaveBeenCalled();
 
     act(() => tree.unmount());
   });

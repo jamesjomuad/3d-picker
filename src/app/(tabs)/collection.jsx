@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, Share, StyleSheet, View } from 'react-native';
+import { Alert, FlatList, Pressable, Share, StyleSheet, View } from 'react-native';
 
 import { BasketEntrySheet } from '@/components/basket/basket-entry-sheet';
 import { CollectionGroupCard } from '@/components/basket/collection-group-card';
@@ -9,7 +9,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { closeAllSwipeActions } from '@/components/ui/swipe-action-row';
-import { Spacing, Typography } from '@/constants/theme';
+import { BorderRadius, Spacing, Typography } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useScreenInsets } from '@/hooks/use-screen-insets';
 import { useTheme } from '@/hooks/use-theme';
@@ -19,7 +19,6 @@ import { useLibraryStore } from '@/store/libraryStore';
 import { buildBasketShareText } from '@/utils/basket-format';
 import { groupBasketEntries } from '@/utils/basket-grouping';
 import { areAllVisibleSelected } from '@/utils/basket-selection';
-import { filterBasketEntries } from '@/utils/basket-search';
 import { buildPlotHighlights } from '@/utils/plot-highlights';
 import {
   PLOT_PARAM,
@@ -32,9 +31,9 @@ import {
  *
  * The dedicated collection view for the picks saved from Fun Pick. Picks sit
  * in permanently expanded groups by the local date they were added, newest
- * date first and newest pick first inside a day. A fixed search field filters
- * the visible list in memory by digits or cell coordinates; it never edits
- * the persisted basket or the store.
+ * date first and newest pick first inside a day. A fixed search field and the
+ * All/Favorites filter query SQLite by digits or cell coordinates; they never
+ * edit the persisted basket.
  *
  * It reads and writes only the basket store, so nothing here — sharing,
  * searching, clearing, switching tabs — touches Fun Pick's generation, search
@@ -56,8 +55,8 @@ import {
  *
  * Browse mode also offers a deliberate left swipe on a row to reveal Remove.
  * Select mode replaces that gesture with a checkbox and keeps its temporary
- * digit IDs outside the persisted basket. Select All limits itself to the
- * currently displayed search results; hidden picks are never bulk removed.
+ * entry IDs outside the persisted basket. Select All limits itself to the
+ * currently displayed results; hidden picks are never bulk removed.
  */
 export default function CollectionScreen() {
   const theme = useTheme();
@@ -66,9 +65,17 @@ export default function CollectionScreen() {
 
   const entries = useBasketStore((state) => state.entries);
   const isLoaded = useBasketStore((state) => state.isLoaded);
+  const filter = useBasketStore((state) => state.filter);
+  const query = useBasketStore((state) => state.query);
+  const totalCount = useBasketStore((state) => state.totalCount);
+  const favoriteCount = useBasketStore((state) => state.favoriteCount);
   const load = useBasketStore((state) => state.load);
+  const getAllEntries = useBasketStore((state) => state.getAllEntries);
+  const setFilter = useBasketStore((state) => state.setFilter);
+  const setQuery = useBasketStore((state) => state.setQuery);
   const remove = useBasketStore((state) => state.remove);
   const removeMany = useBasketStore((state) => state.removeMany);
+  const toggleFavorite = useBasketStore((state) => state.toggleFavorite);
   const clear = useBasketStore((state) => state.clear);
 
   const boards = useLibraryStore((state) => state.boards);
@@ -77,23 +84,15 @@ export default function CollectionScreen() {
   const activeBoard =
     boards.find((board) => board.id === activeBoardId) || boards[0] || null;
 
-  const [query, setQuery] = useState('');
   const [showClearDialog, setShowClearDialog] = useState(false);
-  const [pendingRemoveDigits, setPendingRemoveDigits] = useState(null);
-  // Digits are the basket's stable identity, so the sheet always resolves the
-  // current entry from the store even if the list changes while it is open.
-  const [selectedDigits, setSelectedDigits] = useState(null);
+  const [pendingRemoveId, setPendingRemoveId] = useState(null);
+  // Stable entry IDs keep the sheet attached to its row even when the active
+  // filter or search changes while the sheet is open.
+  const [selectedId, setSelectedId] = useState(null);
   const [showBulkRemoveDialog, setShowBulkRemoveDialog] = useState(false);
 
-  const filteredEntries = useMemo(
-    () => filterBasketEntries(entries, query),
-    [entries, query]
-  );
-  const sections = useMemo(() => groupBasketEntries(filteredEntries), [filteredEntries]);
-  const visibleIds = useMemo(
-    () => filteredEntries.map((entry) => entry.digits),
-    [filteredEntries]
-  );
+  const sections = useMemo(() => groupBasketEntries(entries), [entries]);
+  const visibleIds = useMemo(() => entries.map((entry) => entry.id), [entries]);
   // Subscribe to primitives only. A checkbox toggle changes row subscriptions,
   // not the grouped list data or every row's props.
   const selectionMode = useCollectionSelectionStore((state) => state.selectionMode);
@@ -102,9 +101,9 @@ export default function CollectionScreen() {
     areAllVisibleSelected(state.selectedIds, visibleIds)
   );
 
-  const selectedEntry = entries.find((entry) => entry.digits === selectedDigits) ?? null;
+  const selectedEntry = entries.find((entry) => entry.id === selectedId) ?? null;
   const pendingRemoveEntry =
-    entries.find((entry) => entry.digits === pendingRemoveDigits) ?? null;
+    entries.find((entry) => entry.id === pendingRemoveId) ?? null;
   const plotPreview = selectedEntry
     ? validatePlotRequest(selectedEntry, activeBoard?.grid)
     : null;
@@ -127,18 +126,19 @@ export default function CollectionScreen() {
   useEffect(() => {
     useCollectionSelectionStore
       .getState()
-      .pruneAvailable(entries.map((entry) => entry.digits));
+      .pruneAvailable(entries.map((entry) => entry.id));
   }, [entries]);
 
   const closeOpenSwipes = useCallback(() => closeAllSwipeActions(), []);
 
   const handleShare = async () => {
-    if (entries.length === 0) return;
+    if (totalCount === 0) return;
     closeOpenSwipes();
     try {
+      const allEntries = await getAllEntries();
       await Share.share({
         title: '3D Picker – Selection Basket',
-        message: buildBasketShareText(entries),
+        message: buildBasketShareText(allEntries),
       });
     } catch (error) {
       // The Android sheet can reject when dismissed; the collection is
@@ -150,11 +150,26 @@ export default function CollectionScreen() {
   // Zustand actions are stable, so these handlers stay referentially stable
   // and memoised rows only re-render when their own entry changes.
   const handleSelect = useCallback(
-    (digits) => {
+    (id) => {
       closeOpenSwipes();
-      setSelectedDigits(digits);
+      setSelectedId(id);
     },
     [closeOpenSwipes]
+  );
+
+  const handleToggleFavorite = useCallback(
+    (id, isFavorite) => {
+      toggleFavorite(id, isFavorite);
+    },
+    [toggleFavorite]
+  );
+
+  const handleFilterChange = useCallback(
+    (nextFilter) => {
+      closeOpenSwipes();
+      setFilter(nextFilter);
+    },
+    [closeOpenSwipes, setFilter]
   );
 
   const handleQueryChange = useCallback(
@@ -162,33 +177,33 @@ export default function CollectionScreen() {
       closeOpenSwipes();
       setQuery(nextQuery);
     },
-    [closeOpenSwipes]
+    [closeOpenSwipes, setQuery]
   );
 
   const handleClearQuery = useCallback(() => {
     closeOpenSwipes();
     setQuery('');
-  }, [closeOpenSwipes]);
+  }, [closeOpenSwipes, setQuery]);
 
   const handleRequestRemove = useCallback(
-    (digits) => {
+    (id) => {
       closeOpenSwipes();
-      setPendingRemoveDigits(digits);
+      setPendingRemoveId(id);
     },
     [closeOpenSwipes]
   );
-  const handleCancelRemove = useCallback(() => setPendingRemoveDigits(null), []);
+  const handleCancelRemove = useCallback(() => setPendingRemoveId(null), []);
   const handleConfirmRemove = useCallback(() => {
-    if (pendingRemoveDigits === null) return;
-    remove(pendingRemoveDigits);
-    useCollectionSelectionStore.getState().removeSelected([pendingRemoveDigits]);
-    setSelectedDigits(null);
-    setPendingRemoveDigits(null);
-  }, [pendingRemoveDigits, remove]);
+    if (pendingRemoveId === null) return;
+    remove(pendingRemoveId);
+    useCollectionSelectionStore.getState().removeSelected([pendingRemoveId]);
+    setSelectedId(null);
+    setPendingRemoveId(null);
+  }, [pendingRemoveId, remove]);
 
   const handleStartSelection = useCallback(() => {
     closeOpenSwipes();
-    setSelectedDigits(null);
+    setSelectedId(null);
     useCollectionSelectionStore.getState().startSelection();
   }, [closeOpenSwipes]);
 
@@ -222,7 +237,7 @@ export default function CollectionScreen() {
   const handleConfirmClear = useCallback(() => {
     closeOpenSwipes();
     clear();
-    setSelectedDigits(null);
+    setSelectedId(null);
     useCollectionSelectionStore.getState().cancelSelection();
     setShowClearDialog(false);
   }, [clear, closeOpenSwipes]);
@@ -239,7 +254,7 @@ export default function CollectionScreen() {
       return;
     }
 
-    setSelectedDigits(null);
+    setSelectedId(null);
     router.navigate({
       pathname: '/',
       params: { [PLOT_PARAM]: serializePlotRequest(selectedEntry) },
@@ -251,12 +266,13 @@ export default function CollectionScreen() {
       <CollectionGroupCard
         section={item}
         width={contentWidth}
-        selectedDigits={selectedDigits}
+        selectedId={selectedId}
         onSelect={handleSelect}
         onRequestRemove={handleRequestRemove}
+        onToggleFavorite={handleToggleFavorite}
       />
     ),
-    [contentWidth, selectedDigits, handleSelect, handleRequestRemove]
+    [contentWidth, selectedId, handleSelect, handleRequestRemove, handleToggleFavorite]
   );
 
   const headerPadding = {
@@ -282,7 +298,7 @@ export default function CollectionScreen() {
             <ThemedText themeColor="textSecondary" style={styles.countText}>
               {selectionMode
                 ? `${selectedCount} selected`
-                : `${entries.length} ${entries.length === 1 ? 'pick' : 'picks'} saved`}
+                : `${totalCount} ${totalCount === 1 ? 'pick' : 'picks'} saved`}
             </ThemedText>
           </View>
           <View style={styles.headerActions}>
@@ -308,7 +324,7 @@ export default function CollectionScreen() {
               </>
             ) : (
               <>
-                {entries.length > 0 && (
+                {totalCount > 0 && (
                   <Button
                     size="sm"
                     variant="secondary"
@@ -318,7 +334,7 @@ export default function CollectionScreen() {
                     Select
                   </Button>
                 )}
-                {entries.length > 0 && (
+                {totalCount > 0 && (
                   <Button
                     size="sm"
                     style={styles.touchTarget}
@@ -336,6 +352,38 @@ export default function CollectionScreen() {
           onChangeText={handleQueryChange}
           onClear={handleClearQuery}
         />
+        <View style={styles.filterRow}>
+          {[
+            { value: 'all', label: 'All', labelText: 'Show all saved picks' },
+            { value: 'favorites', label: `Favorites (${favoriteCount})`, labelText: 'Show favorite picks only' },
+          ].map((option) => {
+            const isActive = filter === option.value;
+            return (
+              <Pressable
+                key={option.value}
+                onPress={() => handleFilterChange(option.value)}
+                accessibilityRole="button"
+                accessibilityLabel={option.labelText}
+                accessibilityState={{ selected: isActive }}
+                style={({ pressed }) => [
+                  styles.filterChip,
+                  {
+                    backgroundColor: isActive ? theme.primary : theme.backgroundElement,
+                    borderColor: isActive ? theme.primary : theme.border,
+                  },
+                  pressed && styles.pressed,
+                ]}>
+                <ThemedText
+                  style={[
+                    styles.filterChipText,
+                    { color: isActive ? theme.primaryText : theme.text },
+                  ]}>
+                  {option.label}
+                </ThemedText>
+              </Pressable>
+            );
+          })}
+        </View>
         {selectionMode && selectedCount > 0 && (
           <View style={styles.selectionToolbar}>
             <ThemedText themeColor="textSecondary" style={styles.selectedText}>
@@ -356,6 +404,7 @@ export default function CollectionScreen() {
   );
 
   const hasQuery = query.trim().length > 0;
+  const hasFavoritesFilter = filter === 'favorites';
   const emptyState = isLoaded ? (
     <View style={[styles.column, styles.emptyState, { width: contentWidth }]}>
       {hasQuery ? (
@@ -370,6 +419,19 @@ export default function CollectionScreen() {
             onPress={handleClearQuery}
             icon="xmark.circle">
             Clear search
+          </Button>
+        </>
+      ) : hasFavoritesFilter ? (
+        <>
+          <ThemedText themeColor="textSecondary" style={styles.emptyText}>
+            No favorites yet. Tap a star on any saved pick to keep it here.
+          </ThemedText>
+          <Button
+            size="sm"
+            style={styles.touchTarget}
+            onPress={() => handleFilterChange('all')}
+            icon="star.slash">
+            Show all picks
           </Button>
         </>
       ) : (
@@ -390,7 +452,7 @@ export default function CollectionScreen() {
     </View>
   ) : null;
 
-  const footer = entries.length > 0 && (
+  const footer = totalCount > 0 && (
     <View style={[styles.column, styles.actions, { width: contentWidth }]}>
       <Button
         size="sm"
@@ -416,7 +478,7 @@ export default function CollectionScreen() {
         ListEmptyComponent={emptyState}
         ListFooterComponent={footer}
         onScrollBeginDrag={closeOpenSwipes}
-        extraData={`${selectedDigits ?? ''}|${query}`}
+        extraData={`${selectedId ?? ''}|${query}|${filter}`}
       />
 
       <BasketEntrySheet
@@ -434,7 +496,7 @@ export default function CollectionScreen() {
             : null
         }
         plotError={plotPreview && !plotPreview.valid ? plotPreview.error : null}
-        onClose={() => setSelectedDigits(null)}
+        onClose={() => setSelectedId(null)}
         onPlot={handlePlot}
         onRemove={handleRequestRemove}
       />
@@ -464,7 +526,7 @@ export default function CollectionScreen() {
       <ConfirmDialog
         visible={showClearDialog}
         title="Clear Basket"
-        message={`Remove all ${entries.length} picks from the basket? This cannot be undone.`}
+        message={`Remove all ${totalCount} picks from the basket? This cannot be undone.`}
         confirmLabel="Clear"
         confirmVariant="destructive"
         icon="trash"
@@ -527,6 +589,26 @@ const styles = StyleSheet.create({
   selectedText: {
     flexShrink: 1,
     fontSize: Typography.size.body,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+    marginTop: Spacing.two,
+  },
+  filterChip: {
+    minHeight: 40,
+    paddingHorizontal: Spacing.three,
+    borderRadius: BorderRadius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterChipText: {
+    fontSize: Typography.size.body,
+    fontWeight: Typography.weight.semibold,
+  },
+  pressed: {
+    opacity: 0.7,
   },
   list: {
     flex: 1,
