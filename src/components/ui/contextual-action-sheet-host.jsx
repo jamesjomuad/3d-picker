@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ContextualActionSheet } from '@/components/ui/contextual-action-sheet';
+import { Spacing } from '@/constants/theme';
 import { useContextualSheetStore } from '@/store/contextualSheetStore';
 
 /**
@@ -16,6 +18,7 @@ export function ContextualActionSheetHost() {
   const onCancel = useContextualSheetStore((state) => state.onCancel);
   const registerDismiss = useContextualSheetStore((state) => state.registerDismiss);
   const sheetRef = useRef(null);
+  const insets = useSafeAreaInsets();
 
   const dismiss = useCallback((callback) => {
     sheetRef.current?.dismiss(callback);
@@ -30,6 +33,7 @@ export function ContextualActionSheetHost() {
       title={title}
       actions={actions}
       onCancel={onCancel}
+      bottomInset={visible ? insets.bottom + Spacing.one : undefined}
     />
   );
 }

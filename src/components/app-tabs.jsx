@@ -3,16 +3,19 @@ import { NativeTabs } from 'expo-router/native-tabs';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useBasketStore } from '@/store/basketStore';
+import { useContextualSheetStore } from '@/store/contextualSheetStore';
 
 export default function AppTabs() {
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
   const basketCount = useBasketStore((state) => state.entries.length);
+  const contextualSheetVisible = useContextualSheetStore((state) => state.visible);
   const iconColor = scheme === 'dark' ? { selected: colors.primary } : undefined;
 
   return (
     <NativeTabs
       backgroundColor={colors.background}
+      hidden={contextualSheetVisible}
       iconColor={iconColor}
       indicatorColor={colors.backgroundElement}
       labelStyle={{ selected: { color: colors.text } }}>
