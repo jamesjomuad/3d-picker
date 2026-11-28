@@ -1,5 +1,10 @@
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback, useMemo, useRef } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import Animated, {
+  runOnJS,
+  useAnimatedReaction,
+  useAnimatedStyle,
+} from 'react-native-reanimated';
 
 import { ThemedText } from '@/components/themed-text';
 import { AppIcon } from '@/components/ui/app-icon';
@@ -13,6 +18,10 @@ import {
   Typography,
 } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useCollectionSelectionStore } from '@/store/collectionSelectionStore';
+import {
+  selectionModeProgress,
+} from '@/store/collectionSelectionVisuals';
 import { formatAddedTime } from '@/utils/basket-format';
 import { getPathReference } from '@/utils/cell-reference';
 
@@ -25,43 +34,48 @@ import { getPathReference } from '@/utils/cell-reference';
  * separate rows. Press and selected states change opacity/background without
  * moving any content.
  *
- * Browse mode allows a deliberate left swipe to reveal Remove. Selection mode
- * swaps that gesture for a checkbox and never opens the detail sheet.
+ * Selection is subscribed at row level: a toggle re-renders only the row whose
+ * checked flag changed. Mode changes drive checkbox/chevron opacity and swipe
+ * enablement through shared values, so entering selection mode never re-renders
+ * every row. The row stays mounted throughout.
  *
  * @param {Object} props
  * @param {{digits: string, path: Array, addedAt?: string|number}} props.entry
  * @param {boolean} [props.selected=false] - detail sheet target
- * @param {boolean} [props.checked=false] - temporary multi-select state
- * @param {boolean} [props.selectionMode=false]
  * @param {boolean} [props.showDivider=false]
  * @param {number} [props.width]
  * @param {(digits: string) => void} [props.onSelect]
- * @param {(digits: string) => void} [props.onToggleSelected]
  * @param {(digits: string) => void} [props.onRequestRemove]
  */
 export const CollectionRow = memo(function CollectionRow({
   entry,
   selected = false,
-  checked = false,
-  selectionMode = false,
   showDivider = false,
   width,
   onSelect,
-  onToggleSelected,
   onRequestRemove,
 }) {
   const theme = useTheme();
   const { digits } = entry;
-  const time = formatAddedTime(entry.addedAt);
-  const coordinates = getPathReference(entry.path).split(' → ').join(' · ');
+  const rowRef = useRef(null);
+  const checked = useCollectionSelectionStore((state) => state.selectedIds.has(digits));
+  const time = useMemo(() => formatAddedTime(entry.addedAt), [entry.addedAt]);
+  const coordinates = useMemo(
+    () => getPathReference(entry.path).split(' → ').join(' · '),
+    [entry.path]
+  );
+
+  // Read once for initial native props. Later mode changes are applied to the
+  // mounted view, not through a React subscription.
+  const modeAtRender = useCollectionSelectionStore.getState().selectionMode;
 
   const handleRowPress = useCallback(() => {
-    if (selectionMode) {
-      onToggleSelected?.(digits);
+    if (useCollectionSelectionStore.getState().selectionMode) {
+      useCollectionSelectionStore.getState().toggleSelected(digits);
       return;
     }
     onSelect?.(digits);
-  }, [digits, onSelect, onToggleSelected, selectionMode]);
+  }, [digits, onSelect]);
 
   const removeActions = useMemo(
     () => [
@@ -77,42 +91,68 @@ export const CollectionRow = memo(function CollectionRow({
     [digits, onRequestRemove]
   );
 
+  const highlighted = selected || checked;
   const surfaceStyle = useMemo(
     () => [
       {
-        backgroundColor: selected
+        backgroundColor: highlighted
           ? theme.backgroundSelected
           : theme.backgroundElement,
       },
     ],
-    [selected, theme.backgroundElement, theme.backgroundSelected]
+    [highlighted, theme.backgroundElement, theme.backgroundSelected]
   );
 
   const browseLabel = `Open details for ${digits}, at ${coordinates}, added ${time}`;
   const selectLabel = `Select ${digits}, at ${coordinates}, added ${time}`;
-  const rowHighlighted = selectionMode ? checked : selected;
+
+  const checkboxStyle = useAnimatedStyle(() => ({
+    opacity: selectionModeProgress.get(),
+  }));
+  const chevronStyle = useAnimatedStyle(() => ({
+    opacity: 1 - selectionModeProgress.get(),
+  }));
+
+  const syncAccessibility = useCallback(
+    (active) => {
+      rowRef.current?.setNativeProps?.({
+        accessibilityRole: active ? 'checkbox' : 'button',
+        accessibilityLabel: active ? selectLabel : browseLabel,
+        accessibilityState: active ? { checked } : { selected },
+      });
+    },
+    [browseLabel, checked, selectLabel, selected]
+  );
+
+  useAnimatedReaction(
+    () => selectionModeProgress.get() === 1,
+    (active) => {
+      runOnJS(syncAccessibility)(active);
+    },
+    [syncAccessibility]
+  );
 
   const content = (
     <Pressable
+      ref={rowRef}
       onPress={handleRowPress}
-      accessibilityRole={selectionMode ? 'checkbox' : 'button'}
-      accessibilityLabel={selectionMode ? selectLabel : browseLabel}
-      accessibilityState={selectionMode ? { checked } : { selected }}
+      accessibilityRole={modeAtRender ? 'checkbox' : 'button'}
+      accessibilityLabel={modeAtRender ? selectLabel : browseLabel}
+      accessibilityState={modeAtRender ? { checked } : { selected }}
       style={({ pressed }) => [
         styles.row,
         { width, borderTopColor: theme.border },
         showDivider && styles.divider,
-        rowHighlighted && {
+        highlighted && {
           borderRadius: BorderRadius.sm,
           backgroundColor: theme.backgroundSelected,
         },
         pressed && styles.pressed,
       ]}>
-      <View
-        pointerEvents={selectionMode ? 'auto' : 'none'}
+      <Animated.View
         style={[
           styles.checkbox,
-          !selectionMode && styles.hidden,
+          checkboxStyle,
           {
             borderColor: checked ? theme.primary : theme.border,
             backgroundColor: checked ? theme.primary : theme.background,
@@ -124,7 +164,7 @@ export const CollectionRow = memo(function CollectionRow({
           tone="primaryText"
           style={checked ? styles.checkVisible : styles.checkHidden}
         />
-      </View>
+      </Animated.View>
       <View style={styles.primary}>
         <ThemedText numberOfLines={1} style={styles.digits}>
           {digits}
@@ -141,17 +181,12 @@ export const CollectionRow = memo(function CollectionRow({
           style={[styles.time, { color: theme.textSecondary }]}>
           {time}
         </ThemedText>
-        <AppIcon
-          name="chevron.right"
-          size="small"
-          tone="textSecondary"
-          style={selectionMode ? styles.hidden : undefined}
-        />
+        <Animated.View style={[styles.chevron, chevronStyle]}>
+          <AppIcon name="chevron.right" size="small" tone="textSecondary" />
+        </Animated.View>
       </View>
     </Pressable>
   );
-
-  if (selectionMode) return content;
 
   return (
     <SwipeActionRow rowId={digits} actions={removeActions} contentStyle={surfaceStyle}>
@@ -175,9 +210,6 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: Interaction.pressedOpacity,
-  },
-  hidden: {
-    display: 'none',
   },
   checkbox: {
     width: 22,
@@ -218,6 +250,11 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     gap: Spacing.one,
     paddingTop: Spacing.one,
+  },
+  chevron: {
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   time: {
     fontSize: Typography.size.caption,

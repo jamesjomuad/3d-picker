@@ -18,20 +18,14 @@ import { useTheme } from '@/hooks/use-theme';
  * @param {{key: string, title: string, count: number, data: Array}} props.section
  * @param {number} [props.width] - centred column width
  * @param {string|null} props.selectedDigits - open detail sheet target
- * @param {Set<string>} [props.selectedIds] - temporary multi-select IDs
- * @param {boolean} [props.selectionMode=false]
  * @param {(digits: string) => void} props.onSelect
- * @param {(digits: string) => void} [props.onToggleSelected]
  * @param {(digits: string) => void} [props.onRequestRemove]
  */
 export const CollectionGroupCard = memo(function CollectionGroupCard({
   section,
   width,
   selectedDigits,
-  selectedIds,
-  selectionMode = false,
   onSelect,
-  onToggleSelected,
   onRequestRemove,
 }) {
   const theme = useTheme();
@@ -52,11 +46,8 @@ export const CollectionGroupCard = memo(function CollectionGroupCard({
             entry={entry}
             width={rowWidth}
             selected={entry.digits === selectedDigits}
-            checked={selectedIds?.has(entry.digits) ?? false}
-            selectionMode={selectionMode}
             showDivider={index > 0}
             onSelect={onSelect}
-            onToggleSelected={onToggleSelected}
             onRequestRemove={onRequestRemove}
           />
         ))}

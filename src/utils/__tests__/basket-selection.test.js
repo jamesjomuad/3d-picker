@@ -55,6 +55,7 @@ describe('basket selection helpers', () => {
 
   it('reports whether every visible ID is selected', () => {
     expect(areAllVisibleSelected(new Set(['074', '638']), ['074', '638'])).toBe(true);
+    expect(areAllVisibleSelected(['074', '638'], ['074', '638'])).toBe(true);
     expect(areAllVisibleSelected(new Set(['074']), ['074', '638'])).toBe(false);
     expect(areAllVisibleSelected(new Set(['074']), [])).toBe(false);
   });

@@ -86,6 +86,9 @@ export function pruneSelectedIds(selectedIds, availableIds) {
  */
 export function areAllVisibleSelected(selectedIds, visibleIds) {
   if (!Array.isArray(visibleIds) || visibleIds.length === 0) return false;
-  const selected = copyIds(selectedIds);
+  if (selectedIds instanceof Set) {
+    return visibleIds.every((id) => selectedIds.has(id));
+  }
+  const selected = new Set(Array.isArray(selectedIds) ? selectedIds : []);
   return visibleIds.every((id) => selected.has(id));
 }

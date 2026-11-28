@@ -14,16 +14,11 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useScreenInsets } from '@/hooks/use-screen-insets';
 import { useTheme } from '@/hooks/use-theme';
 import { useBasketStore } from '@/store/basketStore';
+import { useCollectionSelectionStore } from '@/store/collectionSelectionStore';
 import { useLibraryStore } from '@/store/libraryStore';
 import { buildBasketShareText } from '@/utils/basket-format';
 import { groupBasketEntries } from '@/utils/basket-grouping';
-import {
-  areAllVisibleSelected,
-  pruneSelectedIds,
-  removeSelectedIds,
-  selectVisibleIds,
-  toggleSelectedId,
-} from '@/utils/basket-selection';
+import { areAllVisibleSelected } from '@/utils/basket-selection';
 import { filterBasketEntries } from '@/utils/basket-search';
 import { buildPlotHighlights } from '@/utils/plot-highlights';
 import {
@@ -88,8 +83,6 @@ export default function CollectionScreen() {
   // Digits are the basket's stable identity, so the sheet always resolves the
   // current entry from the store even if the list changes while it is open.
   const [selectedDigits, setSelectedDigits] = useState(null);
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [showBulkRemoveDialog, setShowBulkRemoveDialog] = useState(false);
 
   const filteredEntries = useMemo(
@@ -101,14 +94,12 @@ export default function CollectionScreen() {
     () => filteredEntries.map((entry) => entry.digits),
     [filteredEntries]
   );
-  const selectedCount = selectedIds.size;
-  const allVisibleSelected = useMemo(
-    () => areAllVisibleSelected(selectedIds, visibleIds),
-    [selectedIds, visibleIds]
-  );
-  const selectionSignature = useMemo(
-    () => [...selectedIds].sort().join('|'),
-    [selectedIds]
+  // Subscribe to primitives only. A checkbox toggle changes row subscriptions,
+  // not the grouped list data or every row's props.
+  const selectionMode = useCollectionSelectionStore((state) => state.selectionMode);
+  const selectedCount = useCollectionSelectionStore((state) => state.selectedIds.size);
+  const allVisibleSelected = useCollectionSelectionStore((state) =>
+    areAllVisibleSelected(state.selectedIds, visibleIds)
   );
 
   const selectedEntry = entries.find((entry) => entry.digits === selectedDigits) ?? null;
@@ -134,11 +125,9 @@ export default function CollectionScreen() {
   }, [loadLibrary]);
 
   useEffect(() => {
-    setSelectedIds((current) => {
-      const availableIds = entries.map((entry) => entry.digits);
-      const next = pruneSelectedIds(current, availableIds);
-      return next.size === current.size ? current : next;
-    });
+    useCollectionSelectionStore
+      .getState()
+      .pruneAvailable(entries.map((entry) => entry.digits));
   }, [entries]);
 
   const closeOpenSwipes = useCallback(() => closeAllSwipeActions(), []);
@@ -192,7 +181,7 @@ export default function CollectionScreen() {
   const handleConfirmRemove = useCallback(() => {
     if (pendingRemoveDigits === null) return;
     remove(pendingRemoveDigits);
-    setSelectedIds((current) => removeSelectedIds(current, [pendingRemoveDigits]));
+    useCollectionSelectionStore.getState().removeSelected([pendingRemoveDigits]);
     setSelectedDigits(null);
     setPendingRemoveDigits(null);
   }, [pendingRemoveDigits, remove]);
@@ -200,27 +189,17 @@ export default function CollectionScreen() {
   const handleStartSelection = useCallback(() => {
     closeOpenSwipes();
     setSelectedDigits(null);
-    setSelectedIds(new Set());
-    setSelectionMode(true);
+    useCollectionSelectionStore.getState().startSelection();
   }, [closeOpenSwipes]);
 
   const handleCancelSelection = useCallback(() => {
     closeOpenSwipes();
-    setSelectedIds(new Set());
-    setSelectionMode(false);
+    useCollectionSelectionStore.getState().cancelSelection();
   }, [closeOpenSwipes]);
-
-  const handleToggleSelected = useCallback(
-    (digits) => {
-      if (!selectionMode) return;
-      setSelectedIds((current) => toggleSelectedId(current, digits));
-    },
-    [selectionMode]
-  );
 
   const handleSelectAll = useCallback(() => {
     if (visibleIds.length === 0 || allVisibleSelected) return;
-    setSelectedIds((current) => selectVisibleIds(current, visibleIds));
+    useCollectionSelectionStore.getState().selectVisible(visibleIds);
   }, [allVisibleSelected, visibleIds]);
 
   const handleOpenBulkRemove = useCallback(() => {
@@ -232,20 +211,19 @@ export default function CollectionScreen() {
   const handleCancelBulkRemove = useCallback(() => setShowBulkRemoveDialog(false), []);
 
   const handleConfirmBulkRemove = useCallback(() => {
+    const { selectedIds } = useCollectionSelectionStore.getState();
     if (selectedIds.size === 0) return;
     closeOpenSwipes();
     removeMany([...selectedIds]);
-    setSelectedIds(new Set());
-    setSelectionMode(false);
+    useCollectionSelectionStore.getState().cancelSelection();
     setShowBulkRemoveDialog(false);
-  }, [closeOpenSwipes, removeMany, selectedIds]);
+  }, [closeOpenSwipes, removeMany]);
 
   const handleConfirmClear = useCallback(() => {
     closeOpenSwipes();
     clear();
     setSelectedDigits(null);
-    setSelectedIds(new Set());
-    setSelectionMode(false);
+    useCollectionSelectionStore.getState().cancelSelection();
     setShowClearDialog(false);
   }, [clear, closeOpenSwipes]);
 
@@ -274,22 +252,11 @@ export default function CollectionScreen() {
         section={item}
         width={contentWidth}
         selectedDigits={selectedDigits}
-        selectedIds={selectedIds}
-        selectionMode={selectionMode}
         onSelect={handleSelect}
-        onToggleSelected={handleToggleSelected}
         onRequestRemove={handleRequestRemove}
       />
     ),
-    [
-      contentWidth,
-      selectedDigits,
-      selectedIds,
-      selectionMode,
-      handleSelect,
-      handleToggleSelected,
-      handleRequestRemove,
-    ]
+    [contentWidth, selectedDigits, handleSelect, handleRequestRemove]
   );
 
   const headerPadding = {
@@ -449,7 +416,7 @@ export default function CollectionScreen() {
         ListEmptyComponent={emptyState}
         ListFooterComponent={footer}
         onScrollBeginDrag={closeOpenSwipes}
-        extraData={`${selectedDigits ?? ''}|${query}|${selectionMode ? '1' : '0'}|${selectionSignature}`}
+        extraData={`${selectedDigits ?? ''}|${query}`}
       />
 
       <BasketEntrySheet

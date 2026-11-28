@@ -13,6 +13,7 @@ import { ThemedText } from '@/components/themed-text';
 import { AppIcon } from '@/components/ui/app-icon';
 import { Spacing, TouchTarget, Typography } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { selectionModeProgress } from '@/store/collectionSelectionVisuals';
 
 /**
  * Row wrapper that reveals trailing actions on a deliberate left swipe.
@@ -177,6 +178,12 @@ export function SwipeActionRow({
         })
         .onUpdate((event) => {
           'worklet';
+          // Selection mode is a native-only flag here. Keep the gesture inert
+          // without reconfiguring or re-rendering mounted rows.
+          if (selectionModeProgress.get() === 1) {
+            setSwipeOffset(swipeX, 0);
+            return;
+          }
           const next = startX.get() + event.translationX;
           setSwipeOffset(
             swipeX,
@@ -185,13 +192,18 @@ export function SwipeActionRow({
         })
         .onEnd((event) => {
           'worklet';
+          dragging.set(false);
+          if (selectionModeProgress.get() === 1) {
+            setSwipeOffset(swipeX, withTiming(0, SNAP));
+            runOnJS(settle)(false);
+            return;
+          }
           const width = actionsWidth.get();
           const shouldOpen =
             width > 0 &&
             (swipeX.get() < -width * OPEN_THRESHOLD_RATIO ||
               event.velocityX < OPEN_VELOCITY);
           setSwipeOffset(swipeX, withTiming(shouldOpen ? -width : 0, SNAP));
-          dragging.set(false);
           runOnJS(settle)(shouldOpen);
         })
         .onFinalize(() => {
