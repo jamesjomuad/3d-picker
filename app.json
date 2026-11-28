@@ -2,7 +2,7 @@
   "expo": {
     "name": "3d-picker",
     "slug": "3d-picker",
-    "version": "1.4.0",
+    "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "picker3d",
@@ -12,7 +12,7 @@
     },
     "android": {
       "package": "com.jamesjomuad.picker3d",
-      "versionCode": 4,
+      "versionCode": 6,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

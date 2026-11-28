@@ -3,6 +3,21 @@
 All notable changes to 3D Picker are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to [semantic versioning](https://semver.org/).
 
+## [2.0.0] - 2026-11-28
+
+### Added
+- **Cached Results** — local SQLite results with draw history, pending/upcoming states, pull-to-refresh and cursor-based paging.
+- **Results filters** — month picker, seven day chips per page, numeric search, and combined filtering of cached draws.
+- **Collection persistence** — basket saved in SQLite with swipe actions, bulk select and a modal sheet.
+
+### Changed
+- Filtered results show `—` for missing sessions instead of inferred `PENDING`.
+- Fun Pick accepts straight board walks as well as 90-degree turns.
+
+### Fixed
+- Contextual sheets hide bottom tabs and pass outside taps through.
+- Collection select mode, hidden checkbox spacing and row highlight behavior.
+
 ## [1.4.0] - 2026-11-27
 
 ### Added
@@ -97,6 +112,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Board library** — editable grids, board creation, persistence on-device, boards screen.
 - Reusable UI primitives (button, input, text, confirm dialog) with light/dark theming.
 
+[2.0.0]: https://github.com/jamesjomuad/3d-picker/releases/tag/v2.0.0
 [1.4.0]: https://github.com/jamesjomuad/3d-picker/releases/tag/v1.4.0
 [1.3.0]: https://github.com/jamesjomuad/3d-picker/releases/tag/v1.3.0
 [1.2.0]: https://github.com/jamesjomuad/3d-picker/releases/tag/v1.2.0

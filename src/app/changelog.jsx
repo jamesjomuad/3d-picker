@@ -2,6 +2,26 @@ import { InfoLink, InfoScreen } from '@/components/info/info-screen';
 
 const SECTIONS = [
   {
+    title: 'Version 2.0.0 — November 28, 2026',
+    items: [
+      'Cached Results with local SQLite history, pending/upcoming states, pull-to-refresh and paging',
+      'Month, day and numeric search filters for cached Results',
+      'Collection basket persisted in SQLite with swipe actions, bulk select and a modal sheet',
+      {
+        text: 'Changed',
+        detail:
+          'Filtered results show a dash for missing sessions. Fun Pick accepts straight board walks as well as 90-degree turns.',
+        icon: 'arrow.clockwise',
+      },
+      {
+        text: 'Fixed',
+        detail:
+          'Contextual sheets hide bottom tabs and pass outside taps through. Collection select mode and row highlight behave correctly.',
+        icon: 'checkmark.circle',
+      },
+    ],
+  },
+  {
     title: 'Version 1.4.0 — November 27, 2026',
     items: [
       'Configurable rectangular grids: 2–20 rows and 2–12 columns in the visual editor',
@@ -91,8 +111,8 @@ export default function ChangelogScreen() {
       sections={SECTIONS}
       footer={
         <>
-          <InfoLink href="https://github.com/jamesjomuad/3d-picker/releases/tag/v1.4.0">
-            View v1.4.0 release notes
+          <InfoLink href="https://github.com/jamesjomuad/3d-picker/releases/tag/v2.0.0">
+            View v2.0.0 release notes
           </InfoLink>
           <InfoLink href="https://github.com/jamesjomuad/3d-picker/releases">
             View all releases

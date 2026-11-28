@@ -1,6 +1,6 @@
 {
   "name": "3d Picker",
-  "version": "1.4.0",
+  "version": "2.0.0",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo/ui": "~58.0.29",
